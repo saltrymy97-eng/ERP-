@@ -1,7 +1,7 @@
-// App.js – نظام الحضور والغياب بأيقونات 3D ذهبية وقوائم منسدلة
+// src/App.js – نظام الحضور والغياب بأيقونات 3D ذهبية وقوائم منسدلة
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { initDatabase, loadFromLocalStorage } from './services/db';
+import { initDatabase } from './services/db';
 import { login, logout, restoreSession } from './services/auth';
 import { loadMobileModel } from './services/ai';
 import Dashboard from './components/Dashboard';
@@ -15,7 +15,6 @@ function App() {
   const [screen, setScreen] = useState('home');
   const [openMenu, setOpenMenu] = useState(null);
   const [user, setUser] = useState(null);
-  const [dbReady, setDbReady] = useState(false);
   const [aiReady, setAiReady] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -25,12 +24,26 @@ function App() {
   // ========== بدء التشغيل ==========
   useEffect(() => {
     async function startup() {
-      const saved = await loadFromLocalStorage();
-      if (!saved) await initDatabase();
-      setDbReady(true);
-      const savedUser = await restoreSession();
-      if (savedUser) setUser(savedUser);
-      loadMobileModel().then(() => setAiReady(true));
+      try {
+        await initDatabase();
+      } catch(e) {
+        console.log('DB init:', e);
+      }
+      
+      try {
+        const savedUser = await restoreSession();
+        if (savedUser) setUser(savedUser);
+      } catch(e) {
+        console.log('Session:', e);
+      }
+      
+      try {
+        await loadMobileModel();
+        setAiReady(true);
+      } catch(e) {
+        console.log('AI:', e);
+      }
+      
       setLoading(false);
     }
     startup();
@@ -76,9 +89,9 @@ function App() {
       gradient: 'linear-gradient(135deg, #10B981, #34d399)',
       desc: 'إدارة الطلاب والكليات والأقسام',
       subItems: [
-        { id: 'students-colleges', title: '🏫 الكليات والأقسام', screen: 'students', tab: 'colleges' },
-        { id: 'students-majors', title: '🎓 التخصصات', screen: 'students', tab: 'majors' },
-        { id: 'students-list', title: '👥 قائمة الطلاب', screen: 'students', tab: 'students' }
+        { id: 'students-colleges', title: '🏫 الكليات والأقسام', screen: 'students' },
+        { id: 'students-majors', title: '🎓 التخصصات', screen: 'students' },
+        { id: 'students-list', title: '👥 قائمة الطلاب', screen: 'students' }
       ]
     },
     {
@@ -89,9 +102,9 @@ function App() {
       gradient: 'linear-gradient(135deg, #3B82F6, #60a5fa)',
       desc: 'تسجيل حضور بالبصمة ومتابعة',
       subItems: [
-        { id: 'att-live', title: '🖐️ تسجيل مباشر', screen: 'attendance', tab: 'live' },
-        { id: 'att-today', title: '📋 حضور اليوم', screen: 'attendance', tab: 'today' },
-        { id: 'att-month', title: '📊 شهري', screen: 'attendance', tab: 'monthly' }
+        { id: 'att-live', title: '🖐️ تسجيل مباشر', screen: 'attendance' },
+        { id: 'att-today', title: '📋 حضور اليوم', screen: 'attendance' },
+        { id: 'att-month', title: '📊 شهري', screen: 'attendance' }
       ]
     },
     {
@@ -102,10 +115,10 @@ function App() {
       gradient: 'linear-gradient(135deg, #F59E0B, #fbbf24)',
       desc: 'تقارير PDF و Excel',
       subItems: [
-        { id: 'rep-daily', title: '📋 تقرير يومي', screen: 'reports', tab: 'daily' },
-        { id: 'rep-monthly', title: '📊 تقرير شهري', screen: 'reports', tab: 'monthly' },
-        { id: 'rep-student', title: '👤 تقرير طالب', screen: 'reports', tab: 'student' },
-        { id: 'rep-discipline', title: '🏆 تقييم الانضباط', screen: 'reports', tab: 'discipline' }
+        { id: 'rep-daily', title: '📋 تقرير يومي', screen: 'reports' },
+        { id: 'rep-monthly', title: '📊 تقرير شهري', screen: 'reports' },
+        { id: 'rep-student', title: '👤 تقرير طالب', screen: 'reports' },
+        { id: 'rep-discipline', title: '🏆 تقييم الانضباط', screen: 'reports' }
       ]
     },
     {
@@ -143,16 +156,15 @@ function App() {
       gradient: 'linear-gradient(135deg, #64748B, #94a3b8)',
       desc: 'إعدادات النظام والمستخدمين',
       subItems: [
-        { id: 'set-devices', title: '🖐️ أجهزة البصمة', screen: 'settings', tab: 'devices' },
-        { id: 'set-whatsapp', title: '💬 واتساب', screen: 'settings', tab: 'whatsapp' },
-        { id: 'set-calendar', title: '📅 التقويم', screen: 'settings', tab: 'calendar' },
-        { id: 'set-users', title: '👥 المستخدمين', screen: 'settings', tab: 'users' },
-        { id: 'set-backup', title: '💾 نسخ احتياطي', screen: 'settings', tab: 'backup' }
+        { id: 'set-devices', title: '🖐️ أجهزة البصمة', screen: 'settings' },
+        { id: 'set-whatsapp', title: '💬 واتساب', screen: 'settings' },
+        { id: 'set-calendar', title: '📅 التقويم', screen: 'settings' },
+        { id: 'set-users', title: '👥 المستخدمين', screen: 'settings' },
+        { id: 'set-backup', title: '💾 نسخ احتياطي', screen: 'settings' }
       ]
     }
   ];
 
-  // ========== التعامل مع الأيقونة ==========
   const handleIconClick = (icon) => {
     if (icon.subItems.length > 0) {
       setOpenMenu(openMenu === icon.id ? null : icon.id);
@@ -201,7 +213,6 @@ function App() {
           </motion.div>
           <h1>تسجيل الدخول</h1>
           <p>نظام متابعة حضور وغياب الطلاب</p>
-
           <div className="login-input-group">
             <label>اسم المستخدم</label>
             <input
@@ -212,7 +223,6 @@ function App() {
               onKeyPress={e => e.key === 'Enter' && handleLogin()}
             />
           </div>
-
           <div className="login-input-group">
             <label>كلمة المرور</label>
             <input
@@ -223,9 +233,7 @@ function App() {
               onKeyPress={e => e.key === 'Enter' && handleLogin()}
             />
           </div>
-
           {loginError && <p className="login-error">{loginError}</p>}
-
           <motion.button 
             className="login-btn"
             onClick={handleLogin}
@@ -234,7 +242,6 @@ function App() {
           >
             دخول
           </motion.button>
-
           <p className="login-footer">
             جامعة القرآن الكريم والعلوم الإسلامية<br />
             فرع غيل باوزير - حضرموت
@@ -248,30 +255,20 @@ function App() {
   if (screen === 'home') {
     return (
       <div className="home-screen">
-        {/* خلفية متحركة */}
         <div className="home-bg">
           <div className="bg-orb bg-orb-1"></div>
           <div className="bg-orb bg-orb-2"></div>
           <div className="bg-orb bg-orb-3"></div>
         </div>
-
-        {/* الهيدر */}
         <motion.header 
           className="home-header"
           initial={{ opacity: 0, y: -30 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <motion.div 
-            className="home-logo"
-            whileHover={{ scale: 1.1, rotate: 5 }}
-          >
-            🏛️
-          </motion.div>
+          <motion.div className="home-logo" whileHover={{ scale: 1.1, rotate: 5 }}>🏛️</motion.div>
           <h1>نظام متابعة الحضور والغياب</h1>
           <p>جامعة القرآن الكريم والعلوم الإسلامية</p>
         </motion.header>
-
-        {/* شبكة الأيقونات */}
         <div className="icons-grid">
           {mainIcons.map((icon, index) => (
             <motion.div
@@ -284,18 +281,13 @@ function App() {
               <motion.button
                 className={`icon-card ${openMenu === icon.id ? 'active' : ''}`}
                 onClick={() => handleIconClick(icon)}
-                whileHover={{ 
-                  scale: 1.08,
-                  y: -8,
-                  boxShadow: `0 20px 40px ${icon.color}33`
-                }}
+                whileHover={{ scale: 1.08, y: -8, boxShadow: `0 20px 40px ${icon.color}33` }}
                 whileTap={{ scale: 0.95 }}
                 style={{ 
                   borderColor: openMenu === icon.id ? icon.color : 'rgba(255,255,255,0.1)',
                   background: openMenu === icon.id ? `${icon.color}15` : 'rgba(255,255,255,0.03)'
                 }}
               >
-                {/* أيقونة 3D */}
                 <motion.div 
                   className="icon-3d"
                   animate={{ 
@@ -316,23 +308,12 @@ function App() {
                     {icon.icon}
                   </motion.span>
                 </motion.div>
-
-                {/* العنوان */}
                 <h3 className="icon-title">{icon.title}</h3>
                 <p className="icon-desc">{icon.desc}</p>
-
-                {/* مؤشر القائمة المنسدلة */}
                 {icon.subItems.length > 0 && (
-                  <motion.span 
-                    className="dropdown-arrow"
-                    animate={{ rotate: openMenu === icon.id ? 180 : 0 }}
-                  >
-                    ▼
-                  </motion.span>
+                  <motion.span className="dropdown-arrow" animate={{ rotate: openMenu === icon.id ? 180 : 0 }}>▼</motion.span>
                 )}
               </motion.button>
-
-              {/* القائمة المنسدلة */}
               <AnimatePresence>
                 {openMenu === icon.id && icon.subItems.length > 0 && (
                   <motion.div
@@ -351,11 +332,7 @@ function App() {
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: subIndex * 0.05 }}
-                        whileHover={{ 
-                          x: -10, 
-                          background: `${icon.color}15`,
-                          borderRight: `3px solid ${icon.color}`
-                        }}
+                        whileHover={{ x: -10, background: `${icon.color}15`, borderRight: `3px solid ${icon.color}` }}
                       >
                         {sub.title}
                       </motion.button>
@@ -366,14 +343,7 @@ function App() {
             </motion.div>
           ))}
         </div>
-
-        {/* معلومات المستخدم */}
-        <motion.div 
-          className="user-bar"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1 }}
-        >
+        <motion.div className="user-bar" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}>
           <span>👤 {user?.username}</span>
           <span className="user-role-badge">{user?.role === 'admin' ? 'مدير' : 'موظف'}</span>
           <button className="btn-logout" onClick={handleLogout}>🚪 خروج</button>
@@ -399,11 +369,8 @@ function App() {
 
   return (
     <div className="app-layout">
-      {/* شريط علوي */}
       <header className="top-bar">
-        <button className="back-btn" onClick={() => setScreen('home')}>
-          🏠 الرئيسية
-        </button>
+        <button className="back-btn" onClick={() => setScreen('home')}>🏠 الرئيسية</button>
         <h2>{getTitle()}</h2>
         <div className="header-status">
           <span className={`status-dot ${aiReady ? 'online' : 'offline'}`}></span>
@@ -411,8 +378,6 @@ function App() {
         </div>
         <button className="btn-logout-sm" onClick={handleLogout}>🚪</button>
       </header>
-
-      {/* المحتوى */}
       <main className="main-content">
         {screen === 'dashboard' && <Dashboard />}
         {screen === 'students' && <Students />}
