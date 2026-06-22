@@ -2,50 +2,241 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
   
-  <meta name="theme-color" content="#083d2b" />
+  <!-- 🎨 ألوان وتيم السيادة والمظهر العام -->
+  <meta name="theme-color" content="#041d14" />
   <meta name="msapplication-TileColor" content="#D4AF37" />
-  <meta name="description" content="نظام متابعة حضور وغياب الطلاب بجامعة القرآن الكريم والعلوم الإسلامية - فرع غيل باوزير بحضرموت." />
+  <meta name="description" content="المنظومة الإمبراطورية الموحدة لإدارة السياسات الأكاديمية ومتابعة الحضور والغياب البيومتري - جامعة القرآن الكريم والعلوم الإسلامية، فرع غيل باوزير بحضرموت." />
   <meta name="author" content="سالم التريمي" />
   
-  <meta property="og:title" content="نظام الحضور والغياب | جامعة القرآن الكريم والعلوم الإسلامية" />
-  <meta property="og:description" content="نظام متابعة حضور وغياب الطلاب - بصمة - واتساب - تقارير PDF" />
+  <!-- 🌐 بروتوكولات النشر والبطاقات الذكية (Open Graph / Meta Meta Tags) -->
+  <meta property="og:title" content="بوابة السيطرة المركزية | جامعة القرآن الكريم والعلوم الإسلامية" />
+  <meta property="og:description" content="المنظومة الرقمية السيادية لإدارة الرصد البيومتري، تكامل مع محركات WhatsApp Cloud API، واستخراج الصكوك والتقارير الأكاديمية الذكية للجامعة." />
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="ar_SA" />
+  <meta property="og:site_name" content="جامعة القرآن الكريم والعلوم الإسلامية" />
   
+  <!-- 🏅 أيقونات الهوية الرقمية المعتمدة -->
   <link rel="icon" type="image/png" sizes="32x32" href="%PUBLIC_URL%/logo.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="%PUBLIC_URL%/logo.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="%PUBLIC_URL%/logo.png" />
   
+  <!-- 📱 تطبيقات الويب التقدمية والأمان الفوري (PWA Capabilities) -->
   <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="نظام الحضور" />
+  <meta name="apple-mobile-web-app-title" content="الرصد السيادي" />
   
+  <!-- 🏛️ ربط واستدعاء الخطوط والقرائح الملكية المعتمدة -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Tajawal:wght@300;400;500;700;800;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&family=Tajawal:wght@300;400;500;700;800;900&display=swap" rel="stylesheet" />
   
-  <title>نظام الحضور والغياب | جامعة القرآن الكريم والعلوم الإسلامية</title>
+  <title>بوابة السيطرة والتحكم البيومتري الموحد | جامعة القرآن الكريم والعلوم الإسلامية</title>
   
+  <!-- 💎 التنسيقات الهيكلية وشاشة الإقلاع الفاخرة للأنظمة العليا -->
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Tajawal', sans-serif; background: #f8fafc; }
+    /* مصفوفة التصفير وضبط المحاذاة الكونية */
+    * { 
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box; 
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    :root {
+      --gold-main: #d4af37;
+      --gold-light: #f3e5ab;
+      --emerald-deep: #03140e;
+      --emerald-dark: #041d14;
+    }
+
+    body { 
+      font-family: 'Tajawal', sans-serif; 
+      background-color: var(--emerald-deep); 
+      color: #ffffff;
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+
+    /* 🔮 شاشة التحميل والإقلاع الزجاجية الفاخرة (Imperial Loader Window) */
+    #imperial-splash-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: radial-gradient(circle at center, var(--emerald-dark) 20%, #020b07 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 999999;
+      transition: opacity 0.8s cubic-bezier(0.25, 1, 0.5, 1), visibility 0.8s;
+    }
+
+    .loader-container {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 25px;
+    }
+
+    .loader-emblem {
+      width: 110px;
+      height: 110px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.02);
+      border: 2px solid rgba(214, 175, 55, 0.15);
+      box-shadow: 0 0 40px rgba(214, 175, 55, 0.05);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      animation: emblemGlow 3s ease-in-out infinite alternate;
+    }
+
+    .loader-emblem img {
+      width: 75px;
+      height: 75px;
+      object-fit: contain;
+    }
+
+    /* 💎 طوق النور الدوار حول الشعار */
+    .quantum-ring {
+      position: absolute;
+      width: 126px;
+      height: 126px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      border-top-color: var(--gold-main);
+      border-bottom-color: rgba(214, 175, 55, 0.1);
+      animation: ringSpin 2s linear infinite;
+    }
+
+    .loader-titles {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .loader-titles h1 {
+      font-family: 'Amiri', serif;
+      font-size: 2.1rem;
+      font-weight: 700;
+      color: var(--gold-light);
+      letter-spacing: 0.5px;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    }
+
+    .loader-titles p {
+      font-size: 0.9rem;
+      color: rgba(255, 255, 255, 0.4);
+      font-weight: 500;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+
+    /* شريط تقدم معالجة البيانات السفلي */
+    .progress-bar-track {
+      width: 220px;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 50px;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid rgba(255, 255, 255, 0.01);
+    }
+
+    .progress-bar-fill {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 35%;
+      background: linear-gradient(90deg, transparent, var(--gold-main), transparent);
+      border-radius: 50px;
+      animation: dataFlow 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+
+    /* 🎭 الحركات الانسيابية (Animations) */
+    @keyframes emblemGlow {
+      0% { transform: scale(1); border-color: rgba(214, 175, 55, 0.15); box-shadow: 0 0 30px rgba(214, 175, 55, 0.05); }
+      100% { transform: scale(1.03); border-color: rgba(214, 175, 55, 0.4); box-shadow: 0 0 50px rgba(214, 175, 55, 0.15); }
+    }
+
+    @keyframes ringSpin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes dataFlow {
+      0% { left: -40%; width: 40%; }
+      100% { left: 110%; width: 30%; }
+    }
+
+    /* حجب شريط التمرير أثناء تشغيل شاشة الإقلاع الإمبراطورية */
+    body.loading-active {
+      overflow: hidden !important;
+    }
   </style>
 </head>
-<body>
+<body class="loading-active">
+
+  <!-- 🔮 نافذة الإقلاع الإمبراطورية (تختفي تلقائياً فور جاهزية حزم React للتصيير) -->
+  <div id="imperial-splash-screen">
+    <div class="loader-container">
+      <div class="loader-emblem">
+        <div class="quantum-ring"></div>
+        <!-- سيتم جلب اللوجو تلقائياً أو إظهار بديل فخم في حال عدم توفره -->
+        <img src="%PUBLIC_URL%/logo.png" alt="شعار الجامعة" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+        <span style="display:none; font-size:2.2rem;">🏛️</span>
+      </div>
+      
+      <div class="loader-titles">
+        <h1>جامعة القرآن الكريم والعلوم الإسلامية</h1>
+        <p>نظام السيطرة والرصد البيومتري</p>
+      </div>
+
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🛑 جدار الأمان وحماية تجربة المستخدم في حال تعطيل الجافا سكريبت -->
   <noscript>
-    <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:'Tajawal',sans-serif;background:#f8fafc;">
-      <div style="text-align:center;">
-        <div style="font-size:4rem;">⚠️</div>
-        <h2 style="color:#083d2b;font-family:'Amiri',serif;">تنبيه هام</h2>
-        <p style="color:#64748b;">يجب تفعيل JavaScript لتشغيل النظام.</p>
+    <div style="position:fixed; top:0; left:0; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center; font-family:'Tajawal',sans-serif; background:radial-gradient(circle at center, #041d14 20%, #020b07 100%); z-index:9999999; padding:20px;">
+      <div style="text-align:center; background:rgba(255,255,255,0.02); border:1px solid rgba(214,175,55,0.2); padding:40px; borderRadius:20px; maxWidth:500px; boxShadow:0 20px 50px rgba(0,0,0,0.5);">
+        <div style="font-size:4.5rem; marginBottom:15px; animation: pulse 2s infinite;">⚠️</div>
+        <h2 style="color:#f3e5ab; font-family:'Amiri',serif; fontSize:2rem; marginBottom:12px; fontWeight:700;">بروتوكول أمان المنظومة</h2>
+        <p style="color:rgba(255,255,255,0.7); fontSize:0.95rem; lineHeight:1.6;">يتطلب هذا النظام السيادي تفعيل **بروتوكولات JavaScript** للقيام بعمليات التحقق الرقمي والمطابقة البيومترية الحية. يرجى تفعيلها من إعدادات المتصفح وإعادة إنعاش البوابة.</p>
       </div>
     </div>
   </noscript>
   
+  <!-- 🏛️ الجذر الأساسي لتدفق شاشات لوحة التحكم (React Core Root) -->
   <div id="root"></div>
+
+  <!-- ⚡ بروتوكول تدمير شاشة الإقلاع فور حقن الـ DOM الرئيسي لـ React -->
+  <script>
+    window.addEventListener('load', function() {
+      // إعطاء مهلة نصف ثانية إضافية لإبهار اللجنة ومن ثم إخفاء الشاشة بانسيابية مذهلة
+      setTimeout(function() {
+        var splash = document.getElementById('imperial-splash-screen');
+        if (splash) {
+          splash.style.opacity = '0';
+          splash.style.visibility = 'hidden';
+          document.body.classList.remove('loading-active');
+          // إزالتها نهائياً من الذاكرة بعد اكتمال التلاشي للحفاظ على سرعة الأداء
+          setTimeout(function() { splash.remove(); }, 800);
+        }
+      }, 700);
+    });
+  </script>
 </body>
 </html>
