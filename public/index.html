@@ -15,7 +15,7 @@
   <meta name="author" content="سالم التريمي" />
   <meta name="robots" content="index, follow" />
   
-  <!-- ========== Open Graph / وسائل التواصل ========== -->
+  <!-- ========== Open Graph ========== -->
   <meta property="og:title" content="نظام الحضور والغياب | جامعة القرآن الكريم والعلوم الإسلامية" />
   <meta property="og:description" content="نظام إلكتروني متكامل لمتابعة حضور وغياب الطلاب - بصمة - إشعارات واتساب - تقارير PDF" />
   <meta property="og:type" content="website" />
@@ -48,9 +48,8 @@
   <!-- ========== العنوان ========== -->
   <title>نظام الحضور والغياب | جامعة القرآن الكريم والعلوم الإسلامية</title>
   
-  <!-- ========== أنماط شاشة التحميل الأولية فقط ========== -->
+  <!-- ========== أنماط شاشة التحميل ========== -->
   <style>
-    /* الأساسيات */
     *, *::before, *::after {
       margin: 0;
       padding: 0;
@@ -62,10 +61,8 @@
       background: #f8fafc;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
-      text-rendering: optimizeLegibility;
     }
     
-    /* شاشة التحميل */
     #splash-screen {
       display: flex;
       align-items: center;
@@ -76,22 +73,15 @@
       text-align: center;
       font-family: 'Tajawal', sans-serif;
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      top: 0; left: 0; right: 0; bottom: 0;
       z-index: 9999;
       transition: opacity 0.6s ease;
-    }
-    
-    #splash-screen .splash-inner {
-      animation: fadeInUp 0.8s ease;
     }
     
     #splash-screen .splash-logo {
       font-size: 5rem;
       animation: floatUpDown 2s ease-in-out infinite;
-      filter: drop-shadow(0 0 30px rgba(212, 175, 55, 0.6));
+      filter: drop-shadow(0 0 30px rgba(212,175,55,0.6));
     }
     
     #splash-screen h1 {
@@ -99,82 +89,80 @@
       font-size: 2rem;
       color: #D4AF37;
       margin: 15px 0 5px;
-      text-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
     }
     
     #splash-screen p {
       color: #FCF6BA;
       opacity: 0.8;
-      font-size: 1.1rem;
     }
     
     #splash-screen .splash-loader {
-      width: 50px;
-      height: 50px;
-      border: 3px solid rgba(212, 175, 55, 0.2);
+      width: 50px; height: 50px;
+      border: 3px solid rgba(212,175,55,0.2);
       border-top: 3px solid #D4AF37;
       border-radius: 50%;
       margin: 30px auto;
       animation: spin 1s linear infinite;
     }
     
-    /* حركات */
     @keyframes floatUpDown {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-10px); }
+      0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}
     }
-    
     @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-    
-    @keyframes fadeInUp {
-      from { opacity: 0; transform: translateY(30px); }
-      to { opacity: 1; transform: translateY(0); }
+      to{transform:rotate(360deg)}
     }
   </style>
 </head>
 <body>
-  <!-- ========== شاشة التحميل الأولية ========== -->
+  <!-- ========== شاشة التحميل ========== -->
   <div id="splash-screen">
-    <div class="splash-inner">
+    <div style="animation: fadeInUp 0.8s ease;">
       <div class="splash-logo">🏛️</div>
       <h1>نظام متابعة الحضور والغياب</h1>
       <p>جامعة القرآن الكريم والعلوم الإسلامية</p>
-      <p style="font-size: 0.9rem; opacity: 0.6;">فرع غيل باوزير - حضرموت</p>
+      <p style="font-size:0.9rem;opacity:0.6;">فرع غيل باوزير - حضرموت</p>
       <div class="splash-loader"></div>
-      <p style="font-size: 0.85rem; opacity: 0.5;">جاري تحميل النظام...</p>
+      <p style="font-size:0.85rem;opacity:0.5;">جاري تحميل النظام...</p>
     </div>
   </div>
   
-  <!-- ========== رسالة للمتصفحات بدون JavaScript ========== -->
+  <!-- ========== NoScript ========== -->
   <noscript>
-    <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; text-align: center; padding: 50px; font-family: 'Tajawal', sans-serif; background: #f8fafc;">
+    <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:50px;font-family:'Tajawal',sans-serif;background:#f8fafc;">
       <div>
-        <div style="font-size: 4rem; margin-bottom: 20px;">⚠️</div>
-        <h2 style="color: #083d2b; font-family: 'Amiri', serif; margin-bottom: 10px;">تنبيه هام</h2>
-        <p style="color: #64748b; margin-bottom: 10px;">يجب تفعيل JavaScript لتشغيل نظام الحضور والغياب.</p>
-        <p style="color: #94a3b8; font-size: 0.9rem;">يرجى تفعيل JavaScript في إعدادات المتصفح ثم إعادة تحميل الصفحة.</p>
+        <div style="font-size:4rem;margin-bottom:20px;">⚠️</div>
+        <h2 style="color:#083d2b;font-family:'Amiri',serif;">تنبيه هام</h2>
+        <p style="color:#64748b;">يجب تفعيل JavaScript لتشغيل النظام.</p>
       </div>
     </div>
   </noscript>
   
-  <!-- ========== حاوية React ========== -->
+  <!-- ========== React ========== -->
   <div id="root"></div>
   
-  <!-- ========== تسجيل Service Worker ========== -->
+  <!-- ========== Service Worker ========== -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
         navigator.serviceWorker.register('%PUBLIC_URL%/sw.js')
-          .then(function(registration) {
-            console.log('✅ Service Worker مسجل بنجاح | النطاق:', registration.scope);
-          })
-          .catch(function(error) {
-            console.warn('⚠️ تعذر تسجيل Service Worker:', error.message);
-          });
+          .then(function(r) { console.log('✅ SW:', r.scope); })
+          .catch(function(e) { console.warn('⚠️ SW:', e.message); });
       });
     }
+  </script>
+  
+  <!-- ========== إخفاء شاشة التحميل بعد 3 ثواني ========== -->
+  <script>
+    setTimeout(function() {
+      var splash = document.getElementById('splash-screen');
+      if (splash) {
+        splash.style.opacity = '0';
+        splash.style.transition = 'opacity 0.5s ease';
+        setTimeout(function() {
+          if (splash.parentNode) splash.parentNode.removeChild(splash);
+        }, 500);
+      }
+    }, 3000);
   </script>
 </body>
 </html>
