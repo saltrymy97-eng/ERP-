@@ -1,9 +1,7 @@
-// src/components/Reports.js – مركز التقارير الأكاديمية والاستقصاء الاستراتيجي (الإصدار الإمبراطوري المصلح والمكتمل بالكامل)
+// src/components/Reports.js – مركز التقارير الأكاديمية والاستقصاء الاستراتيجي (الإصدار الاحترافي المطور عبر نظام الطباعة الذكي)
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery } from '../services/db';
-import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
 function Reports() {
@@ -17,7 +15,6 @@ function Reports() {
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // إحصائيات سريعة للبطاقات العلوية لتفخيم الواجهة
   const [quickStats, setQuickStats] = useState({ totalRecords: 0, efficiencyRate: 100, alertCount: 0 });
 
   useEffect(() => {
@@ -28,7 +25,6 @@ function Reports() {
     generateReport();
   }, [reportType, selectedDate, selectedMonth, selectedStudent, selectedMajor]);
 
-  // ========== تحميل الفلاتر المركزية ==========
   const loadFilters = () => {
     try {
       const studentData = getQuery("SELECT id, full_name, university_id FROM students WHERE status='active' ORDER BY full_name");
@@ -47,7 +43,6 @@ function Reports() {
     }
   };
 
-  // ========== استعلام وتوليد التقارير الحية ==========
   const generateReport = () => {
     setLoading(true);
     let data = [];
@@ -144,7 +139,6 @@ function Reports() {
     }
   };
 
-  // ========== حساب المؤشرات الإحصائية السريعة للواجهة ملوكياً ==========
   const calculateQuickStats = (data) => {
     if (!data || data.length === 0) {
       setQuickStats({ totalRecords: 0, efficiencyRate: 100, alertCount: 0 });
@@ -168,92 +162,94 @@ function Reports() {
     });
   };
 
-  // دالة لعكس الكلمات العربية يدوياً لمنع تقطيع الحروف داخل الجداول في بي دي اف
-  const fixArabicText = (text) => {
-    if (!text) return '';
-    const str = String(text);
-    const arabicPattern = /[\u0600-\u06FF]/;
-    if (arabicPattern.test(str)) {
-      return str.split(' ').reverse().join(' ');
-    }
-    return str;
-  };
-
-  // ========== دالة تصدير الـ PDF المصلحة والمضمونة للتحميل الفوري بدون توقف ==========
-  const exportPDF = async () => {
+  // ========== دالة طباعة وتوليد وثيقة ملوكية فورية بدون أي مشاكل تعليق ==========
+  const handlePrintHTML = () => {
     if (!reportData || reportData.length === 0) return;
 
-    const doc = new jsPDF({ orientation: 'landscape', format: 'a4' });
-
-    // جلب خط عربي حقيقي ومتكامل (Amiri) ديناميكياً لضمان سلامة التحميل
-    try {
-      const fontUrl = "https://fonts.gstatic.com/s/amiri/v25/J7aRDI10k9KP97tbfvjN-34.ttf";
-      const response = await fetch(fontUrl);
-      const buffer = await response.arrayBuffer();
-      const base64String = btoa(
-        new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-      );
-      
-      doc.addFileToVFS('Amiri-Regular.ttf', base64String);
-      doc.addFont('Amiri-Regular.ttf', 'Amiri', 'normal');
-      doc.setFont('Amiri', 'normal');
-    } catch (e) {
-      console.error("خطأ في جلب الخط، تم استخدام الخط الافتراضي لمنع انكسار الكود:", e);
-    }
-
-    // تلوين الحافة العلوية الإمبراطورية للمستند الرسمي
-    doc.setFillColor(6, 43, 30); 
-    doc.rect(0, 0, 297, 8, 'F');
-
-    // الترويسة العليا للمنظومة الجامعية الفخمة
-    doc.setFontSize(20);
-    doc.setTextColor(184, 147, 36); 
-    doc.text(fixArabicText('جامعة القرآن الكريم والعلوم الإسلامية'), 280, 24, { align: 'right' });
+    // إنشاء نافذة منبثقة للطباعة النظيفة
+    const printWindow = window.open('', '_blank');
     
-    doc.setFontSize(11);
-    doc.setTextColor(80, 80, 80);
-    doc.text(fixArabicText('عمادة الشؤون الأكاديمية والرقابة البيومترية الذكية'), 280, 31, { align: 'right' });
+    // بناء هيكل الجدول التابع للترويسة الرسمية للجامعة
+    let tableHeadersHtml = Object.keys(reportData[0]).map(key => `<th>${translateHeader(key)}</th>`).join('');
+    
+    let tableRowsHtml = reportData.map(row => {
+      return `<tr>${Object.keys(row).map(key => `<td>${translateValue(row[key])}</td>`).join('')}</tr>`;
+    }).join('');
 
-    doc.setFontSize(13);
-    doc.setTextColor(6, 43, 30);
-    doc.text(fixArabicText(getReportTitle()), 15, 26, { align: 'left' });
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html dir="rtl" lang="ar">
+      <head>
+        <meta charset="UTF-8">
+        <title>وثيقة رسمية - منظومة الرقابة البيومترية</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Tajawal:wght@400;700;900&display=swap');
+          body { font-family: 'Tajawal', 'Amiri', serif; padding: 20px; color: #333; background-color: #fff; }
+          .imperial-bar { height: 8px; background-color: #062b1e; margin-bottom: 20px; }
+          .header-table { width: 100%; margin-bottom: 30px; border-collapse: collapse; }
+          .university-title { font-family: 'Amiri', serif; font-size: 24px; color: #b89324; font-weight: bold; margin: 0; }
+          .sub-title { font-size: 13px; color: #555; margin-top: 5px; }
+          .report-title { font-size: 16px; color: #062b1e; font-weight: bold; text-align: left; }
+          .divider { border-top: 2px solid #d6af37; margin: 15px 0; }
+          
+          table.report-table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }
+          table.report-table th { background-color: #062b1e; color: #d6af37; padding: 12px; text-align: right; font-weight: bold; border: 1px solid #062b1e; }
+          table.report-table td { padding: 10px; border: 1px solid #e2e8f0; text-align: right; }
+          table.report-table tr:nth-child(even) { background-color: #f8fafc; }
+          
+          .footer-signatures { width: 100%; margin-top: 60px; font-size: 13px; }
+          .signature-box { text-align: center; width: 50%; }
+          
+          @media print {
+            body { padding: 0; }
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="imperial-bar"></div>
+        <table class="header-table">
+          <tr>
+            <td style="text-align: right;">
+              <div class="university-title">جامعة القرآن الكريم والعلوم الإسلامية</div>
+              <div class="sub-title">عمادة الشؤون الأكاديمية والرقابة البيومترية الذكية</div>
+            </td>
+            <td style="text-align: left; vertical-align: middle;">
+              <div class="report-title">${getReportTitle()}</div>
+            </td>
+          </tr>
+        </table>
+        <div class="divider"></div>
+        
+        <table class="report-table">
+          <thead>
+            <tr>${tableHeadersHtml}</tr>
+          </thead>
+          <tbody>
+            ${tableRowsHtml}
+          </tbody>
+        </table>
 
-    doc.setDrawColor(214, 175, 55);
-    doc.setLineWidth(0.5);
-    doc.line(15, 36, 282, 36);
+        <table class="footer-signatures">
+          <tr>
+            <td class="signature-box"><strong>توقيع مسجل الكلية الإداري:</strong><br><br><br>.........................................</td>
+            <td class="signature-box"><strong>ختم الإدارة المعتمد:</strong><br><br><br>.........................................</td>
+          </tr>
+        </table>
 
-    // تجهيز مصفوفة العناوين والصفوف بالتوافق مع اتجاه اليمين لليسار
-    const headers = Object.keys(reportData[0]).map(k => fixArabicText(translateHeader(k))).reverse();
-    const rows = reportData.map(row => 
-      Object.keys(row).map(key => fixArabicText(translateValue(row[key]))).reverse()
-    );
-
-    // رسم جدول البيانات التلقائي الفخم
-    doc.autoTable({
-      head: [headers],
-      body: rows,
-      startY: 42,
-      margin: { right: 15, left: 15 },
-      styles: { font: 'Amiri', halign: 'right', fontSize: 10, cellPadding: 5 },
-      headStyles: { fillColor: [6, 43, 30], textColor: [214, 175, 55], fontStyle: 'bold', halign: 'right' },
-      alternateRowStyles: { fillColor: [245, 247, 246] },
-      bodyStyles: { halign: 'right' }
-    });
-
-    // التوقيعات والاعتمادات الرسمية للكلية
-    const finalY = doc.lastAutoTable.finalY + 15;
-    if (finalY < 185) {
-      doc.setFontSize(10);
-      doc.setTextColor(40, 40, 40);
-      doc.text(fixArabicText('توقيع مسجل الكلية الإداري:'), 282, finalY, { align: 'right' });
-      doc.text(fixArabicText('ختم الإدارة المعتمد:'), 60, finalY, { align: 'right' });
-    }
-
-    // أمر الحفظ والتنزيل المباشر على الجهاز
-    doc.save(`تقرير_المنظومة_${reportType}_${new Date().toISOString().slice(0, 10)}.pdf`);
+        <script>
+          window.onload = function() {
+            window.print();
+            // لغلق النافذة المنبثقة تلقائياً بعد انتهاء عملية الحفظ أو الطباعة
+            setTimeout(function() { window.close(); }, 500);
+          };
+        </script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
-  // ========== التصدير المباشر لملفات الجداول الفائقة Excel ==========
   const exportExcel = () => {
     if (!reportData || reportData.length === 0) return;
 
@@ -269,7 +265,6 @@ function Reports() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'سجلات التدقيق الأكاديمي');
     
-    // ضبط اتجاه الورقة لتكون من اليمين لليسار في إكسل
     if(!ws['!views']) ws['!views'] = [{}];
     ws['!views'][0].RTL = true;
 
@@ -328,7 +323,6 @@ function Reports() {
       className="reports-module" 
       style={{ padding: '5px 0' }}
     >
-      {/* 🔮 كتل المؤشرات والمقاييس الرقمية ثلاثية الأبعاد الراقية */}
       <div className="report-metrics-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '25px' }}>
         {[
           { label: 'إجمالي السجلات المستعلم عنها', count: quickStats.totalRecords, suffix: ' سجل موثق', color: 'var(--gold-main)', icon: '📜' },
@@ -355,7 +349,6 @@ function Reports() {
         ))}
       </div>
 
-      {/* 🧭 شريط الهندسة والأدوات الملوكي المطور */}
       <div className="reports-toolbar" style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--glass-border)', padding: '15px 20px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', marginBottom: '30px' }}>
         
         <div className="report-selector" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flex: 1 }}>
@@ -372,7 +365,6 @@ function Reports() {
             <option value="discipline">🏆 سلم تقييم درجات الانضباط السلوكي</option>
           </select>
 
-          {/* محددات الفلاتر الديناميكية الفاخرة */}
           <AnimatePresence mode="wait">
             {(reportType === 'daily' || reportType === 'absent') && (
               <motion.input 
@@ -418,14 +410,14 @@ function Reports() {
           </AnimatePresence>
         </div>
 
-        {/* أزرار الإجراءات الفخمة بنظام الألوان الموحد */}
         <div className="report-actions" style={{ display: 'flex', gap: '10px' }}>
+          {/* الزر الاحترافي الجديد المعتمد على الطباعة السلسة */}
           <motion.button 
             whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }}
-            onClick={exportPDF} disabled={!reportData?.length}
-            className="btn-pdf" style={{ background: 'linear-gradient(135deg, #ef4444, #b91c1c)', color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', opacity: reportData?.length ? 1 : 0.4 }}
+            onClick={handlePrintHTML} disabled={!reportData?.length}
+            className="btn-pdf" style={{ background: 'linear-gradient(135deg, #0284c7, #0369a1)', color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', opacity: reportData?.length ? 1 : 0.4 }}
           >
-            📥 وثيقة رسمية PDF
+            📄 وثيقة واستخراج PDF
           </motion.button>
           <motion.button 
             whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }}
@@ -434,27 +426,18 @@ function Reports() {
           >
             📊 جدول بيانات Excel
           </motion.button>
-          <motion.button 
-            whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }}
-            onClick={() => window.print()}
-            className="btn-print" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', color: 'var(--gold-light)', padding: '12px 18px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer' }}
-          >
-            🖨️ طباعة فورية
-          </motion.button>
         </div>
       </div>
 
-      {/* 👑 ترويسة وعنوان المستند الحالي للتقرير */}
       <div className="report-header" style={{ marginBottom: '20px', borderRight: '4px solid var(--gold-main)', paddingRight: '15px' }}>
         <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.7rem', color: 'var(--gold-light)', margin: 0 }}>{getReportTitle()}</h3>
         <p style={{ color: 'var(--text-secondary)', margin: '5px 0 0 0', fontSize: '0.88rem' }}>تم العثور على ما مجموعه <strong style={{ color: '#fff' }}>{reportData?.length || 0}</strong> سجل مطابق للمحددات البيومترية.</p>
       </div>
 
-      {/* 📊 جدول البيانات الإمبراطوري المتكامل */}
       {loading ? (
         <div className="report-loading" style={{ padding: '60px 0', textAlign: 'center', color: 'var(--gold-main)', fontSize: '1.1rem', fontWeight: 600, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
           <div style={{ width: '40px', height: '40px', border: '3px solid rgba(214,175,55,0.1)', borderTopColor: 'var(--gold-main)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-          جاري إجراء الفحص والاستعلام التراكمي من قاعدة البيانات الذكية...
+          جاري إجراء الفحص والاستعلام التراكمي...
         </div>
       ) : reportData && reportData.length > 0 ? (
         <div className="data-table report-table" style={{ maxHeight: '500px', overflowY: 'auto', border: '1px solid var(--glass-border)', borderRadius: '16px' }}>
@@ -476,7 +459,7 @@ function Reports() {
                       background: hasDanger ? 'rgba(239,68,68,0.02)' : i % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent',
                       borderBottom: '1px solid rgba(255,255,255,0.03)'
                     }}
-                    whileHover={{ background: 'rgba(214,175,55,0.03)', transition: { duration: 0.1 } }}
+                    whileHover={{ background: 'rgba(214,175,55,0.03)' }}
                   >
                     {Object.keys(row).map((key, j) => {
                       const val = row[key];
@@ -500,8 +483,7 @@ function Reports() {
       ) : (
         <div className="report-empty" style={{ background: 'rgba(255,255,255,0.01)', border: '1px dashed var(--glass-border)', padding: '60px', borderRadius: '16px', textAlign: 'center', color: 'var(--text-secondary)' }}>
           <span style={{ fontSize: '3rem', display: 'block', marginBottom: '15px' }}>📭</span>
-          <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#fff' }}>لا توجد بيانات متوفرة لمعايير الاستعلام الحالية</p>
-          <p style={{ margin: '5px 0 0 0', fontSize: '0.88rem' }}>يرجى تغيير فلاتر البحث العلوية، أو التأكد من تسجيل بصمات حضور جديدة في المنظومة.</p>
+          <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#fff' }}>لا توجد بيانات متوفرة</p>
         </div>
       )}
     </motion.div>
