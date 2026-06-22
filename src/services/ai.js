@@ -34,9 +34,9 @@ export async function loadMobileModel(onProgress) {
       quantized: true,
       local: true,
       progress_callback: (progress) => {
-        if (onProgress && progress?.status === 'progress' && progress.loaded && progress.total) {
-          const percent = Math.min(Math.round((progress.loaded / progress.total) * 100), 100);
-          if (percent > lastPercent) {
+        if (onProgress && progress?.total) {
+          const percent = Math.min(Math.round(((progress.loaded || 0) / progress.total) * 100), 100);
+          if (percent > lastPercent && percent <= 100) {
             lastPercent = percent;
             onProgress(`${percent}%`);
           }
