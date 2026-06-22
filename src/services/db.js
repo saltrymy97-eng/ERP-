@@ -1,260 +1,232 @@
-// services/db.js – قاعدة البيانات المحلية (SQLite)
-import initSqlJs from 'sql.js';
+// src/services/db.js – قاعدة بيانات محلية (localStorage)
+// سريعة، بدون تحميل، تعمل بدون إنترنت
 
-let db = null;
+const DB_KEY = 'attendance_db';
+
+// ========== تحميل البيانات ==========
+function loadData() {
+  const saved = localStorage.getItem(DB_KEY);
+  return saved ? JSON.parse(saved) : getDefaultData();
+}
+
+// ========== حفظ البيانات ==========
+function saveData(data) {
+  localStorage.setItem(DB_KEY, JSON.stringify(data));
+}
+
+// ========== البيانات الافتراضية ==========
+function getDefaultData() {
+  return {
+    colleges: [],
+    departments: [],
+    majors: [],
+    students: [],
+    teachers: [],
+    schedules: [],
+    attendance: [],
+    devices: [],
+    notifications: [],
+    calendar: [],
+    audit_log: [],
+    discipline: [],
+    users: [
+      { id: 1, username: 'admin', password: 'admin123', role: 'admin', created_at: new Date().toISOString() }
+    ],
+    _nextId: 1
+  };
+}
+
+// ========== الحصول على ID جديد ==========
+function nextId(data) {
+  data._nextId = (data._nextId || 1) + 1;
+  return data._nextId;
+}
 
 // ========== بدء قاعدة البيانات ==========
 export async function initDatabase() {
-  if (db) return db;
+  const data = loadData();
+  saveData(data);
+  return data;
+}
 
-  const SQL = await initSqlJs({
-    locateFile: file => `https://sql.js.org/dist/${file}`
-  });
+// ========== تنفيذ استعلام بسيط ==========
+export function getQuery(table, conditions = {}) {
+  const data = loadData();
+  let rows = data[table] || [];
 
-  db = new SQL.Database();
-
-  // ========== إنشاء الجداول ==========
-  db.run(`
-    -- الكليات
-    CREATE TABLE IF NOT EXISTS colleges (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL UNIQUE,
-      status TEXT DEFAULT 'active',
-      created_at TEXT DEFAULT (datetime('now','localtime'))
-    );
-
-    -- الأقسام
-    CREATE TABLE IF NOT EXISTS departments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      college_id INTEGER,
-      status TEXT DEFAULT 'active',
-      created_at TEXT DEFAULT (datetime('now','localtime')),
-      FOREIGN KEY (college_id) REFERENCES colleges(id)
-    );
-
-    -- التخصصات
-    CREATE TABLE IF NOT EXISTS majors (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      department_id INTEGER,
-      fees REAL DEFAULT 0,
-      duration TEXT DEFAULT '4 سنوات',
-      status TEXT DEFAULT 'active',
-      FOREIGN KEY (department_id) REFERENCES departments(id)
-    );
-
-    -- الطلاب
-    CREATE TABLE IF NOT EXISTS students (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      university_id TEXT UNIQUE NOT NULL,
-      full_name TEXT NOT NULL,
-      phone TEXT,
-      parent_phone TEXT,
-      national_id TEXT,
-      major_id INTEGER,
-      level TEXT,
-      group_name TEXT,
-      photo TEXT,
-      fingerprint_data TEXT,
-      qr_code TEXT,
-      status TEXT DEFAULT 'active',
-      created_at TEXT DEFAULT (datetime('now','localtime')),
-      FOREIGN KEY (major_id) REFERENCES majors(id)
-    );
-
-    -- أعضاء هيئة التدريس
-    CREATE TABLE IF NOT EXISTS teachers (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      phone TEXT,
-      department_id INTEGER,
-      status TEXT DEFAULT 'active',
-      FOREIGN KEY (department_id) REFERENCES departments(id)
-    );
-
-    -- الجدول الدراسي
-    CREATE TABLE IF NOT EXISTS schedules (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      day TEXT NOT NULL,
-      subject TEXT NOT NULL,
-      teacher_id INTEGER,
-      time_from TEXT NOT NULL,
-      time_to TEXT NOT NULL,
-      room TEXT,
-      major_id INTEGER,
-      break_time INTEGER DEFAULT 0,
-      late_tolerance INTEGER DEFAULT 10,
-      FOREIGN KEY (teacher_id) REFERENCES teachers(id),
-      FOREIGN KEY (major_id) REFERENCES majors(id)
-    );
-
-    -- الحضور والغياب
-    CREATE TABLE IF NOT EXISTS attendance (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      student_id INTEGER NOT NULL,
-      schedule_id INTEGER,
-      date TEXT NOT NULL,
-      time_in TEXT,
-      time_out TEXT,
-      status TEXT DEFAULT 'present',
-      late_minutes INTEGER DEFAULT 0,
-      method TEXT DEFAULT 'fingerprint',
-      created_at TEXT DEFAULT (datetime('now','localtime')),
-      FOREIGN KEY (student_id) REFERENCES students(id),
-      FOREIGN KEY (schedule_id) REFERENCES schedules(id)
-    );
-
-    -- أجهزة البصمة
-    CREATE TABLE IF NOT EXISTS devices (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      ip_address TEXT NOT NULL,
-      port INTEGER DEFAULT 4370,
-      status TEXT DEFAULT 'offline',
-      last_sync TEXT,
-      fingerprint_count INTEGER DEFAULT 0
-    );
-
-    -- سجل الإشعارات
-    CREATE TABLE IF NOT EXISTS notifications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      student_id INTEGER,
-      parent_phone TEXT,
-      message TEXT,
-      type TEXT,
-      sent_at TEXT DEFAULT (datetime('now','localtime')),
-      status TEXT DEFAULT 'sent',
-      FOREIGN KEY (student_id) REFERENCES students(id)
-    );
-
-    -- التقويم الأكاديمي
-    CREATE TABLE IF NOT EXISTS calendar (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      event TEXT NOT NULL,
-      date_from TEXT NOT NULL,
-      date_to TEXT NOT NULL,
-      type TEXT DEFAULT 'event'
-    );
-
-    -- سجل التدقيق
-    CREATE TABLE IF NOT EXISTS audit_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user TEXT,
-      action TEXT,
-      details TEXT,
-      timestamp TEXT DEFAULT (datetime('now','localtime'))
-    );
-
-    -- تقييم الانضباط
-    CREATE TABLE IF NOT EXISTS discipline (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      student_id INTEGER UNIQUE,
-      attendance_score REAL DEFAULT 0,
-      punctuality_score REAL DEFAULT 0,
-      absence_score REAL DEFAULT 0,
-      discipline_score REAL DEFAULT 0,
-      total_score REAL DEFAULT 0,
-      FOREIGN KEY (student_id) REFERENCES students(id)
-    );
-
-    -- المستخدمين
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      role TEXT DEFAULT 'staff',
-      created_at TEXT DEFAULT (datetime('now','localtime'))
-    );
-  `);
-
-  // مستخدم افتراضي
-  const adminExists = db.exec("SELECT id FROM users WHERE username='admin'");
-  if (!adminExists.length || !adminExists[0].values.length) {
-    db.run("INSERT INTO users (username, password, role) VALUES ('admin', 'admin123', 'admin')");
+  // فلترة بسيطة
+  if (conditions.where) {
+    const [col, val] = conditions.where;
+    rows = rows.filter(r => r[col] === val);
   }
 
-  return db;
-}
-
-// ========== دوال مساعدة ==========
-export function getDB() {
-  if (!db) throw new Error('قاعدة البيانات غير مهيأة. استدع initDatabase() أولاً');
-  return db;
-}
-
-export function runQuery(sql, params = []) {
-  const database = getDB();
-  database.run(sql, params);
-  saveToLocalStorage(database);
-}
-
-export function getQuery(sql, params = []) {
-  const database = getDB();
-  const result = database.exec(sql, params);
-  if (!result.length) return [];
-  const columns = result[0].columns;
-  const values = result[0].values;
-  return values.map(row => {
-    const obj = {};
-    columns.forEach((col, i) => obj[col] = row[i]);
-    return obj;
-  });
-}
-
-function saveToLocalStorage(database) {
-  try {
-    const data = database.export();
-    const arr = Array.from(data);
-    localStorage.setItem('attendance_db', JSON.stringify(arr));
-  } catch (e) {
-    console.error('فشل حفظ قاعدة البيانات محلياً:', e);
-  }
-}
-
-export async function loadFromLocalStorage() {
-  const saved = localStorage.getItem('attendance_db');
-  if (saved) {
-    const SQL = await initSqlJs({
-      locateFile: file => `https://sql.js.org/dist/${file}`
+  // ترتيب
+  if (conditions.orderBy) {
+    rows.sort((a, b) => {
+      if (a[conditions.orderBy] < b[conditions.orderBy]) return -1;
+      if (a[conditions.orderBy] > b[conditions.orderBy]) return 1;
+      return 0;
     });
-    const arr = JSON.parse(saved);
-    const u8 = new Uint8Array(arr);
-    db = new SQL.Database(u8);
-    return db;
   }
-  return null;
+
+  return rows;
+}
+
+// ========== تنفيذ استعلام SQL بسيط (محاكاة) ==========
+export function runQuery(sql, params = []) {
+  const data = loadData();
+  
+  // INSERT
+  if (sql.trim().toUpperCase().startsWith('INSERT')) {
+    const table = sql.match(/INTO\s+(\w+)/i)[1];
+    const row = {};
+    row.id = nextId(data);
+    
+    if (table === 'colleges') {
+      row.name = params[0];
+      row.status = 'active';
+      row.created_at = new Date().toISOString();
+    } else if (table === 'students') {
+      row.university_id = params[0];
+      row.full_name = params[1];
+      row.phone = params[2];
+      row.parent_phone = params[3];
+      row.national_id = params[4];
+      row.major_id = params[5];
+      row.level = params[6];
+      row.group_name = params[7];
+      row.status = 'active';
+      row.created_at = new Date().toISOString();
+    } else if (table === 'attendance') {
+      row.student_id = params[0];
+      row.date = params[1];
+      row.time_in = params[2];
+      row.status = params[3] || 'present';
+      row.method = params[4] || 'fingerprint';
+      row.created_at = new Date().toISOString();
+    } else if (table === 'devices') {
+      row.name = params[0];
+      row.ip_address = params[1];
+      row.port = params[2] || 4370;
+      row.status = 'offline';
+    } else if (table === 'notifications') {
+      row.student_id = params[0];
+      row.parent_phone = params[1];
+      row.message = params[2];
+      row.type = params[3];
+      row.status = params[4] || 'sent';
+      row.sent_at = new Date().toISOString();
+    } else if (table === 'calendar') {
+      row.event = params[0];
+      row.date_from = params[1];
+      row.date_to = params[2];
+      row.type = params[3] || 'event';
+    } else if (table === 'audit_log') {
+      row.user = params[0];
+      row.action = params[1];
+      row.details = params[2];
+      row.timestamp = new Date().toISOString();
+    } else if (table === 'users') {
+      row.username = params[0];
+      row.password = params[1];
+      row.role = params[2] || 'staff';
+      row.created_at = new Date().toISOString();
+    }
+
+    if (!data[table]) data[table] = [];
+    data[table].push(row);
+  }
+
+  // UPDATE
+  if (sql.trim().toUpperCase().startsWith('UPDATE')) {
+    const table = sql.match(/UPDATE\s+(\w+)/i)[1];
+    if (table === 'devices') {
+      const idx = data.devices.findIndex(d => d.id === params[3]);
+      if (idx >= 0) {
+        data.devices[idx].status = params[0];
+        data.devices[idx].last_sync = params[1];
+      }
+    } else if (table === 'students') {
+      const idx = data.students.findIndex(s => s.id === params[8]);
+      if (idx >= 0) {
+        data.students[idx].university_id = params[0];
+        data.students[idx].full_name = params[1];
+        data.students[idx].phone = params[2];
+        data.students[idx].parent_phone = params[3];
+        data.students[idx].national_id = params[4];
+        data.students[idx].major_id = params[5];
+        data.students[idx].level = params[6];
+        data.students[idx].group_name = params[7];
+      }
+    }
+  }
+
+  // DELETE
+  if (sql.trim().toUpperCase().startsWith('DELETE')) {
+    const table = sql.match(/FROM\s+(\w+)/i)[1];
+    const id = params[0];
+    data[table] = (data[table] || []).filter(r => r.id !== id);
+  }
+
+  saveData(data);
+  return data;
+}
+
+// ========== استعلام متقدم ==========
+export function executeQuery(sql, params = []) {
+  const data = loadData();
+  const today = new Date().toISOString().slice(0, 10);
+
+  // COUNT queries
+  if (sql.includes('COUNT(*)')) {
+    const table = sql.match(/FROM\s+(\w+)/i)[1];
+    
+    if (sql.includes("status='active'")) {
+      return [{ c: (data[table] || []).filter(r => r.status === 'active').length }];
+    }
+    if (sql.includes("status='present'") || sql.includes("status='absent'") || sql.includes("status='late'")) {
+      const status = sql.match(/status='(\w+)'/)[1];
+      const filtered = (data[table] || []).filter(r => r.date === (params[0] || today) && r.status === status);
+      return [{ c: filtered.length }];
+    }
+    
+    return [{ c: (data[table] || []).length }];
+  }
+
+  // Simple SELECT
+  const table = sql.match(/FROM\s+(\w+)/i)[1];
+  let rows = [...(data[table] || [])];
+
+  // LIMIT
+  const limit = sql.match(/LIMIT\s+(\d+)/i);
+  if (limit) rows = rows.slice(0, parseInt(limit[1]));
+
+  return rows;
+}
+
+// ========== حفظ تلقائي ==========
+export async function loadFromLocalStorage() {
+  return loadData();
 }
 
 export function closeDatabase() {
-  if (db) {
-    saveToLocalStorage(db);
-    db.close();
-    db = null;
-  }
+  // لا شيء... localStorage يحفظ تلقائياً
 }
 
-// ========== تصدير البيانات ==========
 export function exportDatabase() {
-  const database = getDB();
-  const data = database.export();
-  const blob = new Blob([data], { type: 'application/octet-stream' });
+  const data = loadData();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `attendance_backup_${new Date().toISOString().slice(0,10)}.db`;
+  a.download = `attendance_backup_${new Date().toISOString().slice(0,10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }
 
-// ========== استيراد البيانات ==========
 export async function importDatabase(file) {
-  const SQL = await initSqlJs({
-    locateFile: f => `https://sql.js.org/dist/${f}`
-  });
-  const buffer = await file.arrayBuffer();
-  const u8 = new Uint8Array(buffer);
-  db = new SQL.Database(u8);
-  saveToLocalStorage(db);
-  return db;
+  const text = await file.text();
+  const data = JSON.parse(text);
+  saveData(data);
+  return data;
 }
