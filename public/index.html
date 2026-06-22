@@ -1,56 +1,180 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
+  <!-- ========== البيانات الأساسية ========== -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   
+  <!-- ========== SEO ========== -->
   <meta name="theme-color" content="#083d2b" />
   <meta name="msapplication-TileColor" content="#D4AF37" />
-  <meta name="description" content="نظام متابعة حضور وغياب الطلاب بجامعة القرآن الكريم والعلوم الإسلامية - فرع غيل باوزير بحضرموت." />
-  <meta name="keywords" content="حضور, غياب, بصمة, جامعة القرآن, طلاب, نظام أكاديمي" />
+  <meta name="msapplication-TileImage" content="%PUBLIC_URL%/logo.png" />
+  <meta name="description" content="نظام متابعة حضور وغياب الطلاب بجامعة القرآن الكريم والعلوم الإسلامية - فرع غيل باوزير بحضرموت. نظام إلكتروني متكامل لإدارة الحضور والانصراف بالبصمة وإشعارات الواتساب." />
+  <meta name="keywords" content="حضور, غياب, بصمة, جامعة القرآن, طلاب, نظام أكاديمي, ERP, إشعارات, واتساب, حضرموت, غيل باوزير" />
   <meta name="author" content="سالم التريمي" />
   <meta name="robots" content="index, follow" />
   
+  <!-- ========== Open Graph / وسائل التواصل ========== -->
   <meta property="og:title" content="نظام الحضور والغياب | جامعة القرآن الكريم والعلوم الإسلامية" />
-  <meta property="og:description" content="نظام متابعة حضور وغياب الطلاب - بصمة - واتساب - تقارير PDF" />
+  <meta property="og:description" content="نظام إلكتروني متكامل لمتابعة حضور وغياب الطلاب - بصمة - إشعارات واتساب - تقارير PDF" />
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="ar_SA" />
+  <meta property="og:image" content="%PUBLIC_URL%/logo.png" />
+  <meta property="og:site_name" content="نظام الحضور والغياب" />
   
+  <!-- ========== Twitter Card ========== -->
   <meta name="twitter:card" content="summary" />
   <meta name="twitter:title" content="نظام الحضور والغياب | جامعة القرآن الكريم والعلوم الإسلامية" />
+  <meta name="twitter:description" content="نظام متابعة حضور وغياب الطلاب - بصمة - واتساب - تقارير" />
+  <meta name="twitter:image" content="%PUBLIC_URL%/logo.png" />
   
+  <!-- ========== الأيقونات ========== -->
   <link rel="icon" type="image/png" sizes="32x32" href="%PUBLIC_URL%/logo.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="%PUBLIC_URL%/logo.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="%PUBLIC_URL%/logo.png" />
   
+  <!-- ========== PWA ========== -->
   <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="نظام الحضور" />
   
+  <!-- ========== الخطوط ========== -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Tajawal:wght@300;400;500;700;800;900&display=swap" rel="stylesheet" />
   
+  <!-- ========== العنوان ========== -->
   <title>نظام الحضور والغياب | جامعة القرآن الكريم والعلوم الإسلامية</title>
   
+  <!-- ========== أنماط شاشة التحميل الأولية فقط ========== -->
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Tajawal', sans-serif; background: #f8fafc; }
+    /* الأساسيات */
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Tajawal', sans-serif;
+      background: #f8fafc;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+    
+    /* شاشة التحميل */
+    #splash-screen {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #083d2b 0%, #0a1a0f 100%);
+      color: white;
+      text-align: center;
+      font-family: 'Tajawal', sans-serif;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 9999;
+      transition: opacity 0.6s ease;
+    }
+    
+    #splash-screen .splash-inner {
+      animation: fadeInUp 0.8s ease;
+    }
+    
+    #splash-screen .splash-logo {
+      font-size: 5rem;
+      animation: floatUpDown 2s ease-in-out infinite;
+      filter: drop-shadow(0 0 30px rgba(212, 175, 55, 0.6));
+    }
+    
+    #splash-screen h1 {
+      font-family: 'Amiri', serif;
+      font-size: 2rem;
+      color: #D4AF37;
+      margin: 15px 0 5px;
+      text-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+    }
+    
+    #splash-screen p {
+      color: #FCF6BA;
+      opacity: 0.8;
+      font-size: 1.1rem;
+    }
+    
+    #splash-screen .splash-loader {
+      width: 50px;
+      height: 50px;
+      border: 3px solid rgba(212, 175, 55, 0.2);
+      border-top: 3px solid #D4AF37;
+      border-radius: 50%;
+      margin: 30px auto;
+      animation: spin 1s linear infinite;
+    }
+    
+    /* حركات */
+    @keyframes floatUpDown {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
   </style>
 </head>
 <body>
+  <!-- ========== شاشة التحميل الأولية ========== -->
+  <div id="splash-screen">
+    <div class="splash-inner">
+      <div class="splash-logo">🏛️</div>
+      <h1>نظام متابعة الحضور والغياب</h1>
+      <p>جامعة القرآن الكريم والعلوم الإسلامية</p>
+      <p style="font-size: 0.9rem; opacity: 0.6;">فرع غيل باوزير - حضرموت</p>
+      <div class="splash-loader"></div>
+      <p style="font-size: 0.85rem; opacity: 0.5;">جاري تحميل النظام...</p>
+    </div>
+  </div>
+  
+  <!-- ========== رسالة للمتصفحات بدون JavaScript ========== -->
   <noscript>
-    <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:'Tajawal',sans-serif;background:#f8fafc;">
-      <div style="text-align:center;">
-        <div style="font-size:4rem;">⚠️</div>
-        <h2 style="color:#083d2b;font-family:'Amiri',serif;">تنبيه هام</h2>
-        <p style="color:#64748b;">يجب تفعيل JavaScript لتشغيل النظام.</p>
+    <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; text-align: center; padding: 50px; font-family: 'Tajawal', sans-serif; background: #f8fafc;">
+      <div>
+        <div style="font-size: 4rem; margin-bottom: 20px;">⚠️</div>
+        <h2 style="color: #083d2b; font-family: 'Amiri', serif; margin-bottom: 10px;">تنبيه هام</h2>
+        <p style="color: #64748b; margin-bottom: 10px;">يجب تفعيل JavaScript لتشغيل نظام الحضور والغياب.</p>
+        <p style="color: #94a3b8; font-size: 0.9rem;">يرجى تفعيل JavaScript في إعدادات المتصفح ثم إعادة تحميل الصفحة.</p>
       </div>
     </div>
   </noscript>
   
+  <!-- ========== حاوية React ========== -->
   <div id="root"></div>
+  
+  <!-- ========== تسجيل Service Worker ========== -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('%PUBLIC_URL%/sw.js')
+          .then(function(registration) {
+            console.log('✅ Service Worker مسجل بنجاح | النطاق:', registration.scope);
+          })
+          .catch(function(error) {
+            console.warn('⚠️ تعذر تسجيل Service Worker:', error.message);
+          });
+      });
+    }
+  </script>
 </body>
 </html>
