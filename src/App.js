@@ -18,7 +18,9 @@ function App() {
   const [aiReady, setAiReady] = useState(false);
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
-  const [loading, setLoading] = useState(true);
+  
+  // 🛠️ التعديل هنا: جعل الحالة الابتدائية false لتجنب تكرار الشاشة مع index.html
+  const [loading, setLoading] = useState(false); 
 
   // ========== بدء التشغيل والتهيئة (شاشة التحميل السينمائية الإمبراطورية) ==========
   useEffect(() => {
@@ -39,10 +41,7 @@ function App() {
         .then(() => { if (isMounted) setAiReady(true); })
         .catch(() => {});
 
-      // مهلة كافية لإبهار لجنة التحكيم عند الإقلاع الفاخر
-      await new Promise(resolve => setTimeout(resolve, 3500));
-
-      if (isMounted) setLoading(false);
+      // تمت إزالة مهلة الانتظار المصطنعة هنا للاعتماد الكلي على انسيابية تشغيل المتصفح لـ index.html
     }
 
     startup();
@@ -53,7 +52,9 @@ function App() {
   const handleLogin = async () => {
     if (!password.trim()) return;
     setLoginError('');
+    setLoading(true); // تفعيل التحميل فقط أثناء عملية التحقق من الحساب
     const result = await login(password.trim());
+    setLoading(false);
     if (result.success) {
       setUser(result.user);
       setScreen('home');
@@ -174,7 +175,7 @@ function App() {
     }
   };
 
-  // 1️⃣ شاشة التحميل (Splash Screen)
+  // 1️⃣ شاشة التحميل الفرعية (تظهر فقط عند جلب البيانات الداخلي المستقبلي وليس عند الإقلاع)
   if (loading) {
     return (
       <div className="splash-screen">
@@ -182,17 +183,12 @@ function App() {
           <motion.div 
             className="splash-logo-3d"
             style={{ fontSize: '6rem', filter: 'drop-shadow(0 20px 40px rgba(214,175,55,0.4))' }}
-            animate={{ 
-              scale: [1, 1.1, 1], 
-              rotateY: [0, 180, 360],
-              y: [0, -15, 0]
-            }}
-            transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+            animate={{ scale: [1, 1.05, 1], y: [0, -10, 0] }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
           >
             🏛️
           </motion.div>
-          <h1 style={{ fontFamily: 'Amiri, serif', fontSize: '2.5rem', color: '#f3e5ab', marginTop: '20px' }}>جامعة القرآن الكريم والعلوم الإسلامية</h1>
-          <h3 style={{ fontWeight: 400, color: 'rgba(255,255,255,0.6)' }}>المنظومة الرقمية السيادية للحضور والغياب البيومتري</h3>
+          <h3 style={{ fontWeight: 400, color: 'rgba(255,255,255,0.8)', marginTop: '20px' }}>جاري معالجة طلبك وتصديق البيانات...</h3>
           <div className="splash-loader" style={{ borderColor: '#d4af37 transparent #d4af37 transparent' }}></div>
         </div>
       </div>
@@ -291,7 +287,6 @@ function App() {
                 initial={{ opacity: 0, y: 40 }} 
                 animate={{ opacity: 1, y: 0 }} 
                 transition={{ delay: index * 0.05, type: 'spring', stiffness: 110 }}
-                /* حل مشكلة التداخل السفلية: رفع الكرت المفتوح سيادياً فوق بقية العناصر */
                 style={{ 
                   position: 'relative',
                   zIndex: isMenuOpen ? 9999 : 10,
@@ -309,7 +304,6 @@ function App() {
                     boxShadow: isMenuOpen ? `0 15px 40px ${icon.glow}` : '0 10px 30px rgba(0,0,0,0.3)'
                   }}
                 >
-                  {/* الأيقونة الـ 3D الضخمة والمتحركة تلقائياً وباللمس */}
                   <motion.div 
                     className="icon-3d"
                     style={{ 
@@ -346,7 +340,6 @@ function App() {
                   )}
                 </button>
 
-                {/* لوحة القائمة المنسدلة المرفوعة سيادياً فوق جميع الكروت */}
                 <AnimatePresence>
                   {isMenuOpen && icon.subItems.length > 0 && (
                     <motion.div 
@@ -367,7 +360,7 @@ function App() {
                         boxShadow: `0 20px 40px rgba(0,0,0,0.6), 0 0 30px ${icon.glow}`,
                         padding: '10px',
                         marginTop: '-10px',
-                        zIndex: 100000 /* لضمان ظهور القائمة بالكامل وبأمان مطلق فوق الصفوف التالية */
+                        zIndex: 100000
                       }}
                     >
                       {icon.subItems.map((sub, subIndex) => (
@@ -412,7 +405,7 @@ function App() {
           transition={{ delay: 0.5 }}
         >
           <div className="user-info-block">
-            <span>👤 السحابة الأمنية للمستخدم: <strong style={{ color: '#d4af37' }}>{user?.username}</strong></span>
+            <span>👤 : السحابة الأمنية للمستخدم <strong style={{ color: '#d4af37' }}>{user?.username}</strong></span>
             <span className="user-role-badge" style={{ background: 'linear-gradient(135deg, #0d5c41, #041d14)', border: '1px solid #d4af37', color: '#f3e5ab' }}>
               {user?.role === 'admin' ? 'السيادة الإدارية العليا للمنظومة' : 'مسؤول الرصد المعتمد'}
             </span>
