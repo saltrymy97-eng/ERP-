@@ -16,6 +16,7 @@ function App() {
   const [openMenu, setOpenMenu] = useState(null);
   const [user, setUser] = useState(null);
   const [aiReady, setAiReady] = useState(false);
+  const [aiProgress, setAiProgress] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [voiceActive, setVoiceActive] = useState(false);
@@ -38,8 +39,15 @@ function App() {
         .then(u => { if (isMounted && u) setUser(u); })
         .catch(() => {});
       
-      loadMobileModel()
-        .then(() => { if (isMounted) setAiReady(true); })
+      loadMobileModel((msg) => {
+        if (isMounted) setAiProgress(msg);
+      })
+        .then(() => { 
+          if (isMounted) { 
+            setAiReady(true); 
+            setAiProgress(''); 
+          } 
+        })
         .catch(() => {});
     }
 
@@ -295,26 +303,48 @@ function App() {
           <p style={{ color: 'rgba(255,255,255,0.5)', letterSpacing: '0.5px' }}>بوابة التوجيه السريع الكوانتية لأنظمة الكليات والخدمات الذكية للجامعة</p>
         </motion.header>
 
+        {/* 🧠 شريط تقدم تحميل AI */}
+        {aiProgress && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            style={{
+              textAlign: 'center',
+              marginBottom: '15px',
+              color: '#D4AF37',
+              fontSize: '0.9rem',
+              fontWeight: 500,
+              background: 'rgba(0,0,0,0.4)',
+              padding: '10px 20px',
+              borderRadius: '10px',
+              maxWidth: '400px',
+              margin: '0 auto 15px'
+            }}
+          >
+            🧠 {aiProgress}
+          </motion.div>
+        )}
+
         {/* 🎤 زر المحادثة الصوتية */}
         <div style={{ textAlign: 'center', marginBottom: '10px', position: 'relative', zIndex: 10 }}>
           <motion.button
             onClick={handleVoiceChat}
-            disabled={voiceActive}
+            disabled={voiceActive || !aiReady}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             style={{
-              background: voiceActive ? 'rgba(239,68,68,0.2)' : 'rgba(212,175,55,0.1)',
-              border: `1px solid ${voiceActive ? '#EF4444' : '#D4AF37'}`,
-              color: voiceActive ? '#f87171' : '#D4AF37',
+              background: voiceActive ? 'rgba(239,68,68,0.2)' : aiReady ? 'rgba(212,175,55,0.1)' : 'rgba(255,255,255,0.05)',
+              border: `1px solid ${voiceActive ? '#EF4444' : aiReady ? '#D4AF37' : 'rgba(255,255,255,0.2)'}`,
+              color: voiceActive ? '#f87171' : aiReady ? '#D4AF37' : 'rgba(255,255,255,0.4)',
               padding: '12px 30px',
               borderRadius: '30px',
               fontSize: '1rem',
               fontWeight: 600,
-              cursor: 'pointer',
+              cursor: aiReady ? 'pointer' : 'not-allowed',
               fontFamily: 'Tajawal, sans-serif'
             }}
           >
-            {voiceActive ? '⏳ جاري المعالجة...' : '🎤 محادثة صوتية'}
+            {voiceActive ? '⏳ جاري المعالجة...' : aiReady ? '🎤 محادثة صوتية' : '🧠 جاري تحميل AI...'}
           </motion.button>
           {voiceResult && (
             <motion.p
@@ -500,7 +530,7 @@ function App() {
         <div className="header-status" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.05)', padding: '6px 16px', borderRadius: '50px' }}>
           <span className={`status-dot ${aiReady ? 'online' : 'offline'}`} style={{ backgroundColor: aiReady ? '#34d399' : '#f87171', boxShadow: aiReady ? '0 0 10px #34d399' : '0 0 10px #f87171' }}></span>
           <span style={{ fontSize: '0.85rem', color: '#cbd5e1', fontWeight: 600 }}>
-            {aiReady ? 'محرك الحسابات الذكي (AI) نشط أوفلاين' : 'معالجة العقل الاصطناعي قيد التهيأة'}
+            {aiProgress ? `🧠 ${aiProgress}` : aiReady ? 'محرك الحسابات الذكي (AI) نشط أوفلاين' : 'معالجة العقل الاصطناعي قيد التهيأة'}
           </span>
         </div>
         
