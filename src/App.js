@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { initDatabase } from './services/db';
 import { login, logout, restoreSession } from './services/auth';
-import { loadMobileModel } from './services/ai';
+import { loadMobileModel, startVoiceChat } from './services/ai';
 import Dashboard from './components/Dashboard';
 import Students from './components/Students';
 import Attendance from './components/Attendance';
@@ -18,11 +18,12 @@ function App() {
   const [aiReady, setAiReady] = useState(false);
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [voiceActive, setVoiceActive] = useState(false);
+  const [voiceResult, setVoiceResult] = useState('');
   
-  // 🛠️ التعديل هنا: جعل الحالة الابتدائية false لتجنب تكرار الشاشة مع index.html
   const [loading, setLoading] = useState(false); 
 
-  // ========== بدء التشغيل والتهيئة (شاشة التحميل السينمائية الإمبراطورية) ==========
+  // ========== بدء التشغيل والتهيئة ==========
   useEffect(() => {
     let isMounted = true;
 
@@ -40,19 +41,17 @@ function App() {
       loadMobileModel()
         .then(() => { if (isMounted) setAiReady(true); })
         .catch(() => {});
-
-      // تمت إزالة مهلة الانتظار المصطنعة هنا للاعتماد الكلي على انسيابية تشغيل المتصفح لـ index.html
     }
 
     startup();
     return () => { isMounted = false; };
   }, []);
 
-  // ========== معالجة تسجيل الدخول الملكي ==========
+  // ========== معالجة تسجيل الدخول ==========
   const handleLogin = async () => {
     if (!password.trim()) return;
     setLoginError('');
-    setLoading(true); // تفعيل التحميل فقط أثناء عملية التحقق من الحساب
+    setLoading(true);
     const result = await login(password.trim());
     setLoading(false);
     if (result.success) {
@@ -64,7 +63,26 @@ function App() {
     }
   };
 
-  // ========== تسجيل الخروج والعودة للقفل ==========
+  // ========== المحادثة الصوتية ==========
+  const handleVoiceChat = async () => {
+    setVoiceActive(true);
+    setVoiceResult('🎤 جاري الاستماع...');
+    
+    const result = await startVoiceChat();
+    
+    if (result.error) {
+      setVoiceResult(result.error);
+    } else if (result.question) {
+      setVoiceResult(`🗣️ أنت: "${result.question}"\n🤖: "${result.answer}"`);
+    }
+    
+    setTimeout(() => {
+      setVoiceActive(false);
+      setVoiceResult('');
+    }, 8000);
+  };
+
+  // ========== تسجيل الخروج ==========
   const handleLogout = () => {
     logout();
     setUser(null);
@@ -72,7 +90,7 @@ function App() {
     setPassword('');
   };
 
-  // ========== مصفوفة الأيقونات الضخمة ثلاثية الأبعاد والمجسمة هندسياً ==========
+  // ========== مصفوفة الأيقونات ==========
   const mainIcons = [
     { 
       id: 'dashboard', 
@@ -175,7 +193,7 @@ function App() {
     }
   };
 
-  // 1️⃣ شاشة التحميل الفرعية (تظهر فقط عند جلب البيانات الداخلي المستقبلي وليس عند الإقلاع)
+  // 1️⃣ شاشة التحميل
   if (loading) {
     return (
       <div className="splash-screen">
@@ -195,7 +213,7 @@ function App() {
     );
   }
 
-  // 2️⃣ واجهة تسجيل الدخول الزجاجية الملكية
+  // 2️⃣ واجهة تسجيل الدخول
   if (!user) {
     return (
       <div className="login-screen">
@@ -249,7 +267,7 @@ function App() {
     );
   }
 
-  // 3️⃣ سطح مكتب النظام الرئيسي (أيقونات 3D عملاقة وقوائم معزولة فوق الأبعاد)
+  // 3️⃣ سطح مكتب النظام الرئيسي
   if (screen === 'home') {
     return (
       <div className="home-screen" style={{ overflowX: 'hidden' }}>
@@ -276,6 +294,48 @@ function App() {
           <h1 style={{ fontFamily: 'Amiri, serif', fontSize: '2.6rem', color: '#f3e5ab', textShadow: '0 4px 15px rgba(0,0,0,0.6)' }}>نظام إدارة الحضور والغياب الإلكتروني</h1>
           <p style={{ color: 'rgba(255,255,255,0.5)', letterSpacing: '0.5px' }}>بوابة التوجيه السريع الكوانتية لأنظمة الكليات والخدمات الذكية للجامعة</p>
         </motion.header>
+
+        {/* 🎤 زر المحادثة الصوتية */}
+        <div style={{ textAlign: 'center', marginBottom: '10px', position: 'relative', zIndex: 10 }}>
+          <motion.button
+            onClick={handleVoiceChat}
+            disabled={voiceActive}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            style={{
+              background: voiceActive ? 'rgba(239,68,68,0.2)' : 'rgba(212,175,55,0.1)',
+              border: `1px solid ${voiceActive ? '#EF4444' : '#D4AF37'}`,
+              color: voiceActive ? '#f87171' : '#D4AF37',
+              padding: '12px 30px',
+              borderRadius: '30px',
+              fontSize: '1rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'Tajawal, sans-serif'
+            }}
+          >
+            {voiceActive ? '⏳ جاري المعالجة...' : '🎤 محادثة صوتية'}
+          </motion.button>
+          {voiceResult && (
+            <motion.p
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{
+                color: '#FCF6BA',
+                marginTop: '12px',
+                fontSize: '0.9rem',
+                background: 'rgba(0,0,0,0.4)',
+                padding: '12px 20px',
+                borderRadius: '12px',
+                maxWidth: '500px',
+                margin: '12px auto 0',
+                whiteSpace: 'pre-line'
+              }}
+            >
+              {voiceResult}
+            </motion.p>
+          )}
+        </div>
 
         <div className="icons-grid" style={{ padding: '30px 15px', position: 'relative' }}>
           {mainIcons.map((icon, index) => {
@@ -416,7 +476,7 @@ function App() {
     );
   }
 
-  // 4️⃣ إطار تصفح الواجهات الداخلية للنظام (Sub-pages Framework)
+  // 4️⃣ إطار تصفح الواجهات الداخلية
   const getTitle = () => {
     const titles = { 
       'dashboard': '📊 لوحة التحكم والمؤشرات الإحصائية العامة', 
