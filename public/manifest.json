@@ -1,22 +1,27 @@
 {
-  "name": "نظام الحضور والغياب",
-  "short_name": "الحضور",
-  "description": "نظام متابعة حضور وغياب الطلاب - جامعة القرآن الكريم والعلوم الإسلامية",
-  "start_url": "/",
+  "name": "منظومة الرصد والتحكم البيومتري الموحد — جامعة القرآن الكريم",
+  "short_name": "الرصد السيادي",
+  "description": "المنظومة الإمبراطورية الموحدة لإدارة السياسات الأكاديمية ومتابعة الحضور والغياب البيومتري لجامعة القرآن الكريم والعلوم الإسلامية — فرع غيل باوزير بحضرموت.",
+  "start_url": ".",
   "display": "standalone",
-  "background_color": "#083d2b",
-  "theme_color": "#D4AF37",
-  "orientation": "any",
+  "background_color": "#03140e",
+  "theme_color": "#041d14",
+  "orientation": "portrait-primary",
+  "dir": "rtl",
+  "lang": "ar-SA",
+  "categories": ["education", "productivity", "utilities"],
   "icons": [
     {
-      "src": "/logo.png",
+      "src": "logo.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
-      "src": "/logo.png",
+      "src": "logo.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }
