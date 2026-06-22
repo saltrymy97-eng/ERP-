@@ -5,8 +5,8 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
-import './App.css';
+import App from '../App';
+import '../App.css';
 
 // ========== إعدادات التطبيق ==========
 const APP_CONFIG = {
@@ -25,7 +25,7 @@ if ('serviceWorker' in navigator) {
         console.log('✅ Service Worker مسجل بنجاح:', registration.scope);
       })
       .catch((error) => {
-        console.log('⚠️ Service Worker غير متاح (قد يكون التطبيق يعمل أونلاين فقط):', error.message);
+        console.log('⚠️ Service Worker غير متاح:', error.message);
       });
   });
 }
@@ -47,7 +47,6 @@ const renderApp = () => {
     </React.StrictMode>
   );
 
-  // إخفاء شاشة التحميل الأولية
   hideSplashScreen();
 };
 
@@ -56,12 +55,10 @@ const hideSplashScreen = () => {
   const splash = document.getElementById('splash-screen');
   
   if (splash) {
-    // تأخير بسيط لإظهار شعار الجامعة
     setTimeout(() => {
       splash.style.opacity = '0';
       splash.style.transition = 'opacity 0.6s ease';
       
-      // إزالة العنصر بعد انتهاء الحركة
       setTimeout(() => {
         if (splash.parentNode) {
           splash.parentNode.removeChild(splash);
@@ -71,16 +68,16 @@ const hideSplashScreen = () => {
   }
 };
 
-// ========== معالجة الأخطاء العامة ==========
+// ========== معالجة الأخطاء ==========
 window.addEventListener('error', (event) => {
-  console.error('❌ خطأ في التطبيق:', event.error?.message || event.message);
+  console.error('❌ خطأ:', event.error?.message || event.message);
 });
 
 window.addEventListener('unhandledrejection', (event) => {
   console.error('❌ خطأ غير معالج:', event.reason?.message || event.reason);
 });
 
-// ========== معلومات التطبيق في الكونسول ==========
+// ========== معلومات التطبيق ==========
 console.log(`
 🏛️  ${APP_CONFIG.name}
 📌  ${APP_CONFIG.university}
@@ -92,5 +89,4 @@ console.log(`
 // ========== بدء التطبيق ==========
 renderApp();
 
-// ========== تصدير للاستخدام الخارجي ==========
 export { APP_CONFIG };
