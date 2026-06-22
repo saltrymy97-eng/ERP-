@@ -144,13 +144,6 @@ html, body {
 .login-input-group label { display: block; font-weight: 600; color: var(--royal-green); margin-bottom: 5px; font-size: 0.9rem; }
 .login-input-group input { width: 100%; padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 1rem; font-family: 'Tajawal', sans-serif; transition: all 0.3s ease; background: #f8fafc; }
 .login-input-group input:focus { outline: none; border-color: var(--luxury-gold); box-shadow: 0 0 0 3px rgba(212,175,55,0.1); background: var(--pure-white); }
-
-/* الحل المستوحى من مشروعك القديم لحل مشكلة قلب حقل الباسورد تماماً */
-.login-input-group input[type="password"] {
-  text-align: right !important; /* مؤشر الحروف يبدأ ويتحاذى من اليمين */
-  direction: ltr !important;    /* تراتبية النقاط وظهورها تكون طبيعية دون انقلاب */
-}
-
 .login-error { color: var(--danger); font-size: 0.9rem; margin-bottom: 15px; font-weight: 500; }
 .login-btn { width: 100%; padding: 14px; background: linear-gradient(135deg, var(--royal-green), var(--royal-green-light)); color: var(--pure-white); border: none; border-radius: 12px; font-size: 1.1rem; font-weight: 700; cursor: pointer; font-family: 'Tajawal', sans-serif; transition: all 0.3s ease; margin-top: 10px; }
 .login-btn:hover { background: linear-gradient(135deg, var(--luxury-gold-dark), var(--luxury-gold)); transform: translateY(-2px); box-shadow: 0 10px 25px rgba(212,175,55,0.4); }
@@ -353,3 +346,9 @@ html, body {
 .btn-mic { padding: 12px 25px; background: var(--royal-green); color: white; border: none; border-radius: 30px; cursor: pointer; font-family: 'Tajawal', sans-serif; font-size: 1.1rem; }
 .btn-mic.active { background: var(--danger); animation: pulse 1s infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+
+/* ========== اتجاه الكتابة ========== */
+input, textarea, select {
+  direction: rtl !important;
+  text-align: right !important;
+}
