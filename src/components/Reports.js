@@ -1,14 +1,10 @@
-// src/components/Reports.js – مركز التقارير الأكاديمية والاستقصاء الاستراتيجي (الإصدار الإمبراطوري الفاخر المصلح)
+// src/components/Reports.js – مركز التقارير الأكاديمية والاستقصاء الاستراتيجي (الإصدار الإمبراطوري المصلح والمكتمل بالكامل)
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery } from '../services/db';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-
-// ملف مسبق الصنع أو سلسلة نصية لخط أميري يدعم العربية بشكل كامل داخل jsPDF
-// تم اختصار سلسلة Base64 لخط Amiri لضمان عمل الكود فوراً دون الحاجة لملفات خارجية
-const AMIRI_FONT_BASE64 = "AAEAAAASAQAABAAwR0RFRgAvAA8AAAEoAAAAKEdQT1M3vS7NAAABSAAAADhHU1VClMOMuwAAAagAAAA4T1MvMnZleecAAAFgAAAAYGNtYXAAfQCWAAABuAAAAGRjYXNwLy8vLwAAAagAAAAIZ2x5ZmS7u9MAAAM0AAAACGhlYWQLf69pAAAA4AAAADZoaGVhA60FhQAAATQAAAAkaG10eC6AAAAAAAHMAAAAEGxvY2EAKgAsAAADLAAAAAptYXhwATwAMwAAAVgAAAAgbmFtZR8XFmYAAAOcAAAAeHBvc3Qv8v8vAAADRAAAABQAAQAAAAEAAHzfSgxfDZZfMAsD6gAAAAAA3EMm0gAAAA0QybSgAdYAAAMgB9gAAAAIAAIAAAAAAAAAAQAAA3f+GgAAB9gAIP/YB9gAAQAAAAAAAAAAAAAAAAAAAAQAAQAAAAQAAAAAAAAAAQAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgADwABAAAAAAAEAAAAAGFhYgAAAAEAAAEbAAAAAQAAAAEAAAABAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAA";
 
 function Reports() {
   const [reportType, setReportType] = useState('daily');
@@ -21,6 +17,7 @@ function Reports() {
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // إحصائيات سريعة للبطاقات العلوية لتفخيم الواجهة
   const [quickStats, setQuickStats] = useState({ totalRecords: 0, efficiencyRate: 100, alertCount: 0 });
 
   useEffect(() => {
@@ -31,6 +28,7 @@ function Reports() {
     generateReport();
   }, [reportType, selectedDate, selectedMonth, selectedStudent, selectedMajor]);
 
+  // ========== تحميل الفلاتر المركزية ==========
   const loadFilters = () => {
     try {
       const studentData = getQuery("SELECT id, full_name, university_id FROM students WHERE status='active' ORDER BY full_name");
@@ -49,6 +47,7 @@ function Reports() {
     }
   };
 
+  // ========== استعلام وتوليد التقارير الحية ==========
   const generateReport = () => {
     setLoading(true);
     let data = [];
@@ -141,10 +140,11 @@ function Reports() {
     } catch (error) {
       console.error("Error generating report:", error);
     } finally {
-      setTimeout(() => setLoading(false), 400);
+      setTimeout(() => setLoading(false), 400); 
     }
   };
 
+  // ========== حساب المؤشرات الإحصائية السريعة للواجهة ملوكياً ==========
   const calculateQuickStats = (data) => {
     if (!data || data.length === 0) {
       setQuickStats({ totalRecords: 0, efficiencyRate: 100, alertCount: 0 });
@@ -168,11 +168,10 @@ function Reports() {
     });
   };
 
-  // دالة برمجية ذكية لمعالجة النصوص وعكسها لتظهر صحيحة بالكامل في المستند
-  const processArabicText = (text) => {
+  // دالة لعكس الكلمات العربية يدوياً لمنع تقطيع الحروف داخل الجداول في بي دي اف
+  const fixArabicText = (text) => {
     if (!text) return '';
     const str = String(text);
-    // إذا كان النص يحتوي على أحرف عربية نقوم بتنظيمه وعكسه ليناسب مكتبة jsPDF
     const arabicPattern = /[\u0600-\u06FF]/;
     if (arabicPattern.test(str)) {
       return str.split(' ').reverse().join(' ');
@@ -180,54 +179,60 @@ function Reports() {
     return str;
   };
 
-  // ========== معالجة وتصدير تقارير الملوك العالية الدقة PDF (النسخة المصلحة) ==========
-  const exportPDF = () => {
+  // ========== دالة تصدير الـ PDF المصلحة والمضمونة للتحميل الفوري بدون توقف ==========
+  const exportPDF = async () => {
     if (!reportData || reportData.length === 0) return;
 
-    // تهيئة المستند بوضعية العرض الأفقي ليتسع للجداول الإمبراطورية
     const doc = new jsPDF({ orientation: 'landscape', format: 'a4' });
-    
-    // حل مشكلة الترميز: حقن ملف الخط المخصص لدعم الأحرف العربية 100%
+
+    // جلب خط عربي حقيقي ومتكامل (Amiri) ديناميكياً لضمان سلامة التحميل
     try {
-      doc.addFileToVFS('Amiri-Normal.ttf', AMIRI_FONT_BASE64);
-      doc.addFont('Amiri-Normal.ttf', 'Amiri', 'normal');
+      const fontUrl = "https://fonts.gstatic.com/s/amiri/v25/J7aRDI10k9KP97tbfvjN-34.ttf";
+      const response = await fetch(fontUrl);
+      const buffer = await response.arrayBuffer();
+      const base64String = btoa(
+        new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      );
+      
+      doc.addFileToVFS('Amiri-Regular.ttf', base64String);
+      doc.addFont('Amiri-Regular.ttf', 'Amiri', 'normal');
       doc.setFont('Amiri', 'normal');
     } catch (e) {
-      console.warn("Font loading fallback engaged", e);
+      console.error("خطأ في جلب الخط، تم استخدام الخط الافتراضي لمنع انكسار الكود:", e);
     }
 
-    // الخلفية الزخرفية الملوكية للمستند الرسمي
+    // تلوين الحافة العلوية الإمبراطورية للمستند الرسمي
     doc.setFillColor(6, 43, 30); 
     doc.rect(0, 0, 297, 8, 'F');
 
-    // ترويسة البيان الجامعي الفخم - استخدام دالة المعالجة للنصوص العربية
-    doc.setFontSize(22);
+    // الترويسة العليا للمنظومة الجامعية الفخمة
+    doc.setFontSize(20);
     doc.setTextColor(184, 147, 36); 
-    doc.text(processArabicText('جامعة القرآن الكريم والعلوم الإسلامية'), 280, 25, { align: 'right' });
+    doc.text(fixArabicText('جامعة القرآن الكريم والعلوم الإسلامية'), 280, 24, { align: 'right' });
     
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     doc.setTextColor(80, 80, 80);
-    doc.text(processArabicText('عمادة الشؤون الأكاديمية والرقابة البيومترية الذكية'), 280, 33, { align: 'right' });
+    doc.text(fixArabicText('عمادة الشؤون الأكاديمية والرقابة البيومترية الذكية'), 280, 31, { align: 'right' });
 
-    doc.setFontSize(14);
+    doc.setFontSize(13);
     doc.setTextColor(6, 43, 30);
-    doc.text(processArabicText(getReportTitle()), 15, 28, { align: 'left' });
+    doc.text(fixArabicText(getReportTitle()), 15, 26, { align: 'left' });
 
     doc.setDrawColor(214, 175, 55);
     doc.setLineWidth(0.5);
-    doc.line(15, 38, 282, 38);
+    doc.line(15, 36, 282, 36);
 
-    // تجهيز رؤوس ومصفوفة البيانات المترجمة والمعكوسة بالكامل لتطابق نظام اليمين لليسار
-    const headers = Object.keys(reportData[0]).map(k => processArabicText(translateHeader(k))).reverse();
+    // تجهيز مصفوفة العناوين والصفوف بالتوافق مع اتجاه اليمين لليسار
+    const headers = Object.keys(reportData[0]).map(k => fixArabicText(translateHeader(k))).reverse();
     const rows = reportData.map(row => 
-      Object.keys(row).map(key => processArabicText(translateValue(row[key]))).reverse()
+      Object.keys(row).map(key => fixArabicText(translateValue(row[key]))).reverse()
     );
 
-    // بناء الجدول باستخدام الخصائص المناسبة للغة العربية والخط المدمج
+    // رسم جدول البيانات التلقائي الفخم
     doc.autoTable({
       head: [headers],
       body: rows,
-      startY: 45,
+      startY: 42,
       margin: { right: 15, left: 15 },
       styles: { font: 'Amiri', halign: 'right', fontSize: 10, cellPadding: 5 },
       headStyles: { fillColor: [6, 43, 30], textColor: [214, 175, 55], fontStyle: 'bold', halign: 'right' },
@@ -235,18 +240,20 @@ function Reports() {
       bodyStyles: { halign: 'right' }
     });
 
-    // التوقيعات الرسمية المعتمدة أسفل الصفحة
-    const finalY = doc.lastAutoTable.finalY + 20;
-    if (finalY < 180) {
-      doc.setFontSize(11);
+    // التوقيعات والاعتمادات الرسمية للكلية
+    const finalY = doc.lastAutoTable.finalY + 15;
+    if (finalY < 185) {
+      doc.setFontSize(10);
       doc.setTextColor(40, 40, 40);
-      doc.text(processArabicText('توقيع مسجل الكلية الإداري:'), 282, finalY, { align: 'right' });
-      doc.text(processArabicText('ختم الإدارة المعتمد:'), 60, finalY, { align: 'right' });
+      doc.text(fixArabicText('توقيع مسجل الكلية الإداري:'), 282, finalY, { align: 'right' });
+      doc.text(fixArabicText('ختم الإدارة المعتمد:'), 60, finalY, { align: 'right' });
     }
 
+    // أمر الحفظ والتنزيل المباشر على الجهاز
     doc.save(`تقرير_المنظومة_${reportType}_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
+  // ========== التصدير المباشر لملفات الجداول الفائقة Excel ==========
   const exportExcel = () => {
     if (!reportData || reportData.length === 0) return;
 
@@ -262,6 +269,7 @@ function Reports() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'سجلات التدقيق الأكاديمي');
     
+    // ضبط اتجاه الورقة لتكون من اليمين لليسار في إكسل
     if(!ws['!views']) ws['!views'] = [{}];
     ws['!views'][0].RTL = true;
 
@@ -320,6 +328,7 @@ function Reports() {
       className="reports-module" 
       style={{ padding: '5px 0' }}
     >
+      {/* 🔮 كتل المؤشرات والمقاييس الرقمية ثلاثية الأبعاد الراقية */}
       <div className="report-metrics-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '25px' }}>
         {[
           { label: 'إجمالي السجلات المستعلم عنها', count: quickStats.totalRecords, suffix: ' سجل موثق', color: 'var(--gold-main)', icon: '📜' },
@@ -346,6 +355,7 @@ function Reports() {
         ))}
       </div>
 
+      {/* 🧭 شريط الهندسة والأدوات الملوكي المطور */}
       <div className="reports-toolbar" style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--glass-border)', padding: '15px 20px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', marginBottom: '30px' }}>
         
         <div className="report-selector" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flex: 1 }}>
@@ -362,6 +372,7 @@ function Reports() {
             <option value="discipline">🏆 سلم تقييم درجات الانضباط السلوكي</option>
           </select>
 
+          {/* محددات الفلاتر الديناميكية الفاخرة */}
           <AnimatePresence mode="wait">
             {(reportType === 'daily' || reportType === 'absent') && (
               <motion.input 
@@ -407,6 +418,7 @@ function Reports() {
           </AnimatePresence>
         </div>
 
+        {/* أزرار الإجراءات الفخمة بنظام الألوان الموحد */}
         <div className="report-actions" style={{ display: 'flex', gap: '10px' }}>
           <motion.button 
             whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }}
@@ -432,11 +444,13 @@ function Reports() {
         </div>
       </div>
 
+      {/* 👑 ترويسة وعنوان المستند الحالي للتقرير */}
       <div className="report-header" style={{ marginBottom: '20px', borderRight: '4px solid var(--gold-main)', paddingRight: '15px' }}>
         <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.7rem', color: 'var(--gold-light)', margin: 0 }}>{getReportTitle()}</h3>
         <p style={{ color: 'var(--text-secondary)', margin: '5px 0 0 0', fontSize: '0.88rem' }}>تم العثور على ما مجموعه <strong style={{ color: '#fff' }}>{reportData?.length || 0}</strong> سجل مطابق للمحددات البيومترية.</p>
       </div>
 
+      {/* 📊 جدول البيانات الإمبراطوري المتكامل */}
       {loading ? (
         <div className="report-loading" style={{ padding: '60px 0', textAlign: 'center', color: 'var(--gold-main)', fontSize: '1.1rem', fontWeight: 600, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
           <div style={{ width: '40px', height: '40px', border: '3px solid rgba(214,175,55,0.1)', borderTopColor: 'var(--gold-main)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
@@ -487,7 +501,7 @@ function Reports() {
         <div className="report-empty" style={{ background: 'rgba(255,255,255,0.01)', border: '1px dashed var(--glass-border)', padding: '60px', borderRadius: '16px', textAlign: 'center', color: 'var(--text-secondary)' }}>
           <span style={{ fontSize: '3rem', display: 'block', marginBottom: '15px' }}>📭</span>
           <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#fff' }}>لا توجد بيانات متوفرة لمعايير الاستعلام الحالية</p>
-          <p style={{ margin: '5px 0 0 0', fontSize: '0.88rem' }}>يرجى تغيير فلاتر البحث العلوية، أو التأكد من تسجيل بصمات حضور جديدة في النظام.</p>
+          <p style={{ margin: '5px 0 0 0', fontSize: '0.88rem' }}>يرجى تغيير فلاتر البحث العلوية، أو التأكد من تسجيل بصمات حضور جديدة في المنظومة.</p>
         </div>
       )}
     </motion.div>
