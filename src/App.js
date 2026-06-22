@@ -20,47 +20,31 @@ function App() {
   const [loginError, setLoginError] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // ========== بدء التشغيل (احترافي) ==========
+  // ========== بدء التشغيل (شاشة تحميل 5 ثواني) ==========
   useEffect(() => {
     let isMounted = true;
 
     async function startup() {
-      // المرحلة ١: قاعدة البيانات (ضرورية)
-      try {
-        await initDatabase();
-      } catch (e) {
-        console.warn('⚠️ قاعدة البيانات غير متاحة');
-      }
-
-      // المرحلة ٢: استعادة الجلسة (اختياري - لا تمنع التحميل)
+      // المهام التقنية في الخلفية
+      try { await initDatabase(); } catch(e) {}
+      
       restoreSession()
-        .then(u => {
-          if (isMounted && u) setUser(u);
-        })
+        .then(u => { if (isMounted && u) setUser(u); })
         .catch(() => {});
-
-      // المرحلة ٣: الذكاء الاصطناعي (اختياري - لا تمنع التحميل)
+      
       loadMobileModel()
-        .then(() => {
-          if (isMounted) setAiReady(true);
-        })
+        .then(() => { if (isMounted) setAiReady(true); })
         .catch(() => {});
 
-      // إنهاء التحميل
+      // شاشة تحميل احترافية: 5 ثواني
+      await new Promise(resolve => setTimeout(resolve, 5000));
+
       if (isMounted) setLoading(false);
     }
 
     startup();
 
-    // حماية: إخفاء التحميل بعد 3 ثواني كحد أقصى
-    const safetyTimer = setTimeout(() => {
-      if (isMounted) setLoading(false);
-    }, 3000);
-
-    return () => {
-      isMounted = false;
-      clearTimeout(safetyTimer);
-    };
+    return () => { isMounted = false; };
   }, []);
 
   // ========== تسجيل الدخول (كلمة مرور فقط) ==========
