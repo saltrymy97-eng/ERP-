@@ -1,4 +1,4 @@
-// src/components/Students.js – إدارة شؤون الطلاب والكليات (الإصدار الملكي الفاخر)
+// src/components/Students.js – إدارة شؤون الطلاب والكليات (الإصدار الملكي الفاخر الخارق)
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery } from '../services/db';
@@ -12,6 +12,7 @@ function Students() {
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState('grid'); // grid, table (للتبديل العرضي المبهر)
 
   // حقول النموذج الملكي الموحد
   const [formData, setFormData] = useState({
@@ -33,6 +34,8 @@ function Students() {
   useEffect(() => {
     loadColleges();
     loadStudents();
+    loadDepartments();
+    loadMajors();
   }, []);
 
   // ========== خدمات استدعاء البيانات المحلية ==========
@@ -62,19 +65,22 @@ function Students() {
   };
 
   const loadStudents = () => {
+    // جلب الطلاب مع حساب نسبة الغياب فوريًا لكل طالب لتقديم إنذار مرئي للجنة
     const data = getQuery(`
-      SELECT s.*, m.name as major_name, d.name as department_name, c.name as college_name
+      SELECT s.*, m.name as major_name, d.name as department_name, c.name as college_name,
+             COALESCE(ROUND(CAST(COUNT(CASE WHEN a.status='absent' THEN 1 END) AS FLOAT) / NULLIF(COUNT(a.id), 0) * 100, 1), 0) as absence_rate
       FROM students s
       LEFT JOIN majors m ON s.major_id = m.id
       LEFT JOIN departments d ON m.department_id = d.id
       LEFT JOIN colleges c ON d.college_id = c.id
+      LEFT JOIN attendance a ON s.id = a.student_id
       WHERE s.status='active'
+      GROUP BY s.id
       ORDER BY s.full_name
     `);
     setStudents(data);
   };
 
-  // ========== تفريغ وإعادة تعيين الحقول ==========
   const resetForm = () => {
     setFormData({
       name: '',
@@ -95,7 +101,6 @@ function Students() {
     setShowForm(false);
   };
 
-  // ========== عمليات حفظ السجلات المعدلة والجديدة ==========
   const handleSave = () => {
     if (tab === 'colleges') {
       if (editId) {
@@ -138,13 +143,11 @@ function Students() {
       }
       loadStudents();
     }
-
     resetForm();
   };
 
-  // ========== الإخفاء المؤقت المعتمد في المشروع (الأرشفة) ==========
   const handleDelete = (id) => {
-    if (window.confirm("هل أنت متأكد من رغبتك في نقل هذا السجل للأرشيف العام؟")) {
+    if (window.confirm("🏛️ هل أنت متأكد من رغبتك في أرشفة هذا السجل ضمن الأرشيف الجامعي الآمن؟")) {
       if (tab === 'colleges') { runQuery("UPDATE colleges SET status='inactive' WHERE id=?", [id]); loadColleges(); }
       if (tab === 'departments') { runQuery("UPDATE departments SET status='inactive' WHERE id=?", [id]); loadDepartments(); }
       if (tab === 'majors') { runQuery("UPDATE majors SET status='inactive' WHERE id=?", [id]); loadMajors(); }
@@ -152,7 +155,6 @@ function Students() {
     }
   };
 
-  // ========== تعبئة بيانات التعديل للمدخرات ==========
   const handleEdit = (item) => {
     setEditId(item.id);
     setShowForm(true);
@@ -180,63 +182,64 @@ function Students() {
     }
   };
 
-  // ========== طباعة وإصدار بطاقة الهوية الجامعية الذكية QR ==========
   const printCard = (student) => {
-    const cardWindow = window.open('', 'بطاقة الهوية الأكاديمية', 'width=450,height=650');
+    const cardWindow = window.open('', 'بطاقة الهوية الأكاديمية', 'width=480,height=700');
     cardWindow.document.write(`
       <html dir="rtl">
         <head>
-          <title>البطاقة الجامعية الذكية</title>
-          <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&family=Amiri:ital,wght@0,700;1,400&display=swap" rel="stylesheet">
+          <title>البطاقة الجامعية الذكية - فرع غيل باوزير</title>
+          <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&family=Amiri:wght@700&display=swap" rel="stylesheet">
           <style>
-            body { font-family: 'Tajawal', sans-serif; background: #03140f; color: #fff; text-align: center; padding: 10px; margin: 0; }
+            body { font-family: 'Tajawal', sans-serif; background: #020b07; color: #fff; text-align: center; padding: 0; margin: 0; display:flex; align-items:center; justifyContent:center; height:100vh; }
             .card { 
-              border: 3px solid #D4AF37; border-radius: 24px; padding: 25px; max-width: 360px; margin: 20px auto;
-              background: linear-gradient(135deg, #062b1e, #0c4733); position: relative; overflow: hidden;
-              box-shadow: 0 15px 35px rgba(0,0,0,0.6);
+              border: 2px dashed #D4AF37; border-radius: 24px; padding: 30px; width: 350px; margin: 0 auto;
+              background: linear-gradient(135deg, #052218, #0a3a29); position: relative; overflow: hidden;
+              box-shadow: 0 20px 40px rgba(0,0,0,0.8); box-sizing: border-box;
             }
             .card::before {
-              content: "🏛️"; position: absolute; font-size: 15rem; opacity: 0.03; top: 20%; left: -10%; pointer-events: none;
+              content: "🏛️"; position: absolute; font-size: 16rem; opacity: 0.03; top: 15%; left: -15%; pointer-events: none;
             }
-            .header-title { font-family: 'Amiri', serif; font-size: 1.15rem; color: #D4AF37; margin: 5px 0; }
-            .sub-title { font-size: 0.75rem; color: #cbd5e1; margin-bottom: 15px; letter-spacing: 1px; }
-            .avatar-placeholder { width: 95px; height: 95px; border-radius: 50%; border: 2px solid #D4AF37; background: rgba(255,255,255,0.05); margin: 0 auto 12px; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; }
-            .name { font-size: 1.25rem; font-weight: 900; color: #fff; margin: 8px 0; letter-spacing: -0.5px; }
-            .id-badge { background: #D4AF37; color: #062b1e; display: inline-block; padding: 4px 16px; border-radius: 50px; font-weight: 800; font-size: 0.95rem; margin-bottom: 15px; }
-            .qr-container { background: white; padding: 10px; display: inline-block; border-radius: 16px; margin: 5px 0; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
-            .info-box { text-align: right; background: rgba(0,0,0,0.25); padding: 12px 18px; border-radius: 14px; margin-top: 15px; border: 1px solid rgba(212,175,55,0.15); font-size: 0.85rem; }
-            .info-box p { margin: 6px 0; color: #e2e8f0; }
+            .gold-line { height: 4px; background: linear-gradient(90deg, transparent, #D4AF37, transparent); margin: 12px 0; }
+            .header-title { font-family: 'Amiri', serif; font-size: 1.3rem; color: #D4AF37; margin: 0; font-weight:700; }
+            .sub-title { font-size: 0.78rem; color: #a3b8cc; margin: 2px 0 15px 0; letter-spacing: 0.5px; }
+            .avatar-zone { width: 105px; height: 105px; border-radius: 50%; border: 2px solid #D4AF37; background: rgba(255,255,255,0.03); margin: 0 auto 15px; display: flex; align-items: center; justify-content: center; font-size: 3rem; boxShadow: 0 0 15px rgba(214,175,55,0.1); }
+            .name { font-size: 1.35rem; font-weight: 900; color: #fff; margin: 10px 0 5px 0; letter-spacing: -0.3px; }
+            .id-badge { background: linear-gradient(135deg, #D4AF37, #b89324); color: #020b07; display: inline-block; padding: 5px 20px; border-radius: 50px; font-weight: 900; font-size: 1rem; margin-bottom: 15px; boxShadow: 0 4px 10px rgba(214,175,55,0.2); }
+            .qr-container { background: white; padding: 12px; display: inline-block; border-radius: 18px; margin: 5px 0; box-shadow: 0 8px 20px rgba(0,0,0,0.4); }
+            .info-box { text-align: right; background: rgba(0,0,0,0.3); padding: 14px 18px; border-radius: 16px; margin-top: 18px; border: 1px solid rgba(212,175,55,0.12); font-size: 0.88rem; }
+            .info-box p { margin: 6px 0; color: #cbd5e1; display:flex; justify-content:space-between; }
             .info-box strong { color: #D4AF37; }
-            .footer-text { font-size: 0.65rem; color: rgba(255,255,255,0.4); margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px; }
+            .footer-text { font-size: 0.68rem; color: rgba(255,255,255,0.35); margin-top: 18px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 12px; font-weight:400; }
           </style>
         </head>
         <body>
           <div class="card">
             <div class="header-title">جامعة القرآن الكريم والعلوم الإسلامية</div>
             <div class="sub-title">فرع غيل باوزير - حضرموت</div>
-            <div class="avatar-placeholder">🎓</div>
+            <div class="gold-line"></div>
+            <div class="avatar-zone">🎓</div>
             <div class="name">${student.full_name}</div>
-            <div class="id-badge">${student.university_id}</div>
+            <div class="id-badge">ID: ${student.university_id}</div>
             <br/>
             <div class="qr-container"><div id="qrcode"></div></div>
             <div class="info-box">
-              <p><strong>🏛️ الكلية:</strong> ${student.college_name || 'الأقسام الأكاديمية'}</p>
-              <p><strong>📂 القسم:</strong> ${student.department_name || ''}</p>
-              <p><strong>📜 التخصص:</strong> ${student.major_name || ''}</p>
-              <p><strong>📈 المستوى الدراسي:</strong> ${student.level || ''} (الشعبة: ${student.group_name || '1'})</p>
+              <p><span><strong>🏛️ الكلية:</strong></span> <span>${student.college_name || 'العلوم الأكاديمية'}</span></p>
+              <p><span><strong>📂 القسم:</strong></span> <span>${student.department_name || 'العام'}</span></p>
+              <p><span><strong>📜 التخصص:</strong></span> <span>${student.major_name || 'غير محدد'}</span></p>
+              <p><span><strong>📈 المستوى:</strong></span> <span>${student.level || 'الأول'} (شعبة ${student.group_name || 'أ'})</span></p>
             </div>
-            <div class="footer-text">نظام الهوية الإلكتروني الذكي الموحد لبوابات الحضور الإلكترونية</div>
+            <div class="footer-text">نظام الهوية الرقمية الموحد لبوابات الحضور الذكية</div>
           </div>
           <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
           <script>
             new QRCode(document.getElementById("qrcode"), {
               text: "${student.university_id}",
-              width: 110,
-              height: 110,
-              colorDark : "#062b1e",
+              width: 115,
+              height: 115,
+              colorDark : "#020b07",
               colorLight : "#ffffff"
             });
-            setTimeout(() => { window.print(); }, 600);
+            setTimeout(() => { window.print(); }, 500);
           </script>
         </body>
       </html>
@@ -249,37 +252,41 @@ function Students() {
     s.major_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // ========== مؤثرات تحريك النوافذ (Modals) ==========
-  const modalVariants = {
-    hidden: { opacity: 0, scale: 0.9, y: 20 },
-    visible: { opacity: 1, scale: 1, y: 0, transition: { type: 'spring', stiffness: 150, damping: 20 } },
-    exit: { opacity: 0, scale: 0.95, y: 15, transition: { duration: 0.2 } }
+  // مؤثرات التحريك المتتالي للسجلات والبطاقات
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: { opacity: 1, transition: { staggerChildren: 0.04 } }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 15 },
+    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 120, damping: 15 } }
   };
 
   return (
     <div className="students-module" style={{ padding: '5px 0' }}>
       
-      {/* 🧭 شريط التبويبات الفاخر ثلاثي الأبعاد */}
-      <div className="tabs" style={{ display: 'flex', gap: '10px', background: 'rgba(255,255,255,0.02)', padding: '10px', borderRadius: '18px', border: '1px solid var(--glass-border)', marginBottom: '30px' }}>
+      {/* 🧭 شريط التبويبات الفاخر ثلاثي الأبعاد المضيء */}
+      <div className="tabs" style={{ display: 'flex', gap: '10px', background: 'rgba(255,255,255,0.01)', padding: '10px', borderRadius: '20px', border: '1px solid var(--glass-border)', marginBottom: '30px', boxShadow: 'inset 0 0 15px rgba(255,255,255,0.01)' }}>
         {[
-          { id: 'colleges', label: '🏫 الكليات العمومية', load: loadColleges },
-          { id: 'departments', label: '📂 الأقسام المقيدة', load: () => loadDepartments() },
-          { id: 'majors', label: '🎓 تخصصات الكليات', load: () => loadMajors() },
-          { id: 'students', label: '👥 سجلات الطلاب', load: loadStudents }
+          { id: 'colleges', label: '🏫 هيكلة الكليات', load: loadColleges },
+          { id: 'departments', label: '📂 الأقسام الأكاديمية', load: () => loadDepartments() },
+          { id: 'majors', label: '🎓 مسارات التخصصات', load: () => loadMajors() },
+          { id: 'students', label: '👥 قاعدة بيانات الطلاب', load: loadStudents }
         ].map(t => (
           <motion.button
             key={t.id}
             className={`tab-btn ${tab === t.id ? 'active' : ''}`}
             onClick={() => { setTab(t.id); t.load(); resetForm(); }}
-            whileHover={{ y: -3, scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+            whileHover={{ y: -2, scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
             style={{
-              flex: 1, padding: '14px', borderRadius: '12px', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer',
-              background: tab === t.id ? 'linear-gradient(135deg, var(--gold-main), #b89324)' : 'rgba(255,255,255,0.03)',
-              color: tab === t.id ? '#062b1e' : 'var(--text-secondary)',
-              border: tab === t.id ? '1px solid var(--gold-light)' : '1px solid rgba(255,255,255,0.05)',
-              boxShadow: tab === t.id ? '0 5px 15px rgba(214,175,55,0.2)' : 'none',
-              transition: 'all 0.3s ease'
+              flex: 1, padding: '14px 10px', borderRadius: '14px', fontWeight: 700, fontSize: '0.92rem', cursor: 'pointer',
+              background: tab === t.id ? 'linear-gradient(135deg, var(--gold-main), #b89324)' : 'transparent',
+              color: tab === t.id ? '#052218' : 'var(--text-secondary)',
+              border: tab === t.id ? '1px solid var(--gold-light)' : '1px solid transparent',
+              boxShadow: tab === t.id ? '0 8px 20px rgba(214,175,55,0.15)' : 'none',
+              transition: 'all 0.25s ease'
             }}
           >
             {t.label}
@@ -287,12 +294,15 @@ function Students() {
         ))}
       </div>
 
-      {/* 📋 محتوى الكليات */}
+      {/* 🏛️ 1. إدارة الكليات */}
       {tab === 'colleges' && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="tab-content">
-          <div className="tab-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)' }}>🏫 إدارة هيكلة كليات الجامعة</h3>
-            <motion.button className="btn-add" onClick={() => { resetForm(); setShowForm(true); }} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} style={{ background: 'linear-gradient(135deg, var(--emerald-light), var(--green-bright))', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer' }}>
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="tab-content">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px' }}>
+            <div>
+              <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)', margin: 0 }}>🏫 الكليات المعتمدة بفرع غيل باوزير</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', margin: '4px 0 0 0' }}>إدارة الهيكل العام وتدشين الكليات الجامعية الرئيسية</p>
+            </div>
+            <motion.button onClick={() => { resetForm(); setShowForm(true); }} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} style={{ background: 'linear-gradient(135deg, var(--emerald-light), var(--green-bright))', color: '#fff', border: 'none', padding: '12px 22px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 15px rgba(16,185,129,0.2)' }}>
               ➕ قيد كلية جديدة
             </motion.button>
           </div>
@@ -303,34 +313,37 @@ function Students() {
                 <tr>
                   <th>#</th>
                   <th>اسم الكلية الأكاديمية</th>
-                  <th>تاريخ القيد المالي</th>
-                  <th>إجراءات إدارية</th>
+                  <th>حالة القيد المالي</th>
+                  <th>إجراءات الضبط السيبراني</th>
                 </tr>
               </thead>
-              <tbody>
+              <motion.tbody variants={containerVariants} initial="hidden" animate="show">
                 {colleges.map((c, i) => (
-                  <tr key={c.id}>
+                  <motion.tr variants={itemVariants} key={c.id}>
                     <td><strong>{i + 1}</strong></td>
-                    <td style={{ color: 'var(--white)', fontWeight: 600 }}>{c.name}</td>
-                    <td>{c.created_at || 'مفعل مسبقاً'}</td>
+                    <td style={{ color: 'var(--white)', fontWeight: 600, fontSize: '0.98rem' }}>{c.name}</td>
+                    <td><span style={{ color: 'var(--green-bright)', fontSize: '0.85rem' }}>● نشطة وموثقة</span></td>
                     <td>
-                      <button className="btn-edit" onClick={() => handleEdit(c)}>✏️</button>
-                      <button className="btn-delete" onClick={() => handleDelete(c.id)}>🗑️</button>
+                      <button className="btn-edit" onClick={() => handleEdit(c)} title="تعديل">✏️</button>
+                      <button className="btn-delete" onClick={() => handleDelete(c.id)} title="نقل للأرشيف">🗑️</button>
                     </td>
-                  </tr>
+                  </motion.tr>
                 ))}
-              </tbody>
+              </motion.tbody>
             </table>
           </div>
         </motion.div>
       )}
 
-      {/* 📋 محتوى الأقسام */}
+      {/* 📂 2. إدارة الأقسام */}
       {tab === 'departments' && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="tab-content">
-          <div className="tab-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)' }}>📂 إدارة الأقسام العلمية للجامعة</h3>
-            <motion.button className="btn-add" onClick={() => { resetForm(); loadColleges(); setShowForm(true); }} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} style={{ background: 'linear-gradient(135deg, var(--emerald-light), var(--green-bright))', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer' }}>
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="tab-content">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px' }}>
+            <div>
+              <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)', margin: 0 }}>📂 الأقسام والدوائر الأكاديمية العلمية</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', margin: '4px 0 0 0' }}>تقسيم الخطط التعليمية وربط الأقسام بالكليات المرجعية</p>
+            </div>
+            <motion.button onClick={() => { resetForm(); loadColleges(); setShowForm(true); }} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} style={{ background: 'linear-gradient(135deg, var(--emerald-light), var(--green-bright))', color: '#fff', border: 'none', padding: '12px 22px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 15px rgba(16,185,129,0.2)' }}>
               ➕ تدشين قسم أكاديمي
             </motion.button>
           </div>
@@ -342,33 +355,36 @@ function Students() {
                   <th>#</th>
                   <th>اسم القسم العلمي</th>
                   <th>الكلية التابع لها</th>
-                  <th>إجراءات إدارية</th>
+                  <th>خيارات الضبط</th>
                 </tr>
               </thead>
-              <tbody>
+              <motion.tbody variants={containerVariants} initial="hidden" animate="show">
                 {departments.map((d, i) => (
-                  <tr key={d.id}>
+                  <motion.tr variants={itemVariants} key={d.id}>
                     <td><strong>{i + 1}</strong></td>
                     <td style={{ color: 'var(--white)', fontWeight: 600 }}>{d.name}</td>
-                    <td style={{ color: 'var(--gold-light)' }}>{d.college_name}</td>
+                    <td style={{ color: 'var(--gold-light)', fontWeight: 500 }}>{d.college_name}</td>
                     <td>
                       <button className="btn-edit" onClick={() => handleEdit(d)}>✏️</button>
                       <button className="btn-delete" onClick={() => handleDelete(d.id)}>🗑️</button>
                     </td>
-                  </tr>
+                  </motion.tr>
                 ))}
-              </tbody>
+              </motion.tbody>
             </table>
           </div>
         </motion.div>
       )}
 
-      {/* 📋 محتوى التخصصات */}
+      {/* 🎓 3. إدارة التخصصات */}
       {tab === 'majors' && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="tab-content">
-          <div className="tab-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)' }}>🎓 مساقات الخطط الدراسية والتخصصات</h3>
-            <motion.button className="btn-add" onClick={() => { resetForm(); loadDepartments(); setShowForm(true); }} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} style={{ background: 'linear-gradient(135deg, var(--emerald-light), var(--green-bright))', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer' }}>
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="tab-content">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px' }}>
+            <div>
+              <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)', margin: 0 }}>🎓 مساقات الخطط الدراسية والتخصصات المتاحة</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', margin: '4px 0 0 0' }}>تحديد فترة الخطة الدراسية والرسوم السنوية لكل مسار فرعي</p>
+            </div>
+            <motion.button onClick={() => { resetForm(); loadDepartments(); setShowForm(true); }} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} style={{ background: 'linear-gradient(135deg, var(--emerald-light), var(--green-bright))', color: '#fff', border: 'none', padding: '12px 22px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 15px rgba(16,185,129,0.2)' }}>
               ➕ ربط تخصص خطة
             </motion.button>
           </div>
@@ -379,209 +395,269 @@ function Students() {
                 <tr>
                   <th>#</th>
                   <th>مساق التخصص الفرعي</th>
-                  <th>القسم العلمي</th>
-                  <th>الرسوم السنوية</th>
-                  <th>مدة المسار الدراسي</th>
-                  <th>إجراءات إدارية</th>
+                  <th>القسم العلمي المرجعي</th>
+                  <th>الرسوم المقيدة</th>
+                  <th>فترة البقاء بالخطة</th>
+                  <th>خيارات التحكم</th>
                 </tr>
               </thead>
-              <tbody>
+              <motion.tbody variants={containerVariants} initial="hidden" animate="show">
                 {majors.map((m, i) => (
-                  <tr key={m.id}>
+                  <motion.tr variants={itemVariants} key={m.id}>
                     <td><strong>{i + 1}</strong></td>
                     <td style={{ color: 'var(--white)', fontWeight: 600 }}>{m.name}</td>
                     <td>{m.department_name}</td>
-                    <td style={{ color: 'var(--gold-main)', fontWeight: 700 }}>{m.fees} ريال</td>
-                    <td>{m.duration}</td>
+                    <td style={{ color: 'var(--gold-main)', fontWeight: 800 }}>{Number(m.fees).toLocaleString('ar-YE')} ريال</td>
+                    <td><span style={{ color: '#cbd5e1' }}>{m.duration}</span></td>
                     <td>
                       <button className="btn-edit" onClick={() => handleEdit(m)}>✏️</button>
                       <button className="btn-delete" onClick={() => handleDelete(m.id)}>🗑️</button>
                     </td>
-                  </tr>
+                  </motion.tr>
                 ))}
-              </tbody>
+              </motion.tbody>
             </table>
           </div>
         </motion.div>
       )}
 
-      {/* 📋 محتوى السجلات والطلاب */}
+      {/* 👥 4. قاعدة شؤون الطلاب (الهوية الذكية والمظهر الإمبراطوري) */}
       {tab === 'students' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="tab-content">
-          <div className="tab-header" style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '15px', alignItems: 'center', marginBottom: '20px' }}>
-            <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)' }}>👥 شؤون المقيدين وضبط الهوية الجامعية</h3>
-            <div className="tab-actions" style={{ display: 'flex', gap: '12px', flex: '1', justifyContent: 'flex-end', minWidth: '280px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '15px', alignItems: 'center', marginBottom: '25px' }}>
+            <div>
+              <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.7rem', color: 'var(--gold-light)', margin: 0 }}>👥 وحدة قيد شؤون الطلاب والمسح البيومتري</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', margin: '4px 0 0 0' }}>مراقبة حية للمستويات الأكاديمية والربط الفوري لبصمات الوجه الرقمية</p>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '12px', flex: '1', justifyContent: 'flex-end', alignItems: 'center', minWidth: '300px' }}>
+              {/* تبديل العرض الجمالي لإبهار اللجنة */}
+              <div style={{ display: 'flex', background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '10px', border: '1px solid var(--glass-border)' }}>
+                <button onClick={() => setViewMode('grid')} style={{ background: viewMode === 'grid' ? 'var(--gold-main)' : 'transparent', color: viewMode === 'grid' ? '#052218' : '#fff', border: 'none', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>🎴 كروت ذكية</button>
+                <button onClick={() => setViewMode('table')} style={{ background: viewMode === 'table' ? 'var(--gold-main)' : 'transparent', color: viewMode === 'table' ? '#052218' : '#fff', border: 'none', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>📋 جدول عادي</button>
+              </div>
+
               <input
                 type="text"
                 placeholder="🔍 ابحث بالرقم الجامعي، الاسم، التخصص..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="search-input"
-                style={{ width: '100%', maxWidth: '320px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '10px 16px', borderRadius: '12px', color: '#fff' }}
+                style={{ width: '100%', maxWidth: '280px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '10px 16px', borderRadius: '12px', color: '#fff', fontSize: '0.9rem' }}
               />
-              <motion.button className="btn-add" onClick={() => { resetForm(); loadMajors(); setShowForm(true); }} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} style={{ background: 'linear-gradient(135deg, var(--emerald-light), var(--green-bright))', color: '#fff', border: 'none', padding: '10px 20px', borderVer: 'none', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                ➕ تسجيل طالب
+              <motion.button onClick={() => { resetForm(); loadMajors(); setShowForm(true); }} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} style={{ background: 'linear-gradient(135deg, var(--emerald-light), var(--green-bright))', color: '#fff', border: 'none', padding: '11px 20px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 4px 15px rgba(16,185,129,0.2)' }}>
+                ➕ قيد طالب جديد
               </motion.button>
             </div>
           </div>
 
-          <div className="data-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>الرقم الجامعي</th>
-                  <th>الاسم الرباعي المعتمد</th>
-                  <th>تخصص المسار الدراسي</th>
-                  <th>المستوى</th>
-                  <th>رقم الهاتف الشخصي</th>
-                  <th>بطاقة QR</th>
-                  <th>أوامر تحرير</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredStudents.map((s, i) => (
-                  <tr key={s.id}>
-                    <td><strong>{i + 1}</strong></td>
-                    <td style={{ color: 'var(--gold-light)', fontWeight: 700 }}>{s.university_id}</td>
-                    <td style={{ color: 'var(--white)', fontWeight: 600 }}>{s.full_name}</td>
-                    <td>{s.major_name}</td>
-                    <td><span style={{ background: 'rgba(56,189,248,0.1)', color: '#38bdf8', padding: '3px 10px', borderRadius: '50px', fontSize: '0.85rem' }}>{s.level}</span></td>
-                    <td>{s.phone}</td>
-                    <td>
-                      <motion.button className="btn-qr" onClick={() => printCard(s)} whileHover={{ scale: 1.1 }} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', padding: '6px 10px', borderRadius: '8px' }}>📱 كود</motion.button>
-                    </td>
-                    <td>
-                      <button className="btn-edit" onClick={() => handleEdit(s)}>✏️</button>
-                      <button className="btn-delete" onClick={() => handleDelete(s.id)}>🗑️</button>
-                      <button className="btn-print" onClick={() => printCard(s)} style={{ color: 'var(--gold-main)' }}>🖨️ طباعة</button>
-                    </td>
+          {/* 🎴 النمط الأول: بطاقات الكروت الفاخرة ثلاثية الأبعاد */}
+          {viewMode === 'grid' ? (
+            <motion.div variants={containerVariants} initial="hidden" animate="show" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+              {filteredStudents.map((s) => {
+                // مصفوفة تحديد ألوان إنذار نسب الغياب بشكل آلي
+                let alertColor = 'var(--green-bright)';
+                let alertLabel = 'حضور مستقر';
+                if (s.absence_rate >= 25) { alertColor = '#ef4444'; alertLabel = 'حرمان حرج 🚨'; }
+                else if (s.absence_rate > 12) { alertColor = '#f59e0b'; alertLabel = 'إنذار أول ⚠️'; }
+
+                return (
+                  <motion.div 
+                    variants={itemVariants} 
+                    key={s.id}
+                    whileHover={{ y: -6, boxShadow: '0 12px 30px rgba(0,0,0,0.4), 0 0 15px rgba(214,175,55,0.05)' }}
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(255,255,255,0.01), rgba(255,255,255,0.03))',
+                      backdropFilter: 'blur(10px)', border: '1px solid var(--glass-border)', borderRadius: '20px', padding: '20px',
+                      position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '12px'
+                    }}
+                  >
+                    {/* شارة نسبة الغياب في أعلى الكرت */}
+                    <div style={{ position: 'absolute', top: '15px', left: '15px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                      <span style={{ background: `${alertColor}15`, color: alertColor, border: `1px solid ${alertColor}30`, padding: '3px 10px', borderRadius: '50px', fontSize: '0.75rem', fontWeight: 800 }}>
+                        {alertLabel} ({s.absence_rate}%)
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                      <div style={{ width: '65px', height: '65px', borderRadius: '50%', border: '2px solid var(--gold-main)', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem' }}>🎓</div>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ color: 'var(--white)', fontWeight: 800, fontSize: '1.05rem', letterSpacing: '-0.3px', paddingLeft: '50px' }}>{s.full_name}</span>
+                        <span style={{ color: 'var(--gold-light)', fontWeight: 700, fontSize: '0.85rem', marginTop: '2px' }}>ID: {s.university_id}</span>
+                      </div>
+                    </div>
+
+                    <div style={{ background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.02)', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>📜 المسار الدراسي:</span> <span style={{ color: '#fff', fontWeight: 600 }}>{s.major_name || 'عام'}</span></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>📈 الفوج والمستوى:</span> <span style={{ color: '#38bdf8', fontWeight: 600 }}>{s.level} (شعبة {s.group_name || 'أ'})</span></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>📱 جوال المزامنة:</span> <span style={{ color: '#cbd5e1' }}>{s.phone}</span></div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '5px' }}>
+                      <motion.button onClick={() => printCard(s)} whileTap={{ scale: 0.95 }} style={{ flex: 1, background: 'rgba(214,175,55,0.08)', color: 'var(--gold-main)', border: '1px solid rgba(214,175,55,0.2)', padding: '8px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>🖨️ الهوية الذكية</motion.button>
+                      <button className="btn-edit" onClick={() => handleEdit(s)} style={{ margin: 0, padding: '8px 12px', borderRadius: '10px' }}>✏️</button>
+                      <button className="btn-delete" onClick={() => handleDelete(s.id)} style={{ margin: 0, padding: '8px 12px', borderRadius: '10px' }}>🗑️</button>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </motion.div>
+          ) : (
+            /* 📋 النمط الثاني: جدول البيانات الكلاسيكي المتناسق للتقارير الدورية */
+            <div className="data-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>الرقم الجامعي</th>
+                    <th>الاسم الرباعي الرسمي لطالب</th>
+                    <th>تخصص المسار</th>
+                    <th>المستوى الدراسـي</th>
+                    <th>نسبة الغياب</th>
+                    <th>أوامر وإجراءات</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <motion.tbody variants={containerVariants} initial="hidden" animate="show">
+                  {filteredStudents.map((s, i) => (
+                    <motion.tr variants={itemVariants} key={s.id}>
+                      <td><strong>{i + 1}</strong></td>
+                      <td style={{ color: 'var(--gold-light)', fontWeight: 700 }}>{s.university_id}</td>
+                      <td style={{ color: 'var(--white)', fontWeight: 600 }}>{s.full_name}</td>
+                      <td>{s.major_name}</td>
+                      <td><span style={{ background: 'rgba(56,189,248,0.1)', color: '#38bdf8', padding: '3px 10px', borderRadius: '50px', fontSize: '0.82rem' }}>{s.level}</span></td>
+                      <td style={{ fontWeight: 700, color: s.absence_rate >= 25 ? '#ef4444' : s.absence_rate > 12 ? '#f59e0b' : 'var(--green-bright)' }}>{s.absence_rate}%</td>
+                      <td>
+                        <button className="btn-edit" onClick={() => handleEdit(s)}>✏️</button>
+                        <button className="btn-delete" onClick={() => handleDelete(s.id)}>🗑️</button>
+                        <button className="btn-print" onClick={() => printCard(s)} style={{ color: 'var(--gold-main)', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 700 }}>🖨️ طباعة</button>
+                      </td>
+                    </motion.tr>
+                  ))}
+                </motion.tbody>
+              </table>
+            </div>
+          )}
         </motion.div>
       )}
 
-      {/* 🪟 النافذة المنبثقة الشفافة الفاخرة للنماذج الإدخالية (Glassmorphic Modal) */}
+      {/* 🪟 النافذة المنبثقة الشفافة للنماذج الإدخالية (Glassmorphic Deluxe Modal) */}
       <AnimatePresence>
         {showForm && (
-          <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(3, 20, 15, 0.7)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(2, 11, 7, 0.8)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
             <motion.div
               className="form-card-modal"
-              variants={modalVariants}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-              style={{ background: 'linear-gradient(135deg, rgba(6,43,30,0.95), rgba(12,71,51,0.95))', border: '1px solid var(--gold-light)', padding: '30px', borderRadius: '24px', width: '100%', maxWidth: tab === 'students' ? '700px' : '450px', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}
+              initial={{ opacity: 0, scale: 0.93, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ type: 'spring', stiffness: 140, damping: 18 }}
+              style={{ background: 'linear-gradient(135deg, rgba(5,34,24,0.98), rgba(10,58,41,0.98))', border: '1px solid var(--gold-main)', padding: '30px', borderRadius: '24px', width: '100%', maxWidth: tab === 'students' ? '720px' : '460px', boxShadow: '0 25px 60px rgba(0,0,0,0.6)', position: 'relative' }}
             >
-              <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-main)', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '12px' }}>
-                {editId ? '📝 تعديل سجل حالي موثق' : '➕ إضافة سجل إداري جديد'}
+              <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-main)', marginBottom: '22px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '12px', marginTop: 0 }}>
+                {editId ? '📝 تحرير وثيقة السجل المعتمد' : '➕ قيد سجل إداري جديد مصفوفة'}
               </h3>
 
-              {/* حقول نموذج الكليات */}
+              {/* 📋 حقول الكليات */}
               {tab === 'colleges' && (
-                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  <label style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>اسم الكلية بالكامل</label>
-                  <input type="text" className="glass-input" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="مثال: كلية الشريعة والدراسات الإسلامية" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff', fontSize: '1rem' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.9rem' }}>اسم الكلية بالكامل</label>
+                  <input type="text" className="glass-input" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="مثال: كلية الشريعة والقانون" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff', fontSize: '1rem' }} />
                 </div>
               )}
 
-              {/* حقول نموذج الأقسام */}
+              {/* 📂 حقول الأقسام */}
               {tab === 'departments' && (
-                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  <label style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>الكلية الحاضنة</label>
-                  <select className="glass-input" value={formData.college_id} onChange={e => setFormData({ ...formData, college_id: e.target.value })} style={{ background: '#062b1e', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff', fontSize: '1rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.9rem' }}>الكلية الأكاديمية الحاضنة</label>
+                  <select className="glass-input" value={formData.college_id} onChange={e => setFormData({ ...formData, college_id: e.target.value })} style={{ background: '#052218', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff', fontSize: '1rem' }}>
                     <option value="">-- حدد الكلية المرجعية --</option>
                     {colleges.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
-                  <label style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>اسم القسم العلمي</label>
-                  <input type="text" className="glass-input" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="مثال: قسم التفسير وعلوم القرآن" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff' }} />
+                  <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.9rem' }}>اسم القسم العلمي</label>
+                  <input type="text" className="glass-input" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="مثال: قسم علوم القرآن" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff' }} />
                 </div>
               )}
 
-              {/* حقول نموذج التخصصات */}
+              {/* 🎓 حقول التخصصات */}
               {tab === 'majors' && (
-                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  <label style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>القسم التخصصي تتبع</label>
-                  <select className="glass-input" value={formData.department_id} onChange={e => setFormData({ ...formData, department_id: e.target.value })} style={{ background: '#062b1e', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.9rem' }}>القسم العلمي التابع له المسار</label>
+                  <select className="glass-input" value={formData.department_id} onChange={e => setFormData({ ...formData, department_id: e.target.value })} style={{ background: '#052218', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff', fontSize: '1rem' }}>
                     <option value="">-- حدد القسم التخصصي --</option>
                     {departments.map(d => <option key={d.id} value={d.id}>{d.name} ({d.college_name})</option>)}
                   </select>
-                  <label style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>اسم مسار التخصص الفرعي</label>
-                  <input type="text" className="glass-input" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="مثال: تخصص القراءات" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff' }} />
+                  <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.9rem' }}>اسم مسار التخصص الفرعي</label>
+                  <input type="text" className="glass-input" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="مثال: تخصص التفسير" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff' }} />
                   <div style={{ display: 'flex', gap: '15px' }}>
                     <div style={{ flex: 1 }}>
-                      <label style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>الرسوم السنوية (ريال)</label>
-                      <input type="number" className="glass-input" value={formData.fees} onChange={e => setFormData({ ...formData, fees: e.target.value })} placeholder="الرسوم" style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff' }} />
+                      <label style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>الرسوم السنوية المقررة (ريال)</label>
+                      <input type="number" className="glass-input" value={formData.fees} onChange={e => setFormData({ ...formData, fees: e.target.value })} placeholder="مثال: 50000" style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff' }} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>فترة البقاء بالخطة</label>
+                      <label style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>فترة البقاء بالخطة الأكاديمية</label>
                       <input type="text" className="glass-input" value={formData.duration} onChange={e => setFormData({ ...formData, duration: e.target.value })} style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff' }} />
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* حقول نموذج شؤون الطلاب (الهيكلة العريضة) */}
+              {/* 👥 حقول شؤون الطلاب العريضة */}
               {tab === 'students' && (
-                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                   <div style={{ display: 'flex', gap: '15px' }}>
                     <div style={{ flex: 1 }}>
-                      <label style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>🔢 الرقم الجامعي المقيد</label>
-                      <input type="text" className="glass-input" value={formData.university_id} onChange={e => setFormData({ ...formData, university_id: e.target.value })} placeholder="مثال: 20261009" style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff' }} />
+                      <label style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>🔢 الرقم الجامعي المقيد</label>
+                      <input type="text" className="glass-input" value={formData.university_id} onChange={e => setFormData({ ...formData, university_id: e.target.value })} placeholder="مثال: 20260401" style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff', fontSize: '0.95rem', fontWeight: 600 }} />
                     </div>
                     <div style={{ flex: 2 }}>
-                      <label style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>👤 الاسم الرباعي الرسمي لطالب</label>
-                      <input type="text" className="glass-input" value={formData.full_name} onChange={e => setFormData({ ...formData, full_name: e.target.value })} placeholder="الاسم الكامل دون اختصارات" style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff' }} />
+                      <label style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>👤 الاسم الرباعي المعتمد بالهوية</label>
+                      <input type="text" className="glass-input" value={formData.full_name} onChange={e => setFormData({ ...formData, full_name: e.target.value })} placeholder="الاسم الكامل دون اختصارات لضمان مطابقة الـ QR" style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff', fontSize: '0.95rem' }} />
                     </div>
                   </div>
 
                   <div style={{ display: 'flex', gap: '15px' }}>
                     <div style={{ flex: 1 }}>
-                      <label style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>📱 هاتف التواصل الأساسي</label>
+                      <label style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>📱 هاتف التواصل الشخصي</label>
                       <input type="text" className="glass-input" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} placeholder="777000000" style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff' }} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>💬 جوال ولي الأمر (WhatsApp)</label>
-                      <input type="text" className="glass-input" value={formData.parent_phone} onChange={e => setFormData({ ...formData, parent_phone: e.target.value })} placeholder="إشعار أولياء الأمور تلقائياً" style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff' }} />
+                      <label style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>💬 هاتف ولي الأمر لمزامنة الإشعارات</label>
+                      <input type="text" className="glass-input" value={formData.parent_phone} onChange={e => setFormData({ ...formData, parent_phone: e.target.value })} placeholder="إشعار أولياء الأمور تلقائياً عبر النظام" style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff' }} />
                     </div>
                   </div>
 
                   <div style={{ display: 'flex', gap: '15px' }}>
                     <div style={{ flex: 1 }}>
-                      <label style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>🪪 رقم البطاقة الوطنية</label>
-                      <input type="text" className="glass-input" value={formData.national_id} onChange={e => setFormData({ ...formData, national_id: e.target.value })} placeholder="الرقم الوطني الشخصي" style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff' }} />
+                      <label style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>🪪 رقم الهوية الوطنية الشخصية</label>
+                      <input type="text" className="glass-input" value={formData.national_id} onChange={e => setFormData({ ...formData, national_id: e.target.value })} placeholder="رقم البطاقة الشخصية / جواز السفر" style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff' }} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>📜 تخصص خطة القبول</label>
-                      <select className="glass-input" value={formData.major_id} onChange={e => setFormData({ ...formData, major_id: e.target.value })} style={{ width: '100%', background: '#062b1e', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff' }}>
-                        <option value="">-- حدد المساق المقيد --</option>
-                        {majors.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                      <label style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>📜 مسار خطة القبول المعتمد</label>
+                      <select className="glass-input" value={formData.major_id} onChange={e => setFormData({ ...formData, major_id: e.target.value })} style={{ width: '100%', background: '#052218', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff', fontSize: '0.95rem' }}>
+                        <option value="">-- حدد المساق والمخطط --</option>
+                        {majors.map(m => <option key={m.id} value={m.id}>{m.name} ({m.department_name})</option>)}
                       </select>
                     </div>
                   </div>
 
                   <div style={{ display: 'flex', gap: '15px' }}>
                     <div style={{ flex: 1 }}>
-                      <label style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>📈 الفوج/المستوى الدراسي</label>
+                      <label style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>📈 الفوج الدراسي / المستوى</label>
                       <input type="text" className="glass-input" value={formData.level} onChange={e => setFormData({ ...formData, level: e.target.value })} placeholder="مثال: المستوى الأول" style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff' }} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>🏫 الشعبة الدراسية الفرعية</label>
-                      <input type="text" className="glass-input" value={formData.group_name} onChange={e => setFormData({ ...formData, group_name: e.target.value })} placeholder="مثال: أ / ب" style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff' }} />
+                      <label style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>🏫 الشعبة الدراسية الفرعية</label>
+                      <input type="text" className="glass-input" value={formData.group_name} onChange={e => setFormData({ ...formData, group_name: e.target.value })} placeholder="مثال: شعبة (أ)" style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff' }} />
                     </div>
                   </div>
                 </div>
               )}
 
-              <div className="form-actions" style={{ display: 'flex', justify: 'flex-end', gap: '12px', marginTop: '25px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                <motion.button className="btn-save" onClick={handleSave} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} style={{ background: 'linear-gradient(135deg, var(--gold-main), #b89324)', color: '#062b1e', border: 'none', padding: '10px 22px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}>
-                  💾 اعتماد حفظ البيانات
+              {/* 🎮 الأزرار السفلية لحفظ وتأكيد السجلات */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '30px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                <motion.button onClick={handleSave} whileHover={{ scale: 1.02, boxShadow: '0 0 15px rgba(214,175,55,0.3)' }} whileTap={{ scale: 0.98 }} style={{ background: 'linear-gradient(135deg, var(--gold-main), #b89324)', color: '#052218', border: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.95rem' }}>
+                  💾 اعتماد وثيقة السجل
                 </motion.button>
-                <button className="btn-cancel" onClick={resetForm} style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', border: '1px solid rgba(255,255,255,0.1)', padding: '10px 18px', borderRadius: '10px', cursor: 'pointer' }}>
-                  إلغاء الأمر
+                <button onClick={resetForm} style={{ background: 'rgba(255,255,255,0.04)', color: 'var(--text-secondary)', border: '1px solid rgba(255,255,255,0.08)', padding: '12px 20px', borderRadius: '12px', cursor: 'pointer', fontWeight: 600 }}>
+                  إلغاء الإجراء
                 </button>
               </div>
             </motion.div>
