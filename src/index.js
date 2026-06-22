@@ -5,8 +5,8 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from '../App';
-import '../App.css';
+import App from './App';
+import './App.css';
 
 // ========== إعدادات التطبيق ==========
 const APP_CONFIG = {
