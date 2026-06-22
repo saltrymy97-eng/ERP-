@@ -1,0 +1,22 @@
+{
+  "name": "نظام الحضور والغياب",
+  "short_name": "الحضور",
+  "description": "نظام متابعة حضور وغياب الطلاب - جامعة القرآن الكريم والعلوم الإسلامية",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#083d2b",
+  "theme_color": "#D4AF37",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
