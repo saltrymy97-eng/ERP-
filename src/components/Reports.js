@@ -411,11 +411,11 @@ function Reports() {
         </div>
 
         <div className="report-actions" style={{ display: 'flex', gap: '10px' }}>
-          {/* الزر الاحترافي الجديد المعتمد على الطباعة السلسة */}
+          {/* تم تعديل الخلفية والحدود لتتناسب تماماً مع اللون الأخضر الإمبراطوري والذهبي المعتمد */}
           <motion.button 
             whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }}
             onClick={handlePrintHTML} disabled={!reportData?.length}
-            className="btn-pdf" style={{ background: 'linear-gradient(135deg, #0284c7, #0369a1)', color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', opacity: reportData?.length ? 1 : 0.4 }}
+            className="btn-pdf" style={{ background: 'linear-gradient(135deg, #052318, #0b4630)', color: 'var(--gold-light)', border: '1px solid rgba(214, 175, 55, 0.4)', padding: '12px 20px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', opacity: reportData?.length ? 1 : 0.4 }}
           >
             📄 وثيقة واستخراج PDF
           </motion.button>
