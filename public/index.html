@@ -35,7 +35,6 @@
   
   <!-- ========== أنماط أولية ========== -->
   <style>
-    /* تحميل أولي */
     body {
       margin: 0;
       padding: 0;
@@ -46,7 +45,6 @@
       -moz-osx-font-smoothing: grayscale;
     }
     
-    /* شاشة التحميل الأولية */
     #splash-screen {
       display: flex;
       align-items: center;
@@ -105,9 +103,15 @@
       from { opacity: 0; transform: translateY(30px); }
       to { opacity: 1; transform: translateY(0); }
     }
+    
+    /* ضمان اتجاه الكتابة من اليمين لليسار */
+    input, textarea, select {
+      direction: rtl !important;
+      text-align: right !important;
+    }
   </style>
 </head>
-<body>
+<body style="direction: rtl; text-align: right;">
   <!-- ========== شاشة التحميل الأولية ========== -->
   <div id="splash-screen">
     <div class="splash-inner">
