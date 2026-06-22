@@ -145,10 +145,11 @@ html, body {
 .login-input-group input { width: 100%; padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 1rem; font-family: 'Tajawal', sans-serif; transition: all 0.3s ease; background: #f8fafc; }
 .login-input-group input:focus { outline: none; border-color: var(--luxury-gold); box-shadow: 0 0 0 3px rgba(212,175,55,0.1); background: var(--pure-white); }
 
-/* التعديل المضاف لحل مشكلة كلمة المرور */
+/* الحل القاطع لمشكلة انعكاس نقاط كلمة المرور */
 .login-input-group input[type="password"] {
-  direction: ltr;
-  text-align: right;
+  direction: ltr !important;
+  text-align: right !important;
+  unicode-bidi: bidi-override !important; /* يجبر المتصفح على عدم قلب ترتيب الرموز المخفية */
   font-family: monospace;
 }
 
