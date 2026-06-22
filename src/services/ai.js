@@ -1,38 +1,18 @@
-// src/services/ai.js – ذكاء اصطناعي محلي متقدم + صوت كامل
-// النموذج: TinyLlama 1.1B – 700MB فقط – أسرع 3 مرات
+// src/services/ai.js – ذكاء اصطناعي محلي + صوت كامل
+// النموذج: TinyLlama 1.1B – 700MB – نسبة تحميل دقيقة
 import { getQuery } from './db';
 
-// ========== حالة النظام ==========
 let model = null;
 let isLoaded = false;
 let isLoading = false;
 let recognition = null;
 
-// ========== نظام الشخصية المتقدم ==========
 const SYSTEM_PROMPT = `أنت "المستشار الأكاديمي الذكي" في جامعة القرآن الكريم والعلوم الإسلامية.
 دورك: تحليل بيانات الحضور والغياب وتقديم توصيات استراتيجية.
-
-[هويتك]
-- اسمك: المستشار الأكاديمي
-- تتحدث العربية الفصحى الميسرة مع لمسة احترافية
-- خبير في التحليل الأكاديمي وإدارة الحضور
-
-[قدراتك]
-- تحليل أنماط الغياب واكتشاف الاتجاهات
-- توقع الطلاب المعرضين للتعثر الأكاديمي
-- تقديم توصيات عملية مبنية على البيانات
-- كشف الحالات الطارئة التي تحتاج تدخل فوري
-- اقتراح حلول لتحسين نسبة الحضور
-
-[أسلوبك]
-- موجز لكن عميق
-- تبدأ بالأولوية القصوى
-- تستعمل الأرقام والنسب في تحليلك
-- تقدم توصيات قابلة للتنفيذ فوراً
-- لا تكرر المعلومات العامة`;
+تتحدث العربية الفصحى الميسرة. كن موجزاً ومفيداً ودقيقاً.`;
 
 // ==========================================
-// ١. تحميل النموذج (TinyLlama 1.1B - 700MB)
+// ١. تحميل النموذج (نسبة دقيقة 0% → 100%)
 // ==========================================
 
 export async function loadMobileModel(onProgress) {
@@ -43,28 +23,30 @@ export async function loadMobileModel(onProgress) {
   }
 
   isLoading = true;
-  if (onProgress) onProgress('جاري تحميل النموذج... (0%)');
+  if (onProgress) onProgress('0%');
 
   try {
     const { pipeline } = await import('@xenova/transformers');
 
-    if (onProgress) onProgress('جاري تحميل النموذج... (30%)');
+    let lastPercent = 0;
 
-    // ⚡ TinyLlama 1.1B – 700MB فقط – أسرع 3 مرات من Gemma 2B
     model = await pipeline('text-generation', 'Xenova/TinyLlama-1.1B-Chat-v1.0', {
       quantized: true,
       local: true,
       progress_callback: (progress) => {
-        if (onProgress && progress?.progress) {
-          const percent = Math.round(progress.progress * 100);
-          onProgress(`جاري تحميل النموذج... (${percent}%)`);
+        if (onProgress && progress?.status === 'progress' && progress.loaded && progress.total) {
+          const percent = Math.min(Math.round((progress.loaded / progress.total) * 100), 100);
+          if (percent > lastPercent) {
+            lastPercent = percent;
+            onProgress(`${percent}%`);
+          }
         }
       }
     });
 
     isLoaded = true;
     isLoading = false;
-    if (onProgress) onProgress('✅ النموذج جاهز!');
+    if (onProgress) onProgress('✅ 100%');
     console.log('✅ AI محلي جاهز (TinyLlama 1.1B)');
     return true;
   } catch (e) {
@@ -81,39 +63,20 @@ export async function loadMobileModel(onProgress) {
 export async function askAI(question, context = '', options = {}) {
   if (!isLoaded) {
     const loaded = await loadMobileModel();
-    if (!loaded) return '⚠️ الذكاء الاصطناعي غير متاح حالياً. النظام يعمل بدون إنترنت. تأكد من تحميل النموذج أولاً.';
+    if (!loaded) return '⚠️ الذكاء الاصطناعي غير متاح حالياً.';
   }
 
-  const {
-    maxTokens = 200,
-    temperature = 0.5,
-    detailed = false
-  } = options;
-
-  const detailLevel = detailed
-    ? 'قدم تحليلاً مفصلاً وعميقاً.'
-    : 'كن موجزاً ومباشراً.';
-
-  const prompt = `[INST] ${SYSTEM_PROMPT}\n\n${detailLevel}\n\nالبيانات: ${context || 'لا توجد بيانات محددة.'}\n\nالسؤال: ${question} [/INST]`;
+  const { maxTokens = 200, temperature = 0.5, detailed = false } = options;
+  const detailLevel = detailed ? 'قدم تحليلاً مفصلاً.' : 'كن موجزاً.';
+  const prompt = `[INST] ${SYSTEM_PROMPT}\n\n${detailLevel}\n\nالبيانات: ${context || 'لا توجد بيانات.'}\n\nالسؤال: ${question} [/INST]`;
 
   try {
-    const result = await model(prompt, {
-      max_new_tokens: maxTokens,
-      temperature: temperature,
-      top_p: 0.9,
-      repetition_penalty: 1.1
-    });
-
+    const result = await model(prompt, { max_new_tokens: maxTokens, temperature, top_p: 0.9, repetition_penalty: 1.1 });
     const answer = result[0]?.generated_text?.split('[/INST]')[1]?.trim();
-
-    if (!answer || answer.length < 10) {
-      return '⚠️ لم يتمكن الذكاء الاصطناعي من تحليل البيانات بشكل كافٍ.';
-    }
-
+    if (!answer || answer.length < 10) return '⚠️ لم يتمكن AI من التحليل.';
     return answer.replace(/\[INST\].*\[\/INST\]/g, '').replace(/\n{3,}/g, '\n\n').trim();
   } catch (e) {
-    console.error('خطأ AI:', e);
-    return '⚠️ حدث خطأ في معالجة السؤال.';
+    return '⚠️ خطأ في المعالجة.';
   }
 }
 
@@ -129,8 +92,7 @@ export async function analyzeDailyAttendance() {
   const present = todayData.filter(a => a.status === 'present').length;
   const absent = todayData.filter(a => a.status === 'absent').length;
   const rate = students.length > 0 ? Math.round((present / students.length) * 100) : 0;
-  const context = `الطلاب: ${students.length}، حاضر: ${present} (${rate}%)، غائب: ${absent}`;
-  return await askAI('حلل حالة اليوم. من يحتاج متابعة؟', context, { maxTokens: 150 });
+  return await askAI('حلل حالة اليوم.', `الطلاب: ${students.length}، حاضر: ${present} (${rate}%)، غائب: ${absent}`, { maxTokens: 150 });
 }
 
 export async function predictAtRiskStudents() {
@@ -145,16 +107,14 @@ export async function predictAtRiskStudents() {
     return null;
   }).filter(Boolean).sort((a, b) => b.absenceRate - a.absenceRate);
   if (analysis.length === 0) return '✅ جميع الطلاب منتظمون.';
-  const context = JSON.stringify(analysis.slice(0, 5), null, 2);
-  return await askAI('من الأكثر إلحاحاً؟', context, { maxTokens: 200 });
+  return await askAI('من الأكثر إلحاحاً؟', JSON.stringify(analysis.slice(0, 5)), { maxTokens: 200 });
 }
 
 export async function detectAnomalies() {
   const attendance = getQuery('attendance') || [];
   const today = new Date().toISOString().slice(0, 10);
   const todayData = attendance.filter(a => a.date === today);
-  const context = `عمليات اليوم: ${todayData.length}`;
-  return await askAI('هل هناك أنماط غير طبيعية؟', context, { maxTokens: 150 });
+  return await askAI('هل هناك أنماط غير طبيعية؟', `عمليات اليوم: ${todayData.length}`, { maxTokens: 150 });
 }
 
 export async function getWeeklyRecommendations() {
@@ -163,8 +123,7 @@ export async function getWeeklyRecommendations() {
   const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - 7);
   const weekData = attendance.filter(a => a.date >= weekStart.toISOString().slice(0, 10));
   const absences = weekData.filter(a => a.status === 'absent').length;
-  const context = `غيابات الأسبوع: ${absences}، الطلاب: ${students.length}`;
-  return await askAI('قدم 5 توصيات.', context, { maxTokens: 250 });
+  return await askAI('قدم 5 توصيات.', `غيابات الأسبوع: ${absences}، الطلاب: ${students.length}`, { maxTokens: 250 });
 }
 
 export async function comprehensiveAnalysis() {
@@ -172,8 +131,7 @@ export async function comprehensiveAnalysis() {
   const attendance = getQuery('attendance') || [];
   const today = new Date().toISOString().slice(0, 10);
   const present = attendance.filter(a => a.date === today && a.status === 'present').length;
-  const context = `الطلاب: ${students.length}، حاضر: ${present}`;
-  return await askAI('قدم تقريراً شاملاً.', context, { maxTokens: 300, detailed: true });
+  return await askAI('قدم تقريراً شاملاً.', `الطلاب: ${students.length}، حاضر: ${present}`, { maxTokens: 300, detailed: true });
 }
 
 // ==========================================
