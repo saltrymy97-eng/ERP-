@@ -1,4 +1,4 @@
-/* App.css – التصميم الزجاجي الملكي الفاخر (الإصدار الاحترافي المتكامل) */
+/* App.css – التصميم الزجاجي الملكي الفاخر (الإصدار الاحترافي المتكامل المعدل) */
 /* نظام ERP المطور - جامعة القرآن الكريم والعلوم الإسلامية */
 
 @import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Tajawal:wght@300;400;500;700;800;900&display=swap');
@@ -240,7 +240,7 @@ input, textarea, select {
 .home-screen {
   min-height: 100vh;
   background: radial-gradient(circle at 50% 10%, var(--emerald-deep) 0%, var(--bg-dark) 100%);
-  padding: 40px 20px;
+  padding: 40px 20px 140px 20px; /* 🌟 تم زيادة الحشوة السفلية لتأمين القوائم المنسدلة من التداخل مع شريط المستخدم */
   position: relative;
   overflow-x: hidden;
 }
@@ -275,20 +275,23 @@ input, textarea, select {
 }
 .home-header p { color: var(--text-secondary); font-size: 1.15rem; margin-top: 5px; opacity: 0.8; }
 
-/* شبكة الأيقونات الـ 3D الكبيرة والواضحة لطلب الأستاذ سعيد */
+/* شبكة الأيقونات الـ 3D - 🌟 تم تعديلها لتصبح 4 أعمدة على شاشات الكمبيوتر الكبيرة للأستاذ سعيد */
 .icons-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(4, 1fr); /* 🌟 التوزيع الافتراضي للكمبيوتر 4 أعمدة متوازية ممتدة */
   gap: 25px; 
-  max-width: 1200px; 
+  max-width: 1300px; 
   margin: 0 auto;
   position: relative; 
   z-index: 1;
+  align-items: start; /* 🌟 قفل هندسي صارم يمنع سقوط صف الأيقونات الأيسر لأسفل عند فتح القوائم */
 }
 
 .icon-wrapper { 
   position: relative; 
   perspective: 1000px; /* يعطي عمق ثلاثي الأبعاد حقيقي عند الحركة */
+  display: flex;
+  flex-direction: column;
 }
 
 /* بطاقة الأيقونة الزجاجية المذهلة */
@@ -348,8 +351,9 @@ input, textarea, select {
 }
 
 .icon-title { 
-  font-family: 'Amiri', serif; 
-  font-size: 1.45rem; 
+  font-family: 'Tajawal', sans-serif; 
+  font-weight: 700;
+  font-size: 1.4rem; 
   color: var(--white); 
   margin-bottom: 8px;
   text-shadow: 0 2px 4px rgba(0,0,0,0.4);
@@ -368,21 +372,23 @@ input, textarea, select {
 }
 .icon-card.active .dropdown-arrow { transform: rotate(180deg); opacity: 1; }
 
-/* لوحة القوائم المنسدلة المنسدلة الفاخرة المنسابة لأسفل */
+/* 🌟 لوحة القوائم المنسدلة - تم تعديل التموضع المطلق وتصغير الحشوة لتلائم الشاشات دون ضغط بصري */
 .dropdown-panel {
-  background: rgba(3, 14, 10, 0.95);
+  background: rgba(3, 14, 10, 0.98);
   backdrop-filter: blur(25px);
   -webkit-backdrop-filter: blur(25px);
   border: 1px solid var(--gold-main);
-  border-top: none;
-  border-radius: 0 0 24px 24px;
-  margin-top: -15px;
+  border-radius: 20px;
   position: absolute;
-  width: 100%;
-  z-index: 10;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 8px;
+  z-index: 999;
+  box-shadow: 0 25px 50px rgba(0,0,0,0.7), 0 0 20px rgba(212, 175, 55, 0.1);
   overflow: hidden;
-  animation: slideDownMenu 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  padding: 6px;
+  animation: slideDownMenu 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 @keyframes slideDownMenu {
@@ -395,16 +401,17 @@ input, textarea, select {
   align-items: center;
   justify-content: space-between;
   width: 100%; 
-  padding: 16px 24px;
+  padding: 12px 18px; /* 🌟 تم اختصار المسافات الداخلية لتصبح القائمة ملمومة وأنيقة على الهاتف والكمبيوتر */
   background: transparent; 
   border: none;
   color: var(--text-secondary); 
-  font-size: 1rem; 
+  font-size: 0.95rem; 
   text-align: right;
   cursor: pointer; 
   font-family: 'Tajawal', sans-serif;
   transition: all 0.25s ease;
   border-right: 4px solid transparent;
+  border-radius: 10px;
 }
 
 .dropdown-item:not(:last-child) {
@@ -415,24 +422,29 @@ input, textarea, select {
   background: rgba(212, 175, 55, 0.08);
   color: var(--gold-light);
   border-right-color: var(--gold-main);
-  padding-right: 30px; /* حركة ترحيبية انسيابية جهة اليمين */
+  padding-right: 24px; /* حركة ترحيبية انسيابية جهة اليمين */
 }
 
-/* شريط المستخدم السفلي الفخم */
+/* 🌟 شريط المستخدم السفلي الفخم - تم تعديل تثبيته لحمايته من أي عناصر فوقه */
 .user-bar {
   display: flex; 
   justify-content: space-between; 
   align-items: center; 
-  max-width: 600px;
-  margin: 50px auto 0 auto; 
-  padding: 15px 35px;
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255,255,255,0.05);
+  width: 100%;
+  max-width: 650px;
+  margin: 0 auto; 
+  padding: 14px 35px;
+  background: rgba(4, 25, 17, 0.85);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border: 1px solid rgba(212, 175, 55, 0.2);
   border-radius: 100px;
-  position: relative; 
-  z-index: 1; 
-  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  position: fixed; /* 🌟 تثبيت مطلق أسفل الواجهة لراحة الأستاذ سعيد في المراقبة الدائمة */
+  bottom: 25px; 
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000; 
+  box-shadow: 0 20px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05);
 }
 
 .user-info-block { display: flex; align-items: center; gap: 15px; }
@@ -736,14 +748,21 @@ input, textarea, select {
 }
 
 /* ===== التوافق التام والتجاوب مع جميع الشاشات (Responsive Design) ===== */
+/* 🌟 شاشات اللابتوب المتوسطة والتابلت العريض */
+@media(max-width: 1200px) {
+  .icons-grid { grid-template-columns: repeat(3, 1fr); gap: 20px; }
+}
+
+/* 🌟 شاشات التابلت العادي والموبايل الأفقي */
 @media(max-width: 992px) {
   .icons-grid { grid-template-columns: repeat(2, 1fr); gap: 20px; }
 }
 
+/* 🌟 الهواتف المحمولة في الوضع الرأسي (التوافق مع لقطات الشاشة الخاصة بك) */
 @media(max-width: 768px) {
-  .home-screen { padding: 20px 10px; }
+  .home-screen { padding: 20px 10px 160px 10px; } /* مسافة أمان سفلى مخصصة للهواتف */
   .home-header h1 { font-size: 2.1rem; }
-  .icons-grid { grid-template-columns: repeat(2, 1fr); gap: 15px; }
+  .icons-grid { grid-template-columns: repeat(2, 1fr); gap: 15px; } /* عمودين متساويين في الهاتف */
   .icon-card { padding: 25px 15px; border-radius: 20px; }
   .icon-3d { font-size: 3.3rem; margin-bottom: 12px; }
   .icon-title { font-size: 1.2rem; }
@@ -752,11 +771,20 @@ input, textarea, select {
   .stat-value { font-size: 2rem; }
   .top-bar { padding: 15px 20px; }
   .top-bar h2 { font-size: 1.4rem; }
+  
+  /* إعادة تموضع شريط المستخدم في الشاشات الصغيرة لضمان وضوح النص والأزرار دون تكدس */
+  .user-bar {
+    width: calc(100% - 30px);
+    bottom: 15px;
+    padding: 10px 20px;
+  }
+  .user-role-badge { padding: 4px 10px; font-size: 0.75rem; }
+  .btn-logout { padding: 8px 16px; font-size: 0.85rem; }
 }
 
 @media(max-width: 480px) {
   .icons-grid { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: 1fr; }
   .login-card { padding: 35px 20px; }
-  .user-bar { flex-direction: column; gap: 15px; border-radius: 24px; padding: 20px; }
+  .user-bar { flex-direction: row; gap: 10px; border-radius: 50px; padding: 10px 20px; }
 }
