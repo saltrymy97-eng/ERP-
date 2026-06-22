@@ -142,7 +142,7 @@ html, body {
 .login-card p { color: var(--text-secondary); margin-bottom: 25px; }
 .login-input-group { margin-bottom: 15px; text-align: right; }
 .login-input-group label { display: block; font-weight: 600; color: var(--royal-green); margin-bottom: 5px; font-size: 0.9rem; }
-.login-input-group input { width: 100%; padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 1rem; font-family: 'Tajawal', sans-serif; transition: all 0.3s ease; background: #f8fafc; direction: rtl; text-align: right; }
+.login-input-group input { width: 100%; padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 1rem; font-family: 'Tajawal', sans-serif; transition: all 0.3s ease; background: #f8fafc; }
 .login-input-group input:focus { outline: none; border-color: var(--luxury-gold); box-shadow: 0 0 0 3px rgba(212,175,55,0.1); background: var(--pure-white); }
 .login-error { color: var(--danger); font-size: 0.9rem; margin-bottom: 15px; font-weight: 500; }
 .login-btn { width: 100%; padding: 14px; background: linear-gradient(135deg, var(--royal-green), var(--royal-green-light)); color: var(--pure-white); border: none; border-radius: 12px; font-size: 1.1rem; font-weight: 700; cursor: pointer; font-family: 'Tajawal', sans-serif; transition: all 0.3s ease; margin-top: 10px; }
@@ -233,7 +233,7 @@ html, body {
 /* ========== حضور ========== */
 .live-header { text-align: center; margin-bottom: 20px; }
 .live-header h3 { font-family: 'Amiri', serif; color: var(--royal-green); font-size: 1.4rem; }
-.live-search { width: 100%; max-width: 400px; padding: 12px 15px; border: 1px solid var(--border-glass); border-radius: 12px; font-size: 1rem; font-family: 'Tajawal', sans-serif; margin-top: 15px; direction: rtl; text-align: right; }
+.live-search { width: 100%; max-width: 400px; padding: 12px 15px; border: 1px solid var(--border-glass); border-radius: 12px; font-size: 1rem; font-family: 'Tajawal', sans-serif; margin-top: 15px; }
 .attendance-alert { display: flex; align-items: center; gap: 15px; padding: 15px 20px; border-radius: 14px; margin-bottom: 20px; animation: slideDown 0.5s ease; }
 @keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
 .attendance-alert.green { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); }
@@ -259,7 +259,7 @@ html, body {
 /* ========== تقارير ========== */
 .reports-toolbar { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; }
 .report-selector { display: flex; gap: 10px; flex-wrap: wrap; }
-.report-selector select, .report-selector input { padding: 10px 15px; border: 1px solid #e2e8f0; border-radius: 10px; font-family: 'Tajawal', sans-serif; font-size: 0.9rem; direction: rtl; text-align: right; }
+.report-selector select, .report-selector input { padding: 10px 15px; border: 1px solid #e2e8f0; border-radius: 10px; font-family: 'Tajawal', sans-serif; font-size: 0.9rem; }
 .report-actions { display: flex; gap: 8px; }
 .btn-pdf { padding: 10px 15px; background: var(--danger); color: white; border: none; border-radius: 10px; cursor: pointer; font-family: 'Tajawal', sans-serif; font-weight: 600; }
 .btn-excel { padding: 10px 15px; background: var(--success); color: white; border: none; border-radius: 10px; cursor: pointer; font-family: 'Tajawal', sans-serif; font-weight: 600; }
