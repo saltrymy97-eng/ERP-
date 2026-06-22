@@ -16,7 +16,6 @@ function App() {
   const [openMenu, setOpenMenu] = useState(null);
   const [user, setUser] = useState(null);
   const [aiReady, setAiReady] = useState(false);
-  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -24,38 +23,27 @@ function App() {
   // ========== بدء التشغيل ==========
   useEffect(() => {
     async function startup() {
-      try {
-        await initDatabase();
-      } catch(e) {
-        console.log('DB init:', e);
-      }
+      try { await initDatabase(); } catch(e) {}
+      try { const u = await restoreSession(); if (u) setUser(u); } catch(e) {}
+      try { await loadMobileModel(); setAiReady(true); } catch(e) {}
       
-      try {
-        const savedUser = await restoreSession();
-        if (savedUser) setUser(savedUser);
-      } catch(e) {
-        console.log('Session:', e);
-      }
-      
-      try {
-        await loadMobileModel();
-        setAiReady(true);
-      } catch(e) {
-        console.log('AI:', e);
-      }
-      
+      // حماية: إخفاء التحميل بعد 5 ثواني
+      const timer = setTimeout(() => setLoading(false), 5000);
       setLoading(false);
+      return () => clearTimeout(timer);
     }
     startup();
   }, []);
 
-  // ========== تسجيل الدخول ==========
+  // ========== تسجيل الدخول (كلمة مرور فقط) ==========
   const handleLogin = async () => {
+    if (!password.trim()) return;
     setLoginError('');
-    const result = await login(username, password);
+    const result = await login(password.trim());
     if (result.success) {
       setUser(result.user);
       setScreen('home');
+      setPassword('');
     } else {
       setLoginError(result.message);
     }
@@ -66,117 +54,32 @@ function App() {
     logout();
     setUser(null);
     setScreen('login');
-    setUsername('');
     setPassword('');
   };
 
   // ========== الأيقونات الرئيسية ==========
   const mainIcons = [
-    {
-      id: 'dashboard',
-      title: 'لوحة التحكم',
-      icon: '📊',
-      color: '#D4AF37',
-      gradient: 'linear-gradient(135deg, #D4AF37, #FCF6BA)',
-      desc: 'الإحصائيات والتنبيهات',
-      subItems: []
-    },
-    {
-      id: 'students',
-      title: 'الطلاب والكليات',
-      icon: '👥',
-      color: '#10B981',
-      gradient: 'linear-gradient(135deg, #10B981, #34d399)',
-      desc: 'إدارة الطلاب والكليات والأقسام',
-      subItems: [
-        { id: 'students-colleges', title: '🏫 الكليات والأقسام', screen: 'students' },
-        { id: 'students-majors', title: '🎓 التخصصات', screen: 'students' },
-        { id: 'students-list', title: '👥 قائمة الطلاب', screen: 'students' }
-      ]
-    },
-    {
-      id: 'attendance',
-      title: 'الحضور والغياب',
-      icon: '🖐️',
-      color: '#3B82F6',
-      gradient: 'linear-gradient(135deg, #3B82F6, #60a5fa)',
-      desc: 'تسجيل حضور بالبصمة ومتابعة',
-      subItems: [
-        { id: 'att-live', title: '🖐️ تسجيل مباشر', screen: 'attendance' },
-        { id: 'att-today', title: '📋 حضور اليوم', screen: 'attendance' },
-        { id: 'att-month', title: '📊 شهري', screen: 'attendance' }
-      ]
-    },
-    {
-      id: 'reports',
-      title: 'التقارير',
-      icon: '📄',
-      color: '#F59E0B',
-      gradient: 'linear-gradient(135deg, #F59E0B, #fbbf24)',
-      desc: 'تقارير PDF و Excel',
-      subItems: [
-        { id: 'rep-daily', title: '📋 تقرير يومي', screen: 'reports' },
-        { id: 'rep-monthly', title: '📊 تقرير شهري', screen: 'reports' },
-        { id: 'rep-student', title: '👤 تقرير طالب', screen: 'reports' },
-        { id: 'rep-discipline', title: '🏆 تقييم الانضباط', screen: 'reports' }
-      ]
-    },
-    {
-      id: 'notifications',
-      title: 'الإشعارات',
-      icon: '🔔',
-      color: '#EF4444',
-      gradient: 'linear-gradient(135deg, #EF4444, #f87171)',
-      desc: 'إشعارات واتساب لأولياء الأمور',
-      subItems: []
-    },
-    {
-      id: 'devices',
-      title: 'أجهزة البصمة',
-      icon: '🖨️',
-      color: '#8B5CF6',
-      gradient: 'linear-gradient(135deg, #8B5CF6, #a78bfa)',
-      desc: 'إدارة ومراقبة الأجهزة',
-      subItems: []
-    },
-    {
-      id: 'calendar',
-      title: 'التقويم',
-      icon: '📅',
-      color: '#06B6D4',
-      gradient: 'linear-gradient(135deg, #06B6D4, #22d3ee)',
-      desc: 'التقويم الأكاديمي',
-      subItems: []
-    },
-    {
-      id: 'settings',
-      title: 'الإعدادات',
-      icon: '⚙️',
-      color: '#64748B',
-      gradient: 'linear-gradient(135deg, #64748B, #94a3b8)',
-      desc: 'إعدادات النظام والمستخدمين',
-      subItems: [
-        { id: 'set-devices', title: '🖐️ أجهزة البصمة', screen: 'settings' },
-        { id: 'set-whatsapp', title: '💬 واتساب', screen: 'settings' },
-        { id: 'set-calendar', title: '📅 التقويم', screen: 'settings' },
-        { id: 'set-users', title: '👥 المستخدمين', screen: 'settings' },
-        { id: 'set-backup', title: '💾 نسخ احتياطي', screen: 'settings' }
-      ]
-    }
+    { id: 'dashboard', title: 'لوحة التحكم', icon: '📊', color: '#D4AF37', gradient: 'linear-gradient(135deg, #D4AF37, #FCF6BA)', desc: 'الإحصائيات والتنبيهات', subItems: [] },
+    { id: 'students', title: 'الطلاب والكليات', icon: '👥', color: '#10B981', gradient: 'linear-gradient(135deg, #10B981, #34d399)', desc: 'إدارة الطلاب والكليات والأقسام', subItems: [
+      { title: '🏫 الكليات والأقسام', screen: 'students' }, { title: '🎓 التخصصات', screen: 'students' }, { title: '👥 قائمة الطلاب', screen: 'students' }
+    ]},
+    { id: 'attendance', title: 'الحضور والغياب', icon: '🖐️', color: '#3B82F6', gradient: 'linear-gradient(135deg, #3B82F6, #60a5fa)', desc: 'تسجيل حضور بالبصمة ومتابعة', subItems: [
+      { title: '🖐️ تسجيل مباشر', screen: 'attendance' }, { title: '📋 حضور اليوم', screen: 'attendance' }, { title: '📊 شهري', screen: 'attendance' }
+    ]},
+    { id: 'reports', title: 'التقارير', icon: '📄', color: '#F59E0B', gradient: 'linear-gradient(135deg, #F59E0B, #fbbf24)', desc: 'تقارير PDF و Excel', subItems: [
+      { title: '📋 تقرير يومي', screen: 'reports' }, { title: '📊 تقرير شهري', screen: 'reports' }, { title: '👤 تقرير طالب', screen: 'reports' }, { title: '🏆 تقييم الانضباط', screen: 'reports' }
+    ]},
+    { id: 'notifications', title: 'الإشعارات', icon: '🔔', color: '#EF4444', gradient: 'linear-gradient(135deg, #EF4444, #f87171)', desc: 'إشعارات واتساب لأولياء الأمور', subItems: [] },
+    { id: 'devices', title: 'أجهزة البصمة', icon: '🖨️', color: '#8B5CF6', gradient: 'linear-gradient(135deg, #8B5CF6, #a78bfa)', desc: 'إدارة ومراقبة الأجهزة', subItems: [] },
+    { id: 'calendar', title: 'التقويم', icon: '📅', color: '#06B6D4', gradient: 'linear-gradient(135deg, #06B6D4, #22d3ee)', desc: 'التقويم الأكاديمي', subItems: [] },
+    { id: 'settings', title: 'الإعدادات', icon: '⚙️', color: '#64748B', gradient: 'linear-gradient(135deg, #64748B, #94a3b8)', desc: 'إعدادات النظام والمستخدمين', subItems: [
+      { title: '🖐️ أجهزة البصمة', screen: 'settings' }, { title: '💬 واتساب', screen: 'settings' }, { title: '📅 التقويم', screen: 'settings' }, { title: '👥 المستخدمين', screen: 'settings' }, { title: '💾 نسخ احتياطي', screen: 'settings' }
+    ]}
   ];
 
   const handleIconClick = (icon) => {
-    if (icon.subItems.length > 0) {
-      setOpenMenu(openMenu === icon.id ? null : icon.id);
-    } else {
-      setScreen(icon.id);
-      setOpenMenu(null);
-    }
-  };
-
-  const handleSubItemClick = (subScreen) => {
-    setScreen(subScreen);
-    setOpenMenu(null);
+    if (icon.subItems.length > 0) { setOpenMenu(openMenu === icon.id ? null : icon.id); }
+    else { setScreen(icon.id); setOpenMenu(null); }
   };
 
   // ========== شاشة التحميل ==========
@@ -194,7 +97,7 @@ function App() {
     );
   }
 
-  // ========== تسجيل الدخول ==========
+  // ========== تسجيل الدخول (حقل واحد: كلمة المرور) ==========
   if (!user) {
     return (
       <div className="login-screen">
@@ -213,35 +116,31 @@ function App() {
           </motion.div>
           <h1>تسجيل الدخول</h1>
           <p>نظام متابعة حضور وغياب الطلاب</p>
-          <div className="login-input-group">
-            <label>اسم المستخدم</label>
-            <input
-              type="text"
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              placeholder="أدخل اسم المستخدم"
-              onKeyPress={e => e.key === 'Enter' && handleLogin()}
-            />
-          </div>
+          
           <div className="login-input-group">
             <label>كلمة المرور</label>
             <input
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              placeholder="أدخل كلمة المرور"
+              placeholder="••••••••"
               onKeyPress={e => e.key === 'Enter' && handleLogin()}
+              autoFocus
             />
           </div>
+          
           {loginError && <p className="login-error">{loginError}</p>}
+          
           <motion.button 
             className="login-btn"
             onClick={handleLogin}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
+            disabled={!password.trim()}
           >
-            دخول
+            🔐 دخول
           </motion.button>
+          
           <p className="login-footer">
             جامعة القرآن الكريم والعلوم الإسلامية<br />
             فرع غيل باوزير - حضرموت
@@ -260,82 +159,33 @@ function App() {
           <div className="bg-orb bg-orb-2"></div>
           <div className="bg-orb bg-orb-3"></div>
         </div>
-        <motion.header 
-          className="home-header"
-          initial={{ opacity: 0, y: -30 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
+        <motion.header className="home-header" initial={{ opacity: 0, y: -30 }} animate={{ opacity: 1, y: 0 }}>
           <motion.div className="home-logo" whileHover={{ scale: 1.1, rotate: 5 }}>🏛️</motion.div>
           <h1>نظام متابعة الحضور والغياب</h1>
           <p>جامعة القرآن الكريم والعلوم الإسلامية</p>
         </motion.header>
         <div className="icons-grid">
           {mainIcons.map((icon, index) => (
-            <motion.div
-              key={icon.id}
-              className="icon-wrapper"
-              initial={{ opacity: 0, y: 50 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-            >
+            <motion.div key={icon.id} className="icon-wrapper" initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.1 }}>
               <motion.button
                 className={`icon-card ${openMenu === icon.id ? 'active' : ''}`}
                 onClick={() => handleIconClick(icon)}
                 whileHover={{ scale: 1.08, y: -8, boxShadow: `0 20px 40px ${icon.color}33` }}
                 whileTap={{ scale: 0.95 }}
-                style={{ 
-                  borderColor: openMenu === icon.id ? icon.color : 'rgba(255,255,255,0.1)',
-                  background: openMenu === icon.id ? `${icon.color}15` : 'rgba(255,255,255,0.03)'
-                }}
+                style={{ borderColor: openMenu === icon.id ? icon.color : 'rgba(255,255,255,0.1)', background: openMenu === icon.id ? `${icon.color}15` : 'rgba(255,255,255,0.03)' }}
               >
-                <motion.div 
-                  className="icon-3d"
-                  animate={{ 
-                    rotateY: openMenu === icon.id ? [0, 10, -10, 0] : 0,
-                    scale: openMenu === icon.id ? [1, 1.1, 1] : 1
-                  }}
-                  transition={{ duration: 2, repeat: openMenu === icon.id ? Infinity : 0 }}
-                >
-                  <motion.span 
-                    className="icon-main"
-                    style={{ 
-                      background: icon.gradient,
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                      filter: `drop-shadow(0 0 20px ${icon.color}44)`
-                    }}
-                  >
-                    {icon.icon}
-                  </motion.span>
+                <motion.div className="icon-3d" animate={{ rotateY: openMenu === icon.id ? [0, 10, -10, 0] : 0, scale: openMenu === icon.id ? [1, 1.1, 1] : 1 }} transition={{ duration: 2, repeat: openMenu === icon.id ? Infinity : 0 }}>
+                  <motion.span className="icon-main" style={{ background: icon.gradient, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', filter: `drop-shadow(0 0 20px ${icon.color}44)` }}>{icon.icon}</motion.span>
                 </motion.div>
                 <h3 className="icon-title">{icon.title}</h3>
                 <p className="icon-desc">{icon.desc}</p>
-                {icon.subItems.length > 0 && (
-                  <motion.span className="dropdown-arrow" animate={{ rotate: openMenu === icon.id ? 180 : 0 }}>▼</motion.span>
-                )}
+                {icon.subItems.length > 0 && <motion.span className="dropdown-arrow" animate={{ rotate: openMenu === icon.id ? 180 : 0 }}>▼</motion.span>}
               </motion.button>
               <AnimatePresence>
                 {openMenu === icon.id && icon.subItems.length > 0 && (
-                  <motion.div
-                    className="dropdown-panel"
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-                    style={{ borderColor: icon.color }}
-                  >
+                  <motion.div className="dropdown-panel" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 25 }} style={{ borderColor: icon.color }}>
                     {icon.subItems.map((sub, subIndex) => (
-                      <motion.button
-                        key={sub.id}
-                        className="dropdown-item"
-                        onClick={() => handleSubItemClick(sub.screen)}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: subIndex * 0.05 }}
-                        whileHover={{ x: -10, background: `${icon.color}15`, borderRight: `3px solid ${icon.color}` }}
-                      >
-                        {sub.title}
-                      </motion.button>
+                      <motion.button key={sub.screen} className="dropdown-item" onClick={() => { setScreen(sub.screen); setOpenMenu(null); }} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: subIndex * 0.05 }} whileHover={{ x: -10, background: `${icon.color}15`, borderRight: `3px solid ${icon.color}` }}>{sub.title}</motion.button>
                     ))}
                   </motion.div>
                 )}
@@ -354,16 +204,7 @@ function App() {
 
   // ========== الشاشات الفرعية ==========
   const getTitle = () => {
-    const titles = {
-      'dashboard': '📊 لوحة التحكم',
-      'students': '👥 الطلاب والكليات',
-      'attendance': '🖐️ الحضور والغياب',
-      'reports': '📄 التقارير',
-      'notifications': '🔔 الإشعارات',
-      'devices': '🖨️ أجهزة البصمة',
-      'calendar': '📅 التقويم الأكاديمي',
-      'settings': '⚙️ الإعدادات'
-    };
+    const titles = { 'dashboard': '📊 لوحة التحكم', 'students': '👥 الطلاب والكليات', 'attendance': '🖐️ الحضور والغياب', 'reports': '📄 التقارير', 'notifications': '🔔 الإشعارات', 'devices': '🖨️ أجهزة البصمة', 'calendar': '📅 التقويم الأكاديمي', 'settings': '⚙️ الإعدادات' };
     return titles[screen] || '';
   };
 
