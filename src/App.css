@@ -1,4 +1,4 @@
-/* App.css – التصميم الزجاجي الملكي الفاخر (الإصدار الاحترافي المتكامل المعدل) */
+/* App.css – التصميم الزجاجي الملكي الفاخر (الإصدار الاحترافي المتكامل المعدل ج2) */
 /* نظام ERP المطور - جامعة القرآن الكريم والعلوم الإسلامية */
 
 @import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Tajawal:wght@300;400;500;700;800;900&display=swap');
@@ -240,7 +240,7 @@ input, textarea, select {
 .home-screen {
   min-height: 100vh;
   background: radial-gradient(circle at 50% 10%, var(--emerald-deep) 0%, var(--bg-dark) 100%);
-  padding: 40px 20px 140px 20px; /* 🌟 تم زيادة الحشوة السفلية لتأمين القوائم المنسدلة من التداخل مع شريط المستخدم */
+  padding: 40px 20px 180px 20px; /* زيادة المساحة لراحة تامة ومنع تداخل القوائم */
   position: relative;
   overflow-x: hidden;
 }
@@ -275,16 +275,16 @@ input, textarea, select {
 }
 .home-header p { color: var(--text-secondary); font-size: 1.15rem; margin-top: 5px; opacity: 0.8; }
 
-/* شبكة الأيقونات الـ 3D - 🌟 تم تعديلها لتصبح 4 أعمدة على شاشات الكمبيوتر الكبيرة للأستاذ سعيد */
+/* شبكة الأيقونات الـ 3D - تم قفل أبعاد الشبكة هندسياً بنسبة 100% */
 .icons-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr); /* 🌟 التوزيع الافتراضي للكمبيوتر 4 أعمدة متوازية ممتدة */
+  grid-template-columns: repeat(4, 1fr); /* الافتراضي للكمبيوتر للأستاذ سعيد هو 4 أعمدة عرضية فاخرة */
   gap: 25px; 
   max-width: 1300px; 
   margin: 0 auto;
   position: relative; 
-  z-index: 1;
-  align-items: start; /* 🌟 قفل هندسي صارم يمنع سقوط صف الأيقونات الأيسر لأسفل عند فتح القوائم */
+  z-index: 5;
+  align-items: start; /* 🌟 منع هبوط الكروت أو تأثرها بأحجام القوائم المنسدلة */
 }
 
 .icon-wrapper { 
@@ -305,7 +305,7 @@ input, textarea, select {
   padding: 35px 25px;
   text-align: center;
   cursor: pointer;
-  transition: all 0.45s cubic-bezier(0.25, 1, 0.5, 1);
+  transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), background 0.4s, border-color 0.4s, box-shadow 0.4s;
   position: relative;
   overflow: hidden;
   box-shadow: 0 15px 35px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.02);
@@ -331,10 +331,12 @@ input, textarea, select {
 
 .icon-card:hover::before, .icon-card.active::before { opacity: 1; }
 
+/* 🌟 منع الكارت من تغيير موقعه الرأسي أو النزول للأسفل عند التنشيط */
 .icon-card.active {
+  transform: translateY(0) scale(1); /* إلغاء الارتفاع المؤقت للتثبيت المطلق والمحاذاة التامة */
   background: rgba(8, 61, 43, 0.35);
   border-color: var(--gold-main);
-  box-shadow: 0 20px 45px rgba(0,0,0,0.5), 0 0 30px rgba(212, 175, 55, 0.2), inset 0 1px 0 rgba(255,255,255,0.05);
+  box-shadow: 0 20px 45px rgba(0,0,0,0.5), 0 0 30px rgba(212, 175, 55, 0.2);
 }
 
 /* الأيقونة الـ 3D الكبيرة والمتحركة بمرونة */
@@ -372,7 +374,7 @@ input, textarea, select {
 }
 .icon-card.active .dropdown-arrow { transform: rotate(180deg); opacity: 1; }
 
-/* 🌟 لوحة القوائم المنسدلة - تم تعديل التموضع المطلق وتصغير الحشوة لتلائم الشاشات دون ضغط بصري */
+/* 🌟 لوحة القوائم المنسدلة - تم استخدام التموضع المطلق الحقيقي المعزول كلياً وطبقة عليا لمنع تدمير المحاذاة */
 .dropdown-panel {
   background: rgba(3, 14, 10, 0.98);
   backdrop-filter: blur(25px);
@@ -380,15 +382,14 @@ input, textarea, select {
   border: 1px solid var(--gold-main);
   border-radius: 20px;
   position: absolute;
-  top: 100%;
+  top: 102%; /* تفتح تحت الكارت مباشرة دون دفعه للأسفل */
   left: 0;
   right: 0;
-  margin-top: 8px;
-  z-index: 999;
-  box-shadow: 0 25px 50px rgba(0,0,0,0.7), 0 0 20px rgba(212, 175, 55, 0.1);
+  z-index: 9999; /* جعلها فوق كل شيء وقبل شريط المستخدم */
+  box-shadow: 0 25px 50px rgba(0,0,0,0.8), 0 0 30px rgba(212, 175, 55, 0.15);
   overflow: hidden;
   padding: 6px;
-  animation: slideDownMenu 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: slideDownMenu 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 @keyframes slideDownMenu {
@@ -401,7 +402,7 @@ input, textarea, select {
   align-items: center;
   justify-content: space-between;
   width: 100%; 
-  padding: 12px 18px; /* 🌟 تم اختصار المسافات الداخلية لتصبح القائمة ملمومة وأنيقة على الهاتف والكمبيوتر */
+  padding: 12px 18px;
   background: transparent; 
   border: none;
   color: var(--text-secondary); 
@@ -422,29 +423,29 @@ input, textarea, select {
   background: rgba(212, 175, 55, 0.08);
   color: var(--gold-light);
   border-right-color: var(--gold-main);
-  padding-right: 24px; /* حركة ترحيبية انسيابية جهة اليمين */
+  padding-right: 24px;
 }
 
-/* 🌟 شريط المستخدم السفلي الفخم - تم تعديل تثبيته لحمايته من أي عناصر فوقه */
+/* 🌟 شريط المستخدم السفلي الفخم - تم إصلاح مرونة العرض الكامل ومنع التداخل */
 .user-bar {
   display: flex; 
   justify-content: space-between; 
   align-items: center; 
-  width: 100%;
+  width: calc(100% - 40px); /* مرن بنسبة 100% مع حواف أمان تمنع الانقطاع عند التدوير */
   max-width: 650px;
   margin: 0 auto; 
-  padding: 14px 35px;
-  background: rgba(4, 25, 17, 0.85);
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
-  border: 1px solid rgba(212, 175, 55, 0.2);
+  padding: 14px 30px;
+  background: rgba(4, 25, 17, 0.92); /* تعتيم الخلفية لعدم تداخل نصوص القائمة المفتوحة خلفه */
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid rgba(212, 175, 55, 0.3);
   border-radius: 100px;
-  position: fixed; /* 🌟 تثبيت مطلق أسفل الواجهة لراحة الأستاذ سعيد في المراقبة الدائمة */
+  position: fixed; 
   bottom: 25px; 
   left: 50%;
   transform: translateX(-50%);
-  z-index: 1000; 
-  box-shadow: 0 20px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05);
+  z-index: 10000; /* أعلى طبقة حماية في النظام لكي لا يغطيه أي عنصر آخر */
+  box-shadow: 0 25px 60px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.05);
 }
 
 .user-info-block { display: flex; align-items: center; gap: 15px; }
@@ -748,21 +749,21 @@ input, textarea, select {
 }
 
 /* ===== التوافق التام والتجاوب مع جميع الشاشات (Responsive Design) ===== */
-/* 🌟 شاشات اللابتوب المتوسطة والتابلت العريض */
+/* شاشات اللابتوب المتوسطة والتابلت العريض */
 @media(max-width: 1200px) {
   .icons-grid { grid-template-columns: repeat(3, 1fr); gap: 20px; }
 }
 
-/* 🌟 شاشات التابلت العادي والموبايل الأفقي */
+/* شاشات التابلت العادي والموبايل الأفقي */
 @media(max-width: 992px) {
   .icons-grid { grid-template-columns: repeat(2, 1fr); gap: 20px; }
 }
 
-/* 🌟 الهواتف المحمولة في الوضع الرأسي (التوافق مع لقطات الشاشة الخاصة بك) */
+/* الهواتف المحمولة في الوضع الرأسي والتدوير العرضي (قفل المشاكل الظاهرة بالكامل) */
 @media(max-width: 768px) {
-  .home-screen { padding: 20px 10px 160px 10px; } /* مسافة أمان سفلى مخصصة للهواتف */
+  .home-screen { padding: 20px 10px 200px 10px; } /* توسيع الحشوة لمنع الارتطام بالأسفل */
   .home-header h1 { font-size: 2.1rem; }
-  .icons-grid { grid-template-columns: repeat(2, 1fr); gap: 15px; } /* عمودين متساويين في الهاتف */
+  .icons-grid { grid-template-columns: repeat(2, 1fr); gap: 15px; } 
   .icon-card { padding: 25px 15px; border-radius: 20px; }
   .icon-3d { font-size: 3.3rem; margin-bottom: 12px; }
   .icon-title { font-size: 1.2rem; }
@@ -772,9 +773,8 @@ input, textarea, select {
   .top-bar { padding: 15px 20px; }
   .top-bar h2 { font-size: 1.4rem; }
   
-  /* إعادة تموضع شريط المستخدم في الشاشات الصغيرة لضمان وضوح النص والأزرار دون تكدس */
   .user-bar {
-    width: calc(100% - 30px);
+    width: calc(100% - 30px); /* يملأ العرض تلقائياً دون انقطاع عند تدوير الشاشة */
     bottom: 15px;
     padding: 10px 20px;
   }
