@@ -1,7 +1,7 @@
 // src/components/FaceRecognition.js – نظام التعرف على الوجه الحقيقي
 import React, { useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import * as faceapi from 'face-api.js';
+import * as faceapi from '@vladmandic/face-api';
 
 function FaceRecognition({ onRecognize, onClose }) {
   const videoRef = useRef(null);
@@ -9,7 +9,6 @@ function FaceRecognition({ onRecognize, onClose }) {
   const [status, setStatus] = useState('loading');
   const [message, setMessage] = useState('⏳ جاري تحميل نماذج التعرف...');
 
-  // ========== تحميل النماذج ==========
   useEffect(() => {
     loadModels();
     return () => stopCamera();
@@ -31,7 +30,6 @@ function FaceRecognition({ onRecognize, onClose }) {
     }
   };
 
-  // ========== تشغيل الكاميرا ==========
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -54,10 +52,8 @@ function FaceRecognition({ onRecognize, onClose }) {
     }
   };
 
-  // ========== التقاط وتحليل الوجه ==========
   const captureFace = async () => {
     if (!videoRef.current) return;
-
     setStatus('capturing');
     setMessage('🧠 جاري تحليل الوجه...');
 
@@ -71,7 +67,6 @@ function FaceRecognition({ onRecognize, onClose }) {
         const confidence = Math.round((1 - detection.detection.score) * 100);
         setStatus('recognized');
         setMessage(`✅ تم التعرف على الوجه (${confidence}%)`);
-        
         if (onRecognize) {
           onRecognize({
             name: 'طالب',
@@ -119,7 +114,6 @@ function FaceRecognition({ onRecognize, onClose }) {
           👤 التعرف على الوجه
         </h3>
 
-        {/* كاميرا */}
         <div style={{
           position: 'relative', borderRadius: '16px', overflow: 'hidden',
           border: `2px solid ${getStatusColor()}`, aspectRatio: '4/3', background: '#000'
@@ -129,7 +123,6 @@ function FaceRecognition({ onRecognize, onClose }) {
           <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0 }} />
         </div>
 
-        {/* رسالة */}
         <p style={{
           margin: '15px 0', padding: '10px', borderRadius: '10px',
           background: 'rgba(0,0,0,0.3)', color: getStatusColor(),
@@ -138,7 +131,6 @@ function FaceRecognition({ onRecognize, onClose }) {
           {message}
         </p>
 
-        {/* أزرار */}
         <div style={{ display: 'flex', gap: '10px' }}>
           <motion.button
             onClick={captureFace}
