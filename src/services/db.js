@@ -1,5 +1,7 @@
-// src/services/db.js – قاعدة بيانات محلية احترافية
+// src/services/db.js – قاعدة بيانات محلية احترافية ومطورة
 // تدعم: SELECT, INSERT, UPDATE, DELETE, COUNT, JOIN, WHERE, ORDER BY, LIMIT, GROUP BY
+// تم تحسينها لتتوافق مع بيئات الإنتاج والـ Minification (مثل Cloudflare Pages & Vercel)
+
 const DB_KEY = 'attendance_db';
 
 // ========== الأساسيات ==========
@@ -61,8 +63,8 @@ export function getQuery(sql, params = []) {
   const data = loadData();
   const sqlUpper = sql.toUpperCase().trim();
 
-  // JOIN
-  if (sqlUpper.includes('JOIN')) {
+  // فحص وجود الـ JOIN بطريقة مرنة لا تعتمد على المسافات
+  if (/\bJOIN\b/i.test(sqlUpper)) {
     return handleJoin(sql, sqlUpper, params, data);
   }
 
@@ -91,19 +93,21 @@ export function runQuery(sql, params = []) {
   return data;
 }
 
-// ========== 🆕 معالج JOIN ==========
+// ========== 🆕 معالج JOIN الاحترافي والمقاوم للضغط ==========
 function handleJoin(sql, sqlUpper, params, data) {
-  // استخراج الجداول من الاستعلام
-  const tableMatches = sql.match(/FROM\s+(\w+)\s+(\w+)/i);
+  // استخراج الجدول الرئيسي والـ Alias بشكل مرن
+  const tableMatches = sql.match(/FROM\s+(\w+)(?:\s+(\w+))?/i);
   if (!tableMatches) return [];
   
-  const mainTable = tableMatches[1]; // students
-  const mainAlias = tableMatches[2]; // s
+  const mainTable = tableMatches[1];
+  const mainAlias = tableMatches[2] || mainTable;
   
-  // استخراج JOINs
-  const joinPattern = /(LEFT\s+)?JOIN\s+(\w+)\s+(\w+)\s+ON\s+(\w+)\.(\w+)\s*=\s*(\w+)\.(\w+)/gi;
+  // Regex مطور يدعم غياب المسافات والأقواس الناتجة عن الـ Build
+  const joinPattern = /(LEFT\s+)?JOIN\s+(\w+)\s+(\w+)\s+ON\s*\(?\s*(\w+)\.(\w+)\s*=\s*(\w+)\.(\w+)\s*\)?/gi;
   const joins = [];
   let match;
+  
+  joinPattern.lastIndex = 0; // تصفير المؤشر لضمان دقة البحث التكراري
   while ((match = joinPattern.exec(sql)) !== null) {
     joins.push({
       type: match[1] ? 'LEFT' : 'INNER',
@@ -119,40 +123,52 @@ function handleJoin(sql, sqlUpper, params, data) {
   // جلب بيانات الجدول الرئيسي
   let rows = [...(data[mainTable] || [])];
 
-  // فلترة
+  // تطبيق الفلترة (WHERE) أولاً لتسريع الأداء قبل عمليات الربط
   const whereMatch = sql.match(/WHERE\s+(.+?)(?:ORDER|GROUP|LIMIT|$)/i);
   if (whereMatch) {
     rows = applyFilters(rows, sql, params);
   }
 
-  // تطبيق JOINs
+  // تطبيق الـ JOINs ديناميكياً
   for (const join of joins) {
     const rightData = data[join.table] || [];
     
     rows = rows.map(row => {
-      const matched = join.type === 'LEFT' 
-        ? rightData.find(r => r[join.rightCol] === row[join.leftCol]) || {}
-        : rightData.find(r => r[join.rightCol] === row[join.leftCol]);
+      // التحقق من اتجاه الشرط (أي الجداول يمثل اليسار وأيها اليمين برمجياً)
+      const isLeftMain = join.leftTable.toLowerCase() === mainAlias.toLowerCase() || join.leftTable.toLowerCase() === mainTable.toLowerCase();
+      const targetLeftCol = isLeftMain ? join.leftCol : join.rightCol;
+      const targetRightCol = isLeftMain ? join.rightCol : join.leftCol;
+
+      // البحث عن الصف المطابق في الجدول الفرعي
+      const matched = rightData.find(r => String(r[targetRightCol]) === String(row[targetLeftCol]));
       
       if (matched) {
         const newRow = { ...row };
         for (const key of Object.keys(matched)) {
+          // دمج الخصائص بالـ Alias المطلوب للـ Frontend
           newRow[`${join.alias}_${key}`] = matched[key];
+          // إتاحة الوصول المباشر للخاصية بدون الـ Alias لزيادة التوافقية ومقاومة الضغط
+          if (newRow[key] === undefined) {
+            newRow[key] = matched[key];
+          }
         }
         return newRow;
       }
-      return join.type === 'LEFT' ? row : null;
+      
+      // التعامل مع الـ LEFT JOIN عند غياب البيانات المقابلة
+      return join.type === 'LEFT' ? { ...row } : null;
     }).filter(Boolean);
   }
 
   // GROUP BY
-  const groupMatch = sql.match(/GROUP\s+BY\s+(\w+)\.(\w+)/i);
+  const groupMatch = sql.match(/GROUP\s+BY\s+([\w.]+)/i);
   if (groupMatch) {
-    const groupCol = groupMatch[2];
+    const fullGroupCol = groupMatch[1];
+    const groupCol = fullGroupCol.includes('.') ? fullGroupCol.split('.')[1] : fullGroupCol;
     const aggregated = {};
     
     rows.forEach(row => {
-      const key = row[groupCol];
+      const key = row[groupCol] || row[fullGroupCol.replace('.', '_')] || 'unknown';
       if (!aggregated[key]) {
         aggregated[key] = { ...row };
         aggregated[key]._count = 0;
@@ -164,13 +180,14 @@ function handleJoin(sql, sqlUpper, params, data) {
   }
 
   // ORDER BY
-  const orderMatch = sql.match(/ORDER\s+BY\s+(\w+)(\.(\w+))?\s*(DESC)?/i);
+  const orderMatch = sql.match(/ORDER\s+BY\s+([\w.]+)\s*(DESC)?/i);
   if (orderMatch) {
-    const col = orderMatch[3] || orderMatch[1];
-    const desc = orderMatch[4];
+    const fullCol = orderMatch[1];
+    const col = fullCol.includes('.') ? fullCol.split('.')[1] : fullCol;
+    const desc = orderMatch[2];
     rows.sort((a, b) => {
-      const va = a[col] || '';
-      const vb = b[col] || '';
+      const va = a[col] !== undefined ? a[col] : (a[`${fullCol.replace('.', '_')}`] || '');
+      const vb = b[col] !== undefined ? b[col] : (b[`${fullCol.replace('.', '_')}`] || '');
       if (va < vb) return desc ? 1 : -1;
       if (va > vb) return desc ? -1 : 1;
       return 0;
