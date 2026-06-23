@@ -102,6 +102,8 @@ function Attendance() {
   };
 
   const loadMonthlyData = () => {
+    setMonthlyData([]); // ⚡ يمنع الشاشة السوداء
+    
     const allStudents = getQuery("SELECT * FROM students WHERE status='active'");
     const allAttendance = getQuery("SELECT * FROM attendance");
     
@@ -111,14 +113,15 @@ function Attendance() {
       const present = studentAttendance.filter(a => a.status === 'present').length;
       const absent = studentAttendance.filter(a => a.status === 'absent').length;
       const late = studentAttendance.filter(a => a.status === 'late').length;
-      const rate = Math.round((present / studentAttendance.length) * 100);
+      const total = studentAttendance.length;
+      const rate = total > 0 ? Math.round((present / total) * 100) : 0;
       return {
         full_name: s.full_name,
         university_id: s.university_id,
         present_days: present,
         absent_days: absent,
         late_days: late,
-        total_days: studentAttendance.length,
+        total_days: total,
         rate: rate
       };
     }).filter(Boolean).sort((a, b) => b.rate - a.rate);
