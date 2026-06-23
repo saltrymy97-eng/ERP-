@@ -1,5 +1,5 @@
 // src/services/db.js – قاعدة بيانات محلية احترافية
-// تدعم: SELECT, INSERT, UPDATE, DELETE, COUNT, JOIN, WHERE, ORDER BY, LIMIT
+// تدعم: SELECT, INSERT, UPDATE, DELETE, COUNT, JOIN, WHERE, ORDER BY, LIMIT, GROUP BY
 const DB_KEY = 'attendance_db';
 
 // ========== الأساسيات ==========
@@ -56,10 +56,15 @@ export async function loadFromLocalStorage() {
 
 export function closeDatabase() {}
 
-// ========== محرك SQL بسيط ==========
+// ========== محرك SQL ==========
 export function getQuery(sql, params = []) {
   const data = loadData();
   const sqlUpper = sql.toUpperCase().trim();
+
+  // JOIN
+  if (sqlUpper.includes('JOIN')) {
+    return handleJoin(sql, sqlUpper, params, data);
+  }
 
   // COUNT
   if (sqlUpper.includes('COUNT(*)')) {
@@ -86,47 +91,83 @@ export function runQuery(sql, params = []) {
   return data;
 }
 
-// ========== معالج COUNT ==========
-function handleCount(sql, sqlUpper, params, data) {
-  const tableMatch = sql.match(/FROM\s+(\w+)/i);
-  if (!tableMatch) return [{ c: 0 }];
-  const table = tableMatch[1];
-  if (!data[table]) return [{ c: 0 }];
-
-  let rows = [...data[table]];
-
-  // DISTINCT
-  if (sqlUpper.includes('DISTINCT')) {
-    const colMatch = sql.match(/DISTINCT\s+(\w+)/i);
-    if (colMatch) {
-      const uniqueValues = new Set(rows.map(r => r[colMatch[1]]));
-      return [{ c: uniqueValues.size }];
-    }
+// ========== 🆕 معالج JOIN ==========
+function handleJoin(sql, sqlUpper, params, data) {
+  // استخراج الجداول من الاستعلام
+  const tableMatches = sql.match(/FROM\s+(\w+)\s+(\w+)/i);
+  if (!tableMatches) return [];
+  
+  const mainTable = tableMatches[1]; // students
+  const mainAlias = tableMatches[2]; // s
+  
+  // استخراج JOINs
+  const joinPattern = /(LEFT\s+)?JOIN\s+(\w+)\s+(\w+)\s+ON\s+(\w+)\.(\w+)\s*=\s*(\w+)\.(\w+)/gi;
+  const joins = [];
+  let match;
+  while ((match = joinPattern.exec(sql)) !== null) {
+    joins.push({
+      type: match[1] ? 'LEFT' : 'INNER',
+      table: match[2],
+      alias: match[3],
+      leftTable: match[4],
+      leftCol: match[5],
+      rightTable: match[6],
+      rightCol: match[7]
+    });
   }
 
-  // WHERE conditions
-  rows = applyFilters(rows, sql, params);
+  // جلب بيانات الجدول الرئيسي
+  let rows = [...(data[mainTable] || [])];
 
-  return [{ c: rows.length }];
-}
+  // فلترة
+  const whereMatch = sql.match(/WHERE\s+(.+?)(?:ORDER|GROUP|LIMIT|$)/i);
+  if (whereMatch) {
+    rows = applyFilters(rows, sql, params);
+  }
 
-// ========== معالج SELECT ==========
-function handleSelect(sql, sqlUpper, params, data) {
-  const tableMatch = sql.match(/FROM\s+(\w+)/i);
-  if (!tableMatch) return [];
-  const table = tableMatch[1];
-  if (!data[table]) return [];
+  // تطبيق JOINs
+  for (const join of joins) {
+    const rightData = data[join.table] || [];
+    
+    rows = rows.map(row => {
+      const matched = join.type === 'LEFT' 
+        ? rightData.find(r => r[join.rightCol] === row[join.leftCol]) || {}
+        : rightData.find(r => r[join.rightCol] === row[join.leftCol]);
+      
+      if (matched) {
+        const newRow = { ...row };
+        for (const key of Object.keys(matched)) {
+          newRow[`${join.alias}_${key}`] = matched[key];
+        }
+        return newRow;
+      }
+      return join.type === 'LEFT' ? row : null;
+    }).filter(Boolean);
+  }
 
-  let rows = [...data[table]];
-
-  // WHERE
-  rows = applyFilters(rows, sql, params);
+  // GROUP BY
+  const groupMatch = sql.match(/GROUP\s+BY\s+(\w+)\.(\w+)/i);
+  if (groupMatch) {
+    const groupCol = groupMatch[2];
+    const aggregated = {};
+    
+    rows.forEach(row => {
+      const key = row[groupCol];
+      if (!aggregated[key]) {
+        aggregated[key] = { ...row };
+        aggregated[key]._count = 0;
+      }
+      aggregated[key]._count++;
+    });
+    
+    rows = Object.values(aggregated);
+  }
 
   // ORDER BY
-  const orderMatch = sql.match(/ORDER\s+BY\s+(\w+)\s*(DESC)?/i);
+  const orderMatch = sql.match(/ORDER\s+BY\s+(\w+)(\.(\w+))?\s*(DESC)?/i);
   if (orderMatch) {
-    const col = orderMatch[1];
-    const desc = orderMatch[2];
+    const col = orderMatch[3] || orderMatch[1];
+    const desc = orderMatch[4];
     rows.sort((a, b) => {
       const va = a[col] || '';
       const vb = b[col] || '';
@@ -145,43 +186,80 @@ function handleSelect(sql, sqlUpper, params, data) {
   return rows;
 }
 
+// ========== معالج COUNT ==========
+function handleCount(sql, sqlUpper, params, data) {
+  const tableMatch = sql.match(/FROM\s+(\w+)/i);
+  if (!tableMatch) return [{ c: 0 }];
+  const table = tableMatch[1];
+  if (!data[table]) return [{ c: 0 }];
+
+  let rows = [...data[table]];
+
+  if (sqlUpper.includes('DISTINCT')) {
+    const colMatch = sql.match(/DISTINCT\s+(\w+)/i);
+    if (colMatch) {
+      const uniqueValues = new Set(rows.map(r => r[colMatch[1]]));
+      return [{ c: uniqueValues.size }];
+    }
+  }
+
+  rows = applyFilters(rows, sql, params);
+  return [{ c: rows.length }];
+}
+
+// ========== معالج SELECT ==========
+function handleSelect(sql, sqlUpper, params, data) {
+  const tableMatch = sql.match(/FROM\s+(\w+)/i);
+  if (!tableMatch) return [];
+  const table = tableMatch[1];
+  if (!data[table]) return [];
+
+  let rows = [...data[table]];
+
+  rows = applyFilters(rows, sql, params);
+
+  const orderMatch = sql.match(/ORDER\s+BY\s+(\w+)\s*(DESC)?/i);
+  if (orderMatch) {
+    const col = orderMatch[1];
+    const desc = orderMatch[2];
+    rows.sort((a, b) => {
+      const va = a[col] || '';
+      const vb = b[col] || '';
+      if (va < vb) return desc ? 1 : -1;
+      if (va > vb) return desc ? -1 : 1;
+      return 0;
+    });
+  }
+
+  const limitMatch = sql.match(/LIMIT\s+(\d+)/i);
+  if (limitMatch) {
+    rows = rows.slice(0, parseInt(limitMatch[1]));
+  }
+
+  return rows;
+}
+
 // ========== فلترة الصفوف ==========
 function applyFilters(rows, sql, params) {
   const sqlUpper = sql.toUpperCase();
   const today = new Date().toISOString().slice(0, 10);
 
-  // status='active'
-  if (sqlUpper.includes("STATUS='ACTIVE'")) {
-    rows = rows.filter(r => r.status === 'active');
-  }
-  if (sqlUpper.includes("STATUS='OFFLINE'")) {
-    rows = rows.filter(r => r.status === 'offline');
-  }
-  if (sqlUpper.includes("STATUS='ONLINE'")) {
-    rows = rows.filter(r => r.status === 'online');
-  }
-  if (sqlUpper.includes("STATUS='PRESENT'")) {
-    rows = rows.filter(r => r.status === 'present');
-  }
-  if (sqlUpper.includes("STATUS='ABSENT'")) {
-    rows = rows.filter(r => r.status === 'absent');
-  }
-  if (sqlUpper.includes("STATUS='LATE'")) {
-    rows = rows.filter(r => r.status === 'late');
-  }
+  if (sqlUpper.includes("STATUS='ACTIVE'")) rows = rows.filter(r => r.status === 'active');
+  if (sqlUpper.includes("STATUS='OFFLINE'")) rows = rows.filter(r => r.status === 'offline');
+  if (sqlUpper.includes("STATUS='ONLINE'")) rows = rows.filter(r => r.status === 'online');
+  if (sqlUpper.includes("STATUS='PRESENT'")) rows = rows.filter(r => r.status === 'present');
+  if (sqlUpper.includes("STATUS='ABSENT'")) rows = rows.filter(r => r.status === 'absent');
+  if (sqlUpper.includes("STATUS='LATE'")) rows = rows.filter(r => r.status === 'late');
 
-  // WHERE date = ?
   if (sqlUpper.includes('DATE=?') && params.length > 0) {
     const filterDate = params[0] || today;
     rows = rows.filter(r => r.date === filterDate);
   }
 
-  // WHERE date(sent_at) = ?
   if (sqlUpper.includes('DATE(SENT_AT)=?')) {
     rows = rows.filter(r => r.sent_at?.startsWith(params[0] || today));
   }
 
-  // WHERE student_id = ?
   if (sqlUpper.includes('STUDENT_ID=?') && params.length > 0) {
     rows = rows.filter(r => r.student_id === params[0]);
   }
@@ -238,60 +316,36 @@ function handleUpdate(sql, params, data) {
   if (!tableMatch || params.length < 2) return;
   const table = tableMatch[1];
   if (!data[table]) return;
-
   const sqlUpper = sql.toUpperCase();
 
-  // attendance: UPDATE attendance SET status=? WHERE student_id=? AND date=?
   if (table === 'attendance' && sqlUpper.includes('STUDENT_ID=?') && sqlUpper.includes('DATE=?')) {
     const idx = data[table].findIndex(r => r.student_id === params[1] && r.date === params[2]);
-    if (idx >= 0) {
-      data[table][idx].status = params[0];
-      if (params[3]) data[table][idx].time_out = params[3];
-    }
+    if (idx >= 0) { data[table][idx].status = params[0]; if (params[3]) data[table][idx].time_out = params[3]; }
     return;
   }
-
-  // devices: UPDATE devices SET status=?, last_sync=? WHERE id=?
   if (table === 'devices' && sqlUpper.includes('ID=?')) {
     const idx = data[table].findIndex(r => r.id === params[2]);
-    if (idx >= 0) {
-      data[table][idx].status = params[0];
-      data[table][idx].last_sync = params[1];
-    }
+    if (idx >= 0) { data[table][idx].status = params[0]; data[table][idx].last_sync = params[1]; }
     return;
   }
-
-  // students: UPDATE students SET ... WHERE id=?
   if (table === 'students' && sqlUpper.includes('ID=?')) {
     const idx = data[table].findIndex(r => r.id === params[8]);
     if (idx >= 0) {
-      data[table][idx].university_id = params[0];
-      data[table][idx].full_name = params[1];
-      data[table][idx].phone = params[2];
-      data[table][idx].parent_phone = params[3];
-      data[table][idx].national_id = params[4];
-      data[table][idx].major_id = params[5];
-      data[table][idx].level = params[6];
-      data[table][idx].group_name = params[7];
+      data[table][idx].university_id = params[0]; data[table][idx].full_name = params[1];
+      data[table][idx].phone = params[2]; data[table][idx].parent_phone = params[3];
+      data[table][idx].national_id = params[4]; data[table][idx].major_id = params[5];
+      data[table][idx].level = params[6]; data[table][idx].group_name = params[7];
     }
     return;
   }
-
-  // users: UPDATE users SET password=? WHERE username=?
   if (table === 'users' && sqlUpper.includes('USERNAME=?')) {
     const idx = data[table].findIndex(r => r.username === params[1]);
-    if (idx >= 0) {
-      data[table][idx].password = params[0];
-    }
+    if (idx >= 0) { data[table][idx].password = params[0]; }
     return;
   }
-
-  // colleges/departments/majors: UPDATE ... SET status='inactive' WHERE id=?
   if (sqlUpper.includes("STATUS='INACTIVE'") && sqlUpper.includes('ID=?')) {
     const idx = data[table].findIndex(r => r.id === params[0]);
-    if (idx >= 0) {
-      data[table][idx].status = 'inactive';
-    }
+    if (idx >= 0) { data[table][idx].status = 'inactive'; }
   }
 }
 
@@ -301,9 +355,7 @@ function handleDelete(sql, params, data) {
   if (!tableMatch || params.length === 0) return;
   const table = tableMatch[1];
   if (!data[table]) return;
-
-  const id = params[0];
-  data[table] = data[table].filter(r => r.id !== id);
+  data[table] = data[table].filter(r => r.id !== params[0]);
 }
 
 // ========== نسخ احتياطي ==========
@@ -313,11 +365,8 @@ export function exportDatabase() {
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url;
-  a.download = `backup_${new Date().toISOString().slice(0, 10)}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  a.href = url; a.download = `backup_${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
 
@@ -327,7 +376,5 @@ export async function importDatabase(file) {
     const data = JSON.parse(text);
     saveData(validateAndRepair(data));
     return data;
-  } catch (e) {
-    return null;
-  }
+  } catch (e) { return null; }
 }
