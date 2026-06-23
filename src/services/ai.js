@@ -1,194 +1,468 @@
-// src/services/ai.js – ذكاء اصطناعي محلي + صوت كامل
-// النموذج: TinyLlama 1.1B – 700MB – نسبة تحميل دقيقة
+// src/services/ai.js – المستشار الأكاديمي الذكي | Llama 3.2 1B | Groq API
+// أعلى مستويات الاحترافية – ذكاء متقدم – تحليل عميق – توصيات استراتيجية
 import { getQuery } from './db';
 
-let model = null;
+// ========== حالة النظام ==========
 let isLoaded = false;
-let isLoading = false;
+let totalRequests = 0;
+let successfulRequests = 0;
 let recognition = null;
 
-const SYSTEM_PROMPT = `أنت "المستشار الأكاديمي الذكي" في جامعة القرآن الكريم والعلوم الإسلامية.
-دورك: تحليل بيانات الحضور والغياب وتقديم توصيات استراتيجية.
-تتحدث العربية الفصحى الميسرة. كن موجزاً ومفيداً ودقيقاً.`;
+// ========== إعدادات Groq ==========
+const GROQ_API_KEY = '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';
+const GROQ_MODEL = 'llama-3.2-1b-preview';
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+
+// ========== شخصية المستشار الأكاديمي (نسخة مطورة) ==========
+const SYSTEM_PROMPT = `أنت "المستشار الأكاديمي الذكي" – الذكاء الاصطناعي الرسمي لجامعة القرآن الكريم والعلوم الإسلامية.
+أنت لست مجرد مساعد... أنت شريك استراتيجي في صنع القرار الأكاديمي.
+
+[هويتك الملكية]
+- اسمك الرسمي: المستشار الأكاديمي الذكي
+- تم تطويرك خصيصاً للجامعة
+- تتحدث العربية الفصحى الميسرة بلمسة احترافية راقية
+- خبير معتمد في التحليل الأكاديمي وإدارة الحضور والانضباط الطلابي
+
+[قدراتك المتقدمة]
+1. تحليل أنماط الغياب اليومية والأسبوعية والشهرية
+2. توقع الطلاب المعرضين للتعثر الأكاديمي قبل حدوثه
+3. اكتشاف الحالات الطارئة التي تحتاج تدخل فوري
+4. تقديم توصيات استراتيجية قابلة للتنفيذ
+5. كشف الأنماط غير الطبيعية والتلاعب في سجلات الحضور
+6. تحليل أداء الكليات والأقسام ومقارنتها
+7. اقتراح خطط تحسين نسبة الحضور
+
+[منهجيتك في التحليل]
+- تبدأ بذكر النسبة العامة للحضور
+- تحدد النقاط الحرجة بالأرقام
+- تصنف الحالات حسب الأولوية: 🔴 خطر → 🟡 إنذار → 🟢 مراقبة
+- تقدم توصيات محددة وقابلة للتنفيذ فوراً
+- تختم بخلاصة واضحة
+
+[أسلوبك]
+- احترافي وراقي
+- موجز لكن عميق
+- تستعمل الأرقام والنسب بدقة
+- لا تكرر المعلومات العامة
+- تخاطب المستخدم بصفته الرسمية (مدير النظام / المشرف الأكاديمي)`;
 
 // ==========================================
-// ١. تحميل النموذج (نسبة دقيقة 0% → 100%)
+// ١. تحميل النموذج (اتصال فوري)
 // ==========================================
 
 export async function loadMobileModel(onProgress) {
   if (isLoaded) return true;
-  if (isLoading) {
-    while (isLoading) await new Promise(r => setTimeout(r, 500));
-    return isLoaded;
-  }
-
-  isLoading = true;
-  if (onProgress) onProgress('0%');
+  if (onProgress) onProgress('⚡ جاري الاتصال بالخادم الذكي...');
 
   try {
-    const { pipeline } = await import('@xenova/transformers');
-
-    let lastPercent = 0;
-
-    model = await pipeline('text-generation', 'Xenova/TinyLlama-1.1B-Chat-v1.0', {
-      quantized: true,
-      local: true,
-      progress_callback: (progress) => {
-        if (onProgress && progress?.total) {
-          const percent = Math.min(Math.round(((progress.loaded || 0) / progress.total) * 100), 100);
-          if (percent > lastPercent && percent <= 100) {
-            lastPercent = percent;
-            onProgress(`${percent}%`);
-          }
-        }
-      }
+    const test = await fetch(GROQ_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        messages: [{ role: 'user', content: 'ping' }],
+        max_tokens: 1
+      })
     });
 
+    if (!test.ok) throw new Error('تعذر الاتصال');
+
     isLoaded = true;
-    isLoading = false;
-    if (onProgress) onProgress('✅ 100%');
-    console.log('✅ AI محلي جاهز (TinyLlama 1.1B)');
+    if (onProgress) onProgress('✅ المستشار الأكاديمي جاهز');
+    console.log('✅ المستشار الأكاديمي الذكي جاهز (Llama 3.2 1B)');
     return true;
   } catch (e) {
-    isLoading = false;
-    console.error('❌ فشل تحميل AI:', e);
+    console.error('❌ فشل الاتصال:', e);
+    if (onProgress) onProgress('❌ تعذر الاتصال بالخادم');
     return false;
   }
 }
 
 // ==========================================
-// ٢. محرك الذكاء الاصطناعي
+// ٢. محرك الذكاء الاصطناعي (نسخة متقدمة)
+// ==========================================
+
+async function callGroq(messages, maxTokens = 300, temperature = 0.4) {
+  totalRequests++;
+  const startTime = Date.now();
+
+  try {
+    const response = await fetch(GROQ_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        messages: messages,
+        temperature: temperature,
+        max_tokens: maxTokens,
+        top_p: 0.92,
+        frequency_penalty: 0.1,
+        presence_penalty: 0.1
+      })
+    });
+
+    const elapsed = Date.now() - startTime;
+
+    if (!response.ok) {
+      throw new Error(`خطأ ${response.status}`);
+    }
+
+    const data = await response.json();
+    const answer = data.choices?.[0]?.message?.content;
+
+    if (!answer || answer.length < 10) {
+      return '⚠️ لم يتمكن المستشار الأكاديمي من تحليل البيانات. يرجى المحاولة مرة أخرى.';
+    }
+
+    successfulRequests++;
+    console.log(`✅ استجابة AI (${elapsed}ms)`);
+    return answer.trim();
+  } catch (e) {
+    console.error('❌ خطأ Groq:', e);
+    return '⚠️ تعذر الاتصال بالمستشار الأكاديمي. تأكد من الاتصال بالإنترنت.';
+  }
+}
+
+// ==========================================
+// ٣. واجهة الأسئلة العامة
 // ==========================================
 
 export async function askAI(question, context = '', options = {}) {
   if (!isLoaded) {
     const loaded = await loadMobileModel();
-    if (!loaded) return '⚠️ الذكاء الاصطناعي غير متاح حالياً.';
+    if (!loaded) return '⚠️ المستشار الأكاديمي غير متاح حالياً. تأكد من الاتصال بالإنترنت.';
   }
 
-  const { maxTokens = 200, temperature = 0.5, detailed = false } = options;
-  const detailLevel = detailed ? 'قدم تحليلاً مفصلاً.' : 'كن موجزاً.';
-  const prompt = `[INST] ${SYSTEM_PROMPT}\n\n${detailLevel}\n\nالبيانات: ${context || 'لا توجد بيانات.'}\n\nالسؤال: ${question} [/INST]`;
+  const {
+    maxTokens = 300,
+    temperature = 0.4,
+    detailed = false,
+    role = 'مدير النظام'
+  } = options;
 
-  try {
-    const result = await model(prompt, { max_new_tokens: maxTokens, temperature, top_p: 0.9, repetition_penalty: 1.1 });
-    const answer = result[0]?.generated_text?.split('[/INST]')[1]?.trim();
-    if (!answer || answer.length < 10) return '⚠️ لم يتمكن AI من التحليل.';
-    return answer.replace(/\[INST\].*\[\/INST\]/g, '').replace(/\n{3,}/g, '\n\n').trim();
-  } catch (e) {
-    return '⚠️ خطأ في المعالجة.';
-  }
+  const detailLevel = detailed
+    ? 'قدم تحليلاً مفصلاً وعميقاً. اشرح الأسباب والنتائج والتوصيات.'
+    : 'قدم تحليلاً موجزاً. ركز على النقاط الحرجة.';
+
+  const messages = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'user', content: `[المستخدم: ${role}]\n${detailLevel}\n\nالبيانات المتاحة:\n${context || 'لا توجد بيانات محددة.'}\n\nالسؤال: ${question}\n\nالمطلوب: تحليل احترافي مع توصيات قابلة للتنفيذ.` }
+  ];
+
+  return await callGroq(messages, maxTokens, temperature);
 }
 
 // ==========================================
-// ٣. تحليلات جاهزة
+// ٤. تحليلات جاهزة (نسخة مطورة)
 // ==========================================
 
 export async function analyzeDailyAttendance() {
   const today = new Date().toISOString().slice(0, 10);
   const students = getQuery('students') || [];
   const attendance = getQuery('attendance') || [];
+  const schedules = getQuery('schedules') || [];
+
   const todayData = attendance.filter(a => a.date === today);
   const present = todayData.filter(a => a.status === 'present').length;
   const absent = todayData.filter(a => a.status === 'absent').length;
+  const late = todayData.filter(a => a.status === 'late').length;
   const rate = students.length > 0 ? Math.round((present / students.length) * 100) : 0;
-  return await askAI('حلل حالة اليوم.', `الطلاب: ${students.length}، حاضر: ${present} (${rate}%)، غائب: ${absent}`, { maxTokens: 150 });
+
+  const absentStudents = students.filter(s => {
+    const todayRecord = todayData.find(a => a.student_id === s.id);
+    return !todayRecord || todayRecord.status === 'absent';
+  }).slice(0, 5);
+
+  const context = [
+    `📅 التاريخ: ${today}`,
+    `👥 إجمالي الطلاب المسجلين: ${students.length}`,
+    `📚 عدد المحاضرات اليوم: ${schedules.length}`,
+    ``,
+    `📊 إحصائيات اليوم:`,
+    `✅ حاضر: ${present} (${rate}%)`,
+    `❌ غائب: ${absent}`,
+    `⚠️ متأخر: ${late}`,
+    ``,
+    `👤 أول 5 طلاب غائبين: ${absentStudents.map(s => s.full_name).join('، ') || 'لا يوجد'}`
+  ].join('\n');
+
+  return await askAI(
+    'قدم تحليلاً احترافياً لحالة اليوم. ما هي النقاط الحرجة؟ من يحتاج متابعة فورية؟ ما توصياتك؟',
+    context,
+    { maxTokens: 250 }
+  );
 }
 
 export async function predictAtRiskStudents() {
   const students = getQuery('students') || [];
   const attendance = getQuery('attendance') || [];
+
   const analysis = students.map(s => {
     const sA = attendance.filter(a => a.student_id === s.id);
     if (sA.length === 0) return null;
     const absences = sA.filter(a => a.status === 'absent').length;
+    const lates = sA.filter(a => a.status === 'late').length;
     const rate = Math.round((absences / sA.length) * 100);
-    if (rate >= 10) return { name: s.full_name, absenceRate: rate, risk: rate >= 30 ? 'خطر' : rate >= 20 ? 'إنذار' : 'مراقبة' };
+
+    if (rate >= 10) {
+      return {
+        الاسم: s.full_name,
+        الرقم_الجامعي: s.university_id,
+        نسبة_الغياب: `${rate}%`,
+        عدد_الغيابات: absences,
+        عدد_التأخيرات: lates,
+        مستوى_الخطر: rate >= 30 ? '🔴 خطر (يحتاج تدخل فوري)' : rate >= 20 ? '🟡 إنذار (يحتاج متابعة)' : '🟢 مراقبة'
+      };
+    }
     return null;
-  }).filter(Boolean).sort((a, b) => b.absenceRate - a.absenceRate);
-  if (analysis.length === 0) return '✅ جميع الطلاب منتظمون.';
-  return await askAI('من الأكثر إلحاحاً؟', JSON.stringify(analysis.slice(0, 5)), { maxTokens: 200 });
+  }).filter(Boolean).sort((a, b) => parseInt(b.نسبة_الغياب) - parseInt(a.نسبة_الغياب));
+
+  if (analysis.length === 0) {
+    return '✅ تقرير الطلاب المعرضين للخطر:\n\nجميع الطلاب منتظمون. لا توجد حالات تستدعي القلق. نسبة الغياب عند جميع الطلاب أقل من 10%.';
+  }
+
+  const context = JSON.stringify(analysis.slice(0, 10), null, 2);
+  return await askAI(
+    'حلل قائمة الطلاب المعرضين للخطر. من الأكثر إلحاحاً؟ ما الإجراءات المقترحة لكل حالة؟',
+    context,
+    { maxTokens: 350, detailed: true }
+  );
 }
 
 export async function detectAnomalies() {
   const attendance = getQuery('attendance') || [];
   const today = new Date().toISOString().slice(0, 10);
   const todayData = attendance.filter(a => a.date === today);
-  return await askAI('هل هناك أنماط غير طبيعية؟', `عمليات اليوم: ${todayData.length}`, { maxTokens: 150 });
+
+  const byHour = {};
+  todayData.forEach(a => {
+    if (a.time_in) {
+      const hour = a.time_in.split(':')[0];
+      byHour[hour] = (byHour[hour] || 0) + 1;
+    }
+  });
+
+  const byMethod = {};
+  todayData.forEach(a => {
+    const method = a.method || 'غير معروف';
+    byMethod[method] = (byMethod[method] || 0) + 1;
+  });
+
+  const context = [
+    `📊 إجمالي عمليات اليوم: ${todayData.length}`,
+    `🕐 توزيع أوقات الدخول: ${JSON.stringify(byHour)}`,
+    `📝 طرق التسجيل: ${JSON.stringify(byMethod)}`
+  ].join('\n');
+
+  return await askAI(
+    'افحص هذه البيانات. هل هناك أنماط غير طبيعية؟ هل هناك شك في تلاعب؟ ما هي توصياتك للتحقيق؟',
+    context,
+    { maxTokens: 250 }
+  );
 }
 
 export async function getWeeklyRecommendations() {
   const students = getQuery('students') || [];
   const attendance = getQuery('attendance') || [];
   const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - 7);
-  const weekData = attendance.filter(a => a.date >= weekStart.toISOString().slice(0, 10));
+  const startDate = weekStart.toISOString().slice(0, 10);
+  const weekData = attendance.filter(a => a.date >= startDate);
   const absences = weekData.filter(a => a.status === 'absent').length;
-  return await askAI('قدم 5 توصيات.', `غيابات الأسبوع: ${absences}، الطلاب: ${students.length}`, { maxTokens: 250 });
+  const late = weekData.filter(a => a.status === 'late').length;
+  const present = weekData.filter(a => a.status === 'present').length;
+  const total = present + absences + late;
+  const weekRate = total > 0 ? Math.round((present / total) * 100) : 0;
+
+  const context = [
+    `📊 إحصائيات الأسبوع (${startDate} – اليوم):`,
+    `✅ حضور: ${present}`,
+    `❌ غياب: ${absences}`,
+    `⚠️ تأخير: ${late}`,
+    `📈 نسبة الحضور: ${weekRate}%`,
+    `👥 إجمالي الطلاب: ${students.length}`
+  ].join('\n');
+
+  return await askAI(
+    'بناءً على بيانات الأسبوع، قدم 5 توصيات استراتيجية محددة لتحسين نسبة الحضور في الأسبوع القادم. رتبها حسب الأولوية.',
+    context,
+    { maxTokens: 400, detailed: true }
+  );
 }
 
 export async function comprehensiveAnalysis() {
   const students = getQuery('students') || [];
   const attendance = getQuery('attendance') || [];
+  const devices = getQuery('devices') || [];
+  const notifications = getQuery('notifications') || [];
+  const schedules = getQuery('schedules') || [];
+
   const today = new Date().toISOString().slice(0, 10);
-  const present = attendance.filter(a => a.date === today && a.status === 'present').length;
-  return await askAI('قدم تقريراً شاملاً.', `الطلاب: ${students.length}، حاضر: ${present}`, { maxTokens: 300, detailed: true });
+  const todayAttendance = attendance.filter(a => a.date === today);
+  const present = todayAttendance.filter(a => a.status === 'present').length;
+  const absent = todayAttendance.filter(a => a.status === 'absent').length;
+
+  const onlineDevices = devices.filter(d => d.status === 'online').length;
+  const todayNotifications = notifications.filter(n => n.sent_at?.startsWith(today)).length;
+
+  const context = [
+    `🏫 جامعة القرآن الكريم والعلوم الإسلامية – تقرير الحالة الشامل`,
+    `📅 تاريخ التقرير: ${today}`,
+    ``,
+    `━━━━━━━━━━━━━━━━━━━━`,
+    `📊 الحالة العامة:`,
+    `👥 إجمالي الطلاب: ${students.length}`,
+    `📚 المحاضرات: ${schedules.length}`,
+    `🖐️ أجهزة البصمة: ${devices.length} (${onlineDevices} متصل | ${devices.length - onlineDevices} غير متصل)`,
+    ``,
+    `📈 إحصائيات اليوم:`,
+    `✅ حضور: ${present}`,
+    `❌ غياب: ${absent}`,
+    `📱 إشعارات مرسلة: ${todayNotifications}`,
+    ``,
+    `📊 أداء النظام:`,
+    `🧠 إجمالي استدعاءات AI: ${totalRequests}`,
+    `✅ استدعاءات ناجحة: ${successfulRequests}`
+  ].join('\n');
+
+  return await askAI(
+    'قدم تقريراً شاملاً عن حالة النظام. ما هي أبرز الملاحظات؟ ما التوصيات الاستراتيجية للتحسين؟',
+    context,
+    { maxTokens: 450, detailed: true, role: 'المدير التنفيذي للنظام' }
+  );
 }
 
 // ==========================================
-// ٤. المحادثة الصوتية
+// ٥. المحادثة الصوتية المتقدمة
 // ==========================================
 
 export function startVoiceRecognition(callback) {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) { callback('❌ استعمل Chrome.', null); return null; }
+  if (!SpeechRecognition) {
+    callback('❌ متصفحك لا يدعم التعرف على الصوت. يرجى استعمال Google Chrome.', null);
+    return null;
+  }
+
   recognition = new SpeechRecognition();
   recognition.lang = 'ar-SA';
   recognition.continuous = false;
-  recognition.onresult = (e) => { callback(null, e.results[0][0].transcript); };
-  recognition.onerror = () => callback('❌ خطأ.', null);
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 3;
+
+  let finalText = '';
+
+  recognition.onstart = () => { finalText = ''; };
+
+  recognition.onresult = (event) => {
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      if (event.results[i].isFinal) {
+        finalText += event.results[i][0].transcript;
+      }
+    }
+  };
+
+  recognition.onerror = (event) => {
+    const errors = {
+      'not-allowed': '❌ الرجاء السماح للميكروفون في إعدادات المتصفح.',
+      'no-speech': '❌ لم يتم اكتشاف أي صوت. حاول مرة أخرى.',
+      'audio-capture': '❌ لا يوجد ميكروفون متاح.',
+      'network': '⚠️ مشكلة في الاتصال.',
+      'aborted': '⏹️ تم إيقاف التسجيل.'
+    };
+    callback(errors[event.error] || `❌ خطأ: ${event.error}`, null);
+  };
+
+  recognition.onend = () => {
+    callback(null, finalText.trim() || null);
+  };
+
   recognition.start();
   return recognition;
 }
 
-export function stopVoiceRecognition() { if (recognition) { recognition.stop(); recognition = null; } }
+export function stopVoiceRecognition() {
+  if (recognition) { recognition.stop(); recognition = null; }
+}
 
-export function speakText(text) {
+export function speakText(text, options = {}) {
   if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'ar-SA'; u.rate = 0.95; u.pitch = 0.9;
-  const voices = window.speechSynthesis.getVoices();
-  const ar = voices.find(v => v.lang.startsWith('ar'));
-  if (ar) u.voice = ar;
-  window.speechSynthesis.speak(u);
+
+  const { rate = 0.95, pitch = 0.9, volume = 1.0, onEnd = null } = options;
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = 'ar-SA';
+  utterance.rate = rate;
+  utterance.pitch = pitch;
+  utterance.volume = volume;
+
+  const setVoice = () => {
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(v =>
+      v.lang.startsWith('ar') &&
+      (v.name.includes('Majed') || v.name.includes('Naeem') || v.name.includes('Natural') || v.name.includes('Google'))
+    );
+    const fallback = voices.find(v => v.lang.startsWith('ar'));
+    utterance.voice = preferred || fallback || voices[0];
+    if (onEnd) utterance.onend = onEnd;
+    window.speechSynthesis.speak(utterance);
+  };
+
+  if (window.speechSynthesis.getVoices().length > 0) {
+    setVoice();
+  } else {
+    window.speechSynthesis.onvoiceschanged = setVoice;
+  }
 }
 
 export async function startVoiceChat(onThinking) {
   return new Promise((resolve) => {
     startVoiceRecognition(async (error, text) => {
-      if (error) { resolve({ error }); return; }
-      if (!text) { resolve({}); return; }
+      if (error) { resolve({ error, question: null, answer: null }); return; }
+      if (!text) { resolve({ error: null, question: null, answer: null }); return; }
       if (onThinking) onThinking(true);
       const answer = await askAI(text);
       if (onThinking) onThinking(false);
-      speakText(answer);
-      resolve({ question: text, answer });
+      speakText(answer, {
+        rate: 0.9,
+        pitch: 0.85,
+        onEnd: () => resolve({ error: null, question: text, answer })
+      });
     });
   });
 }
 
 // ==========================================
-// ٥. دوال مساعدة
+// ٦. دوال مساعدة
 // ==========================================
 
 export function isModelReady() { return isLoaded; }
-export function isModelLoading() { return isLoading; }
-export async function unloadModel() { model = null; isLoaded = false; }
+export function isModelLoading() { return false; }
+export async function unloadModel() { isLoaded = false; }
+
 export function getModelInfo() {
   return {
-    name: 'TinyLlama 1.1B',
-    size: '700MB',
-    type: 'محلي - بدون إنترنت',
-    status: isLoaded ? '✅ جاهز' : isLoading ? '⏳ جاري التحميل' : '❌ غير محمل'
+    الاسم: 'Llama 3.2 1B Preview',
+    المزود: 'Groq API',
+    النوع: 'سحابي – يحتاج إنترنت',
+    السرعة: '⚡ فوري',
+    السعر: '🆓 مجاني',
+    الحالة: isLoaded ? '✅ جاهز' : '❌ غير متصل',
+    إجمالي_الاستدعاءات: totalRequests,
+    الاستدعاءات_الناجحة: successfulRequests
+  };
+}
+
+export function getUsageStats() {
+  return {
+    totalRequests,
+    successfulRequests,
+    failedRequests: totalRequests - successfulRequests,
+    successRate: totalRequests > 0 ? Math.round((successfulRequests / totalRequests) * 100) : 0
   };
 }
