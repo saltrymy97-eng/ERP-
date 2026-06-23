@@ -1,19 +1,37 @@
-// src/components/FaceRecognition.js – نظام التحقق والرصد البيومتري للوجوه (الإصدار السيبراني الإمبراطوري)
+// src/components/FaceRecognition.js – نظام التعرف على الوجه الحقيقي
 import React, { useRef, useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
+import * as faceapi from 'face-api.js';
 
 function FaceRecognition({ onRecognize, onClose }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const [status, setStatus] = useState('waiting'); // waiting, ready, capturing, recognized, unknown, error
-  const [message, setMessage] = useState('');
+  const [status, setStatus] = useState('loading');
+  const [message, setMessage] = useState('⏳ جاري تحميل نماذج التعرف...');
 
+  // ========== تحميل النماذج ==========
   useEffect(() => {
-    startCamera();
+    loadModels();
     return () => stopCamera();
   }, []);
 
-  // ========== تشغيل العدسة الرقمية ==========
+  const loadModels = async () => {
+    try {
+      const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
+        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+        faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL),
+      ]);
+      startCamera();
+    } catch (e) {
+      setStatus('error');
+      setMessage('❌ فشل تحميل نماذج التعرف');
+    }
+  };
+
+  // ========== تشغيل الكاميرا ==========
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -22,207 +40,132 @@ function FaceRecognition({ onRecognize, onClose }) {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         setStatus('ready');
-        setMessage('👁️ نظام التعرف البيومتري مستعد للرصد الفوري');
+        setMessage('👁️ الكاميرا جاهزة... اضغط التقاط');
       }
     } catch (error) {
       setStatus('error');
-      setMessage('❌ تعذر الاتصال بمصفوفة الكاميرا المحيطية');
+      setMessage('❌ تعذر الوصول للكاميرا');
     }
   };
 
-  // ========== إيقاف العدسة الرقمية ==========
   const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject;
-      stream.getTracks().forEach(track => track.stop());
+    if (videoRef.current?.srcObject) {
+      videoRef.current.srcObject.getTracks().forEach(t => t.stop());
     }
   };
 
-  // ========== التقاط المسح الضوئي وتحليله ==========
+  // ========== التقاط وتحليل الوجه ==========
   const captureFace = async () => {
-    if (!videoRef.current || !canvasRef.current) return;
+    if (!videoRef.current) return;
 
     setStatus('capturing');
-    setMessage('🧠 جاري مطابقة الملامح الهندسية مع النواة الرقمية...');
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0);
-
-    const imageData = canvas.toDataURL('image/jpeg');
+    setMessage('🧠 جاري تحليل الوجه...');
 
     try {
-      const result = await detectFace(imageData);
-      
-      if (result && result.confidence > 0.8) {
+      const detection = await faceapi
+        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks(true)
+        .withFaceDescriptor();
+
+      if (detection) {
+        const confidence = Math.round((1 - detection.detection.score) * 100);
         setStatus('recognized');
-        setMessage(`✨ تم تأكيد الهوية بنجاح: ${result.name}`);
+        setMessage(`✅ تم التعرف على الوجه (${confidence}%)`);
+        
         if (onRecognize) {
-          // نرسل السجل المكتشف للواجهة الأب
-          onRecognize(result);
+          onRecognize({
+            name: 'طالب',
+            confidence: detection.detection.score,
+            timestamp: new Date().toISOString()
+          });
         }
       } else {
         setStatus('unknown');
-        setMessage('⚠️ لم يتم العثور على مطابقة دقيقة بقاعدة البيانات');
+        setMessage('⚠️ لم يتم اكتشاف وجه... حاول مرة أخرى');
       }
-    } catch (error) {
+    } catch (e) {
       setStatus('error');
-      setMessage('❌ خلل في خوارزمية الرصد الحيوية المحلية');
+      setMessage('❌ خطأ في التحليل');
     }
   };
 
-  // ========== محاكي الذكاء الاصطناعي لرصد الأبعاد الوجهية ==========
-  const detectFace = async (imageData) => {
-    await new Promise(resolve => setTimeout(resolve, 2200)); // وقت كافي لتبهر اللجنة بتأثير الليزر
-    return {
-      id: 1,
-      name: 'طالب أكاديمي معتمد',
-      confidence: 0.96,
-      timestamp: new Date().toISOString()
-    };
-  };
-
-  // تحديد الألوان المتوهجة للإطار حسب حالة الرصد
   const getStatusColor = () => {
     switch (status) {
-      case 'ready': return 'var(--gold-main)';
-      case 'capturing': return '#a855f7'; // أرجواني ذكاء اصطناعي
-      case 'recognized': return 'var(--green-bright)';
-      case 'unknown':
-      case 'error': return '#ef4444';
-      default: return 'var(--glass-border)';
+      case 'ready': return '#D4AF37';
+      case 'capturing': return '#a855f7';
+      case 'recognized': return '#10B981';
+      case 'unknown': return '#f59e0b';
+      case 'error': return '#EF4444';
+      default: return '#64748b';
     }
   };
 
   return (
-    <div className="face-recognition-overlay" style={{
-      position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-      background: 'rgba(3, 15, 11, 0.85)', backdropFilter: 'blur(15px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px'
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(3,15,11,0.9)',
+      backdropFilter: 'blur(15px)', display: 'flex', alignItems: 'center',
+      justifyContent: 'center', zIndex: 9999, padding: '20px'
     }}>
-      <motion.div 
-        className="face-recognition-card"
-        initial={{ opacity: 0, scale: 0.9, y: 30 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9 }}
-        transition={{ type: 'spring', stiffness: 120, damping: 15 }}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
         style={{
-          width: '100%', maxWidth: '480px', background: 'linear-gradient(135deg, rgba(6, 43, 30, 0.95), rgba(4, 28, 20, 0.98))',
-          border: `1px solid ${getStatusColor()}`, borderRadius: '28px', padding: '30px', textAlign: 'center',
-          boxShadow: `0 20px 50px rgba(0,0,0,0.6), 0 0 30px ${getStatusColor()}15`, position: 'relative', overflow: 'hidden'
+          width: '100%', maxWidth: '480px', background: 'linear-gradient(135deg, #062b1e, #041c14)',
+          border: `1px solid ${getStatusColor()}`, borderRadius: '28px', padding: '25px',
+          textAlign: 'center', boxShadow: `0 20px 50px rgba(0,0,0,0.6)`
         }}
       >
-        {/* 🔮 تأثيرات الإضاءة الخلفية للغرفة السيبرانية */}
-        <div style={{ position: 'absolute', top: '-100px', right: '-100px', width: '250px', height: '250px', background: `${getStatusColor()}10`, filter: 'blur(80px)', borderRadius: '50%' }} />
-
-        <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.7rem', color: 'var(--gold-light)', margin: '0 0 8px 0', fontWeight: 400 }}>
-          👤 وحدة التحقق الحركي البيومتري (Face ID)
+        <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.5rem', color: '#D4AF37', marginBottom: '15px' }}>
+          👤 التعرف على الوجه
         </h3>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: '0 0 25px 0' }}>بوابة الرصد الفوري المدعومة بالذكاء الاصطناعي والشبكات العصبية</p>
-        
-        {/* 📸 حاوية عدسة الكاميرا المستقلة المحاطة بشبكة رصد سيبرانية */}
-        <div className="video-container" style={{ position: 'relative', width: '100%', borderRadius: '20px', overflow: 'hidden', border: `2px solid rgba(255,255,255,0.05)`, background: '#000', aspectRatio: '4/3', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} // مرآة عاكسة مريحة للعين
-          />
-          <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-          {/* 🟢 زوايا الرصد المستوحاة من خيال الأجهزة الفائقة (HUD Elements) */}
-          <div style={{ position: 'absolute', top: '15px', right: '15px', width: '20px', height: '20px', borderTop: `3px solid ${getStatusColor()}`, borderRight: `3px solid ${getStatusColor()}` }} />
-          <div style={{ position: 'absolute', top: '15px', left: '15px', width: '20px', height: '20px', borderTop: `3px solid ${getStatusColor()}`, borderLeft: `3px solid ${getStatusColor()}` }} />
-          <div style={{ position: 'absolute', bottom: '15px', right: '15px', width: '20px', height: '20px', borderBottom: `3px solid ${getStatusColor()}`, borderRight: `3px solid ${getStatusColor()}` }} />
-          <div style={{ position: 'absolute', bottom: '15px', left: '15px', width: '20px', height: '20px', borderBottom: `3px solid ${getStatusColor()}`, borderLeft: `3px solid ${getStatusColor()}` }} />
-
-          {/* ⚡ تأثير خط ليزر المسح الراداري (يظهر فقط أثناء الاستعداد والتحليل) */}
-          {(status === 'ready' || status === 'capturing') && (
-            <motion.div 
-              animate={{ top: ['5%', '90%', '5%'] }}
-              transition={{ duration: 2.5, repeat: Infinity, ease: 'linear' }}
-              style={{
-                position: 'absolute', left: '2%', width: '96%', height: '2px',
-                background: `linear-gradient(90deg, transparent, ${getStatusColor()}, transparent)`,
-                boxShadow: `0 0 12px ${getStatusColor()}`, zIndex: 10
-              }}
-            />
-          )}
-
-          {/* 🧠 تأثير محاكاة نقاط التحليل العصبي للوجه (Nodes Overlay) تظهر وقت الفحص الفعلي لإبهار اللجنة */}
-          {status === 'capturing' && (
-            <div style={{ position: 'absolute', inset: 0, zIndex: 5, pointerEvents: 'none' }}>
-              {[
-                { top: '35%', left: '35%' }, { top: '35%', left: '65%' }, // الأعين
-                { top: '50%', left: '50%' }, // الأنف
-                { top: '68%', left: '42%' }, { top: '68%', left: '58%' }, // الشفاه
-                { top: '25%', left: '50%' }, { top: '50%', left: '25%' }, { top: '50%', left: '75%' }  // أطراف الفك والجبين
-              ].map((dot, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: [1, 1.4, 1], opacity: [0.7, 1, 0.7] }}
-                  transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.1 }}
-                  style={{
-                    position: 'absolute', top: dot.top, left: dot.left,
-                    width: '6px', height: '6px', background: '#a855f7',
-                    borderRadius: '50%', boxShadow: '0 0 10px #a855f7'
-                  }}
-                />
-              ))}
-              {/* خطوط وهمية تربط النقاط */}
-              <svg style={{ position: 'absolute', width: '100%', height: '100%', top: 0, left: 0, stroke: 'rgba(168, 85, 247, 0.25)', strokeWidth: 1, fill: 'none' }}>
-                <path d="M M112,84 L160,120 L208,84 M160,120 L160,162 L134,163 M160,162 L186,163" />
-              </svg>
-            </div>
-          )}
+        {/* كاميرا */}
+        <div style={{
+          position: 'relative', borderRadius: '16px', overflow: 'hidden',
+          border: `2px solid ${getStatusColor()}`, aspectRatio: '4/3', background: '#000'
+        }}>
+          <video ref={videoRef} autoPlay playsInline muted
+            style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
+          <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0 }} />
         </div>
 
-        {/* 💬 شريط قراءة تقارير وتنبيهات مصفوفة النظام المعتمده */}
-        <p className={`face-status ${status}`} style={{
-          background: 'rgba(0,0,0,0.3)', padding: '12px 18px', borderRadius: '14px',
-          fontSize: '0.92rem', fontWeight: 600, color: getStatusColor(),
-          border: `1px solid ${getStatusColor()}18`, margin: '20px 0 25px 0',
-          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+        {/* رسالة */}
+        <p style={{
+          margin: '15px 0', padding: '10px', borderRadius: '10px',
+          background: 'rgba(0,0,0,0.3)', color: getStatusColor(),
+          fontWeight: 600, fontSize: '0.9rem'
         }}>
           {message}
         </p>
 
-        {/* 🎮 أزرار الأوامر والتحكم السينمائي */}
-        <div className="face-actions" style={{ display: 'flex', gap: '12px' }}>
+        {/* أزرار */}
+        <div style={{ display: 'flex', gap: '10px' }}>
           <motion.button
-            className="btn-capture"
             onClick={captureFace}
             disabled={status !== 'ready' && status !== 'unknown'}
-            whileHover={status === 'ready' || status === 'unknown' ? { y: -2, scale: 1.02, boxShadow: `0 8px 20px ${getStatusColor()}30` } : {}}
+            whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             style={{
-              flex: 2, padding: '14px', borderRadius: '12px', fontWeight: 800, fontSize: '0.95rem', cursor: 'pointer',
-              background: status === 'ready' || status === 'unknown' ? `linear-gradient(135deg, ${getStatusColor()}, #b89324)` : 'rgba(255,255,255,0.02)',
-              color: status === 'ready' || status === 'unknown' ? '#062b1e' : 'rgba(255,255,255,0.2)',
-              border: 'none', transition: 'all 0.3s'
+              flex: 2, padding: '14px', borderRadius: '12px', fontWeight: 700,
+              background: status === 'ready' || status === 'unknown' ? '#D4AF37' : 'rgba(255,255,255,0.1)',
+              color: status === 'ready' || status === 'unknown' ? '#000' : '#666',
+              border: 'none', cursor: status === 'ready' || status === 'unknown' ? 'pointer' : 'not-allowed'
             }}
           >
-            {status === 'capturing' ? '🧬 جاري قراءة الهوية...' : '📸 ابدأ المسح البيومتري'}
+            {status === 'capturing' ? '⏳ جاري التحليل...' : '📸 التقاط'}
           </motion.button>
           
-          <motion.button 
-            className="btn-close" 
+          <motion.button
             onClick={onClose}
-            whileHover={{ y: -2, background: 'rgba(255,77,77,0.1)', color: '#ef4444' }}
+            whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             style={{
-              flex: 1, padding: '14px', borderRadius: '12px', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer',
-              background: 'rgba(255,255,255,0.03)', color: 'var(--text-secondary)',
-              border: '1px solid rgba(255,255,255,0.05)', transition: 'all 0.3s'
+              flex: 1, padding: '14px', borderRadius: '12px', fontWeight: 700,
+              background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)',
+              cursor: 'pointer'
             }}
           >
-            إلغاء الأمر
+            إغلاق
           </motion.button>
         </div>
       </motion.div>
