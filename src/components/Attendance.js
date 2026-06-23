@@ -102,7 +102,7 @@ function Attendance() {
   };
 
   const loadMonthlyData = () => {
-    setMonthlyData([]); // ⚡ يمنع الشاشة السوداء
+    setMonthlyData([]);
     
     const allStudents = getQuery("SELECT * FROM students WHERE status='active'");
     const allAttendance = getQuery("SELECT * FROM attendance");
@@ -163,7 +163,6 @@ function Attendance() {
               style={{ width: '100%', maxWidth: '360px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 18px', borderRadius: '14px', color: '#fff', outline: 'none' }} />
           </div>
 
-          {/* Alert */}
           <AnimatePresence>
             {attendanceStatus && (
               <motion.div initial={{ opacity: 0, y: -20, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}
@@ -180,7 +179,6 @@ function Attendance() {
             )}
           </AnimatePresence>
 
-          {/* Students Grid */}
           <motion.div variants={containerVariants} initial="hidden" animate="show" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
             {students.filter(s => s.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || s.university_id?.includes(searchTerm)).map(student => {
                 const todayRecord = todayAttendance.find(a => a.student_id === student.id);
@@ -274,7 +272,7 @@ function Attendance() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
             <div>
-              <h3 style={{ fontFamily: 'Amiri', serif, fontSize: '1.6rem', color: 'var(--gold-light)', margin: 0 }}>📊 مصفوفة رصد نسب الغياب التراكمية</h3>
+              <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)', margin: 0 }}>📊 مصفوفة رصد نسب الغياب التراكمية</h3>
               <p style={{ color: 'var(--text-secondary)', margin: '5px 0 0 0', fontSize: '0.88rem' }}>يتم تلوين السجلات بالأحمر إذا تراجعت نسبة الحضور عن <strong style={{ color: '#ef4444' }}>75%</strong></p>
             </div>
             <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} style={{ background: '#062b1e', border: '1px solid var(--glass-border)', padding: '10px 15px', borderRadius: '12px', color: '#fff', fontWeight: 700 }} />
