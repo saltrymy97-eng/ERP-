@@ -71,35 +71,11 @@ export async function loadMobileModel(onProgress) {
     return false;
   }
 
-  if (onProgress) onProgress('⚡ جاري الاتصال بالخادم الذكي...');
-
-  try {
-    const test = await fetch(GROQ_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: GROQ_MODEL,
-        messages: [{ role: 'user', content: 'مرحبا، تحقق من الاتصال.' }],
-        max_tokens: 5,
-        temperature: 0.1
-      })
-    });
-
-    if (!test.ok) throw new Error(`تعذر الاتصال - رمز الحالة: ${test.status}`);
-
-    isLoaded = true;
-    if (onProgress) onProgress('✅ المستشار الأكاديمي جاهز');
-    console.log('✅ المستشار الأكاديمي الذكي جاهز (Llama 3.2 1B)');
-    return true;
-  } catch (e) {
-    isLoaded = false;
-    console.error('❌ فشل الاتصال أثناء التهيئة:', e);
-    if (onProgress) onProgress('❌ تعذر الاتصال بالخادم (تحقق من المفتاح)');
-    return false;
-  }
+  // تخطي فحص الـ Ping لتفادي حظر المتصفح (CORS) وتفعيل المفتاح المحفوظ مباشرة
+  isLoaded = true;
+  if (onProgress) onProgress('✅ المستشار الأكاديمي جاهز');
+  console.log('✅ المستشار الأكاديمي الذكي جاهز ومفعّل (Llama 3.2 1B)');
+  return true;
 }
 
 // ==========================================
