@@ -9,7 +9,6 @@ import Students from './components/Students';
 import Attendance from './components/Attendance';
 import Reports from './components/Reports';
 import Settings from './components/Settings';
-import FaceRecognition from './components/FaceRecognition';
 import './App.css';
 
 function App() {
@@ -22,7 +21,6 @@ function App() {
   const [loginError, setLoginError] = useState('');
   const [voiceActive, setVoiceActive] = useState(false);
   const [voiceResult, setVoiceResult] = useState('');
-  const [faceActive, setFaceActive] = useState(false);
   
   const [loading, setLoading] = useState(false); 
 
@@ -92,14 +90,6 @@ function App() {
     }, 8000);
   };
 
-  // ========== التعرف على الوجه ==========
-  const handleFaceRecognition = (student) => {
-    setFaceActive(false);
-    if (student) {
-      setScreen('attendance');
-    }
-  };
-
   // ========== تسجيل الخروج ==========
   const handleLogout = () => {
     logout();
@@ -128,19 +118,9 @@ function App() {
       desc: 'رصد حضور ومطابقة البصمة السحابية الفورية وتتبع الغياب', 
       subItems: [
         { title: '⚡ تسجيل الحضور المباشر الآن', screen: 'attendance' }, 
-        { title: '👤 التعرف على الوجه', screen: 'face' }, 
         { title: '📋 كشف الحضور والغياب لليوم', screen: 'attendance' }, 
         { title: '📊 السجل الشهري التراكمي للغياب', screen: 'attendance' }
       ]
-    },
-    { 
-      id: 'face', 
-      title: 'التعرف على الوجه', 
-      icon: '👤', 
-      color: '#f59e0b', 
-      glow: 'rgba(245, 158, 11, 0.4)',
-      desc: 'تقنية متطورة للتحقق من هوية الطالب عبر الكاميرا', 
-      subItems: [] 
     },
     { 
       id: 'students', 
@@ -213,11 +193,6 @@ function App() {
   ];
 
   const handleIconClick = (icon) => {
-    if (icon.id === 'face') {
-      setFaceActive(true);
-      setOpenMenu(null);
-      return;
-    }
     if (icon.subItems.length > 0) { 
       setOpenMenu(openMenu === icon.id ? null : icon.id); 
     } else { 
@@ -309,14 +284,6 @@ function App() {
           <div className="bg-orb bg-orb-2"></div>
           <div className="bg-orb bg-orb-3"></div>
         </div>
-        
-        {/* 🎥 نافذة التعرف على الوجه */}
-        {faceActive && (
-          <FaceRecognition 
-            onRecognize={handleFaceRecognition} 
-            onClose={() => setFaceActive(false)} 
-          />
-        )}
 
         <motion.header 
           className="home-header" 
@@ -491,11 +458,7 @@ function App() {
                           key={`${sub.title}-${subIndex}`} 
                           className="dropdown-item" 
                           onClick={() => { 
-                            if (sub.screen === 'face') {
-                              setFaceActive(true);
-                            } else {
-                              setScreen(sub.screen); 
-                            }
+                            setScreen(sub.screen); 
                             setOpenMenu(null); 
                           }}
                           whileHover={{ x: -8, backgroundColor: 'rgba(255,255,255,0.03)', color: icon.color }}
