@@ -480,5 +480,3 @@ function Attendance() {
 }
 
 export default Attendance;
-،
-خذ هذا الكود واعطني الكود الكامل المعدل 
