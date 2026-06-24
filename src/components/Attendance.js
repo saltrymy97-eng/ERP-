@@ -1,5 +1,5 @@
-// src/components/Attendance.js – نظام رصد الحضور والانصراف بالبصمة الذكية (الإصدار الإمبراطوري الفاخر)
-import React, { useState, useEffect } from 'react';
+// src/components/Attendance.js – نظام رصد الحضور والانصراف بالبصمة الذكية (الإصدار الإمبراطوري الفاخر والمستقر)
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery } from '../services/db';
 
@@ -14,12 +14,19 @@ function Attendance() {
   const [monthlyData, setMonthlyData] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
 
+  // مرجع (Ref) مخصص لتخزين وحذف مؤقت البصمة النشط لغلق باب الـ Race Conditions نهائياً
+  const attendanceTimeoutRef = useRef(null);
   const today = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
     loadStudents();
     loadTodayAttendance();
     loadStats();
+
+    // تنظيف المؤقت عند إغلاق المكون من الشاشة لتفادي تسريب الذاكرة Memory Leak
+    return () => {
+      if (attendanceTimeoutRef.current) clearTimeout(attendanceTimeoutRef.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -66,9 +73,14 @@ function Attendance() {
 
   // ========== معالجة تسجيل الحضور بنبض البصمة الذكي ==========
   const markAttendance = (student, status = 'present') => {
+    // إلغاء أي مؤقت فحص بصمة سابق قيد الانتظار لتأمين العمليات الحالية
+    if (attendanceTimeoutRef.current) {
+      clearTimeout(attendanceTimeoutRef.current);
+    }
+
     setScanningId(student.id); // بدء تأثير وميض البصمة الأخضر
     
-    setTimeout(() => {
+    attendanceTimeoutRef.current = setTimeout(() => {
       const now = new Date();
       const timeNow = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
       const lateThreshold = '08:15';
@@ -95,13 +107,21 @@ function Attendance() {
       });
 
       setScanningId(null);
+      attendanceTimeoutRef.current = null;
       loadTodayAttendance();
       loadStats();
-    }, 1200); // محاكاة زمن مسح مستشعر البصمة
+    }, 1200); // محاكاة زمن مسح مستشعر البصمة البيومتري
   };
 
   // ========== قيد غياب يدوي إداري ==========
   const markAbsent = (student) => {
+    // 💥 خطوة الحماية الذهبية: إذا كان هناك مؤقت حضور يعمل لهذا الطالب بالتحديد، نقوم بقتله فوراً!
+    if (scanningId === student.id && attendanceTimeoutRef.current) {
+      clearTimeout(attendanceTimeoutRef.current);
+      attendanceTimeoutRef.current = null;
+      setScanningId(null);
+    }
+
     const exists = getQuery("SELECT id FROM attendance WHERE student_id=? AND date=?", [student.id, today]);
 
     if (exists.length > 0) {
@@ -116,7 +136,7 @@ function Attendance() {
     setAttendanceStatus({
       student: student.full_name,
       time: '—',
-      status: 'حالة غياب مقيدة',
+      status: 'حالة غياب مقيدة الإدارة',
       icon: '❌',
       color: '#ef4444'
     });
@@ -257,7 +277,7 @@ function Attendance() {
                   <motion.div
                     key={student.id}
                     variants={cardVariants}
-                    whileHover={{ y: -5, transition: { duration: 0.2 } }}
+                    whileHover={{ y: isScanning ? 0 : -5, transition: { duration: 0.2 } }}
                     style={{
                       background: 'linear-gradient(135deg, rgba(255,255,255,0.01), rgba(255,255,255,0.03))',
                       backdropFilter: 'blur(10px)', border: borderStyle, borderRadius: '20px', padding: '20px',
@@ -285,15 +305,15 @@ function Attendance() {
                         <>
                           <motion.button
                             onClick={() => markAttendance(student, 'present')}
-                            disabled={scanningId !== null}
-                            whileHover={{ scale: 1.03 }}
-                            style={{ flex: 2, background: 'linear-gradient(135deg, var(--emerald-light), var(--green-bright))', color: '#fff', border: 'none', padding: '10px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyWith: 'center', gap: '5px' }}
+                            disabled={scanningId !== null} // تعطيل كافة الأزرار أثناء فحص بصمة أي طالب
+                            whileHover={{ scale: scanningId !== null ? 1 : 1.03 }}
+                            style={{ flex: 2, background: scanningId !== null ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, var(--emerald-light), var(--green-bright))', color: scanningId !== null ? 'var(--text-secondary)' : '#fff', border: 'none', padding: '10px', borderRadius: '10px', fontWeight: 700, cursor: scanningId !== null ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
                           >
                             {isScanning ? '📶 جاري الفحص...' : '🖐️ مسح البصمة'}
                           </motion.button>
                           <button
                             onClick={() => markAbsent(student)}
-                            disabled={scanningId !== null}
+                            disabled={scanningId !== null && scanningId !== student.id} // تمكين الإداري من كسر الفحص الجاري لهذا الطالب بالذات لتقييد غيابه
                             style={{ flex: 1, background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', padding: '10px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}
                           >
                             ❌ غياب
@@ -311,13 +331,18 @@ function Attendance() {
                           }}>
                             {isPresent ? '✅ حاضر بالمنصة' : isLate ? '⚠️ قيد متأخراً' : '❌ غياب معتمد'}
                           </span>
-                          <button onClick={() => {
-                            // تمكين إعادة المسح الفوري للتعديل السريع أمام اللجنة
-                            if(window.confirm("هل ترغب في إعادة فتح بوابة الفحص لهذا الطالب؟")) {
-                              runQuery("DELETE FROM attendance WHERE student_id=? AND date=?", [student.id, today]);
-                              loadTodayAttendance(); loadStats();
-                            }
-                          }} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.85rem' }}>🔄 إعادة ضبط</button>
+                          <button 
+                            disabled={scanningId !== null}
+                            onClick={() => {
+                              if(window.confirm("هل ترغب في إعادة فتح بوابة الفحص لهذا الطالب؟")) {
+                                runQuery("DELETE FROM attendance WHERE student_id=? AND date=?", [student.id, today]);
+                                loadTodayAttendance(); loadStats();
+                              }
+                            }} 
+                            style={{ background: 'none', border: 'none', color: scanningId !== null ? 'rgba(255,255,255,0.1)' : 'var(--text-secondary)', cursor: scanningId !== null ? 'not-allowed' : 'pointer', fontSize: '0.85rem' }}
+                          >
+                            🔄 إعادة ضبط
+                          </button>
                         </div>
                       )}
                     </div>
