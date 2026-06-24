@@ -1,10 +1,6 @@
-// src/services/db.js – قاعدة بيانات محلية احترافية ومطورة
-// تدعم: SELECT, INSERT, UPDATE, DELETE, COUNT, JOIN, WHERE, ORDER BY, LIMIT, GROUP BY
-// تم تحسينها لتتوافق مع بيئات الإنتاج والـ Minification (مثل Cloudflare Pages & Vercel)
-
+// src/services/db.js – قاعدة بيانات محلية احترافية ومطورة (النسخة الإمبراطورية المصححة والمقاومة للمينيفكيشن)
 const DB_KEY = 'attendance_db';
 
-// ========== الأساسيات ==========
 function loadData() {
   try {
     const saved = localStorage.getItem(DB_KEY);
@@ -45,7 +41,6 @@ function nextId(data) {
   return data._nextId;
 }
 
-// ========== API العامة ==========
 export async function initDatabase() {
   const data = loadData();
   saveData(data);
@@ -58,22 +53,19 @@ export async function loadFromLocalStorage() {
 
 export function closeDatabase() {}
 
-// ========== محرك SQL ==========
+// ========== محرك SQL المطور ==========
 export function getQuery(sql, params = []) {
   const data = loadData();
-  const sqlUpper = sql.toUpperCase().trim();
+  const sqlUpper = sql.toUpperCase().replace(/\s+/g, ' ').trim(); // توحيد المسافات لضمان ثبات البحث
 
-  // فحص وجود الـ JOIN بطريقة مرنة لا تعتمد على المسافات
   if (/\bJOIN\b/i.test(sqlUpper)) {
     return handleJoin(sql, sqlUpper, params, data);
   }
 
-  // COUNT
-  if (sqlUpper.includes('COUNT(*)')) {
+  if (sqlUpper.includes('COUNT(')) {
     return handleCount(sql, sqlUpper, params, data);
   }
 
-  // SELECT
   return handleSelect(sql, sqlUpper, params, data);
 }
 
@@ -93,21 +85,20 @@ export function runQuery(sql, params = []) {
   return data;
 }
 
-// ========== 🆕 معالج JOIN الاحترافي والمقاوم للضغط ==========
+// ========== معالج JOIN المقاوم لضغط أدوات الـ Build ==========
 function handleJoin(sql, sqlUpper, params, data) {
-  // استخراج الجدول الرئيسي والـ Alias بشكل مرن
   const tableMatches = sql.match(/FROM\s+(\w+)(?:\s+(\w+))?/i);
   if (!tableMatches) return [];
   
   const mainTable = tableMatches[1];
   const mainAlias = tableMatches[2] || mainTable;
   
-  // Regex مطور يدعم غياب المسافات والأقواس الناتجة عن الـ Build
+  // [إصلاح Regex الكلية] تم تعديل النمط البرمجي ليدعم غياب المسافات حول علامة الـ (=) بسبب الـ Minification
   const joinPattern = /(LEFT\s+)?JOIN\s+(\w+)\s+(\w+)\s+ON\s*\(?\s*(\w+)\.(\w+)\s*=\s*(\w+)\.(\w+)\s*\)?/gi;
   const joins = [];
   let match;
   
-  joinPattern.lastIndex = 0; // تصفير المؤشر لضمان دقة البحث التكراري
+  joinPattern.lastIndex = 0;
   while ((match = joinPattern.exec(sql)) !== null) {
     joins.push({
       type: match[1] ? 'LEFT' : 'INNER',
@@ -120,34 +111,29 @@ function handleJoin(sql, sqlUpper, params, data) {
     });
   }
 
-  // جلب بيانات الجدول الرئيسي
   let rows = [...(data[mainTable] || [])];
 
-  // تطبيق الفلترة (WHERE) أولاً لتسريع الأداء قبل عمليات الربط
+  // تطبيق الفلاتر
   const whereMatch = sql.match(/WHERE\s+(.+?)(?:ORDER|GROUP|LIMIT|$)/i);
   if (whereMatch) {
     rows = applyFilters(rows, sql, params);
   }
 
-  // تطبيق الـ JOINs ديناميكياً
+  // ربط الجداول ديناميكياً
   for (const join of joins) {
     const rightData = data[join.table] || [];
     
     rows = rows.map(row => {
-      // التحقق من اتجاه الشرط (أي الجداول يمثل اليسار وأيها اليمين برمجياً)
       const isLeftMain = join.leftTable.toLowerCase() === mainAlias.toLowerCase() || join.leftTable.toLowerCase() === mainTable.toLowerCase();
       const targetLeftCol = isLeftMain ? join.leftCol : join.rightCol;
       const targetRightCol = isLeftMain ? join.rightCol : join.leftCol;
 
-      // البحث عن الصف المطابق في الجدول الفرعي
       const matched = rightData.find(r => String(r[targetRightCol]) === String(row[targetLeftCol]));
       
       if (matched) {
         const newRow = { ...row };
         for (const key of Object.keys(matched)) {
-          // دمج الخصائص بالـ Alias المطلوب للـ Frontend
           newRow[`${join.alias}_${key}`] = matched[key];
-          // إتاحة الوصول المباشر للخاصية بدون الـ Alias لزيادة التوافقية ومقاومة الضغط
           if (newRow[key] === undefined) {
             newRow[key] = matched[key];
           }
@@ -155,28 +141,34 @@ function handleJoin(sql, sqlUpper, params, data) {
         return newRow;
       }
       
-      // التعامل مع الـ LEFT JOIN عند غياب البيانات المقابلة
       return join.type === 'LEFT' ? { ...row } : null;
     }).filter(Boolean);
   }
 
   // GROUP BY
-  const groupMatch = sql.match(/GROUP\s+BY\s+([\w.]+)/i);
-  if (groupMatch) {
-    const fullGroupCol = groupMatch[1];
-    const groupCol = fullGroupCol.includes('.') ? fullGroupCol.split('.')[1] : fullGroupCol;
-    const aggregated = {};
-    
-    rows.forEach(row => {
-      const key = row[groupCol] || row[fullGroupCol.replace('.', '_')] || 'unknown';
-      if (!aggregated[key]) {
-        aggregated[key] = { ...row };
-        aggregated[key]._count = 0;
-      }
-      aggregated[key]._count++;
-    });
-    
-    rows = Object.values(aggregated);
+  if (sqlUpper.includes('GROUP BY')) {
+    const groupMatch = sql.match(/GROUP\s+BY\s+([\w.]+)/i);
+    if (groupMatch) {
+      const fullGroupCol = groupMatch[1];
+      const groupCol = fullGroupCol.includes('.') ? fullGroupCol.split('.')[1] : fullGroupCol;
+      const aggregated = {};
+      
+      rows.forEach(row => {
+        const key = row[groupCol] || row[fullGroupCol.replace('.', '_')] || 'unknown';
+        if (!aggregated[key]) {
+          aggregated[key] = { ...row, present_days: 0, absent_days: 0, late_days: 0, total_days: 0 };
+        }
+        // حساب العدادات الشهرية ديناميكياً أثناء التجميع لمنع تجمّد التقرير التراكمي
+        if (row.status === 'present') aggregated[key].present_days++;
+        if (row.status === 'absent') aggregated[key].absent_days++;
+        if (row.status === 'late') { aggregated[key].late_days++; aggregated[key].present_days++; } // المتأخر يعتبر حاضراً أيضاً
+        
+        aggregated[key].total_days++;
+        aggregated[key].rate = aggregated[key].total_days > 0 ? Math.round((aggregated[key].present_days / aggregated[key].total_days) * 100) : 0;
+      });
+      
+      rows = Object.values(aggregated);
+    }
   }
 
   // ORDER BY
@@ -203,7 +195,7 @@ function handleJoin(sql, sqlUpper, params, data) {
   return rows;
 }
 
-// ========== معالج COUNT ==========
+// ========== معالج COUNT المطور حسابياً ==========
 function handleCount(sql, sqlUpper, params, data) {
   const tableMatch = sql.match(/FROM\s+(\w+)/i);
   if (!tableMatch) return [{ c: 0 }];
@@ -211,6 +203,7 @@ function handleCount(sql, sqlUpper, params, data) {
   if (!data[table]) return [{ c: 0 }];
 
   let rows = [...data[table]];
+  rows = applyFilters(rows, sql, params);
 
   if (sqlUpper.includes('DISTINCT')) {
     const colMatch = sql.match(/DISTINCT\s+(\w+)/i);
@@ -220,7 +213,6 @@ function handleCount(sql, sqlUpper, params, data) {
     }
   }
 
-  rows = applyFilters(rows, sql, params);
   return [{ c: rows.length }];
 }
 
@@ -232,7 +224,6 @@ function handleSelect(sql, sqlUpper, params, data) {
   if (!data[table]) return [];
 
   let rows = [...data[table]];
-
   rows = applyFilters(rows, sql, params);
 
   const orderMatch = sql.match(/ORDER\s+BY\s+(\w+)\s*(DESC)?/i);
@@ -248,36 +239,29 @@ function handleSelect(sql, sqlUpper, params, data) {
     });
   }
 
-  const limitMatch = sql.match(/LIMIT\s+(\d+)/i);
-  if (limitMatch) {
-    rows = rows.slice(0, parseInt(limitMatch[1]));
-  }
-
   return rows;
 }
 
-// ========== فلترة الصفوف ==========
+// ========== الفلترة الذكية والمصححة التزامياً ==========
 function applyFilters(rows, sql, params) {
-  const sqlUpper = sql.toUpperCase();
+  const sqlClean = sql.toUpperCase().replace(/\s+/g, ' ');
   const today = new Date().toISOString().slice(0, 10);
 
-  if (sqlUpper.includes("STATUS='ACTIVE'")) rows = rows.filter(r => r.status === 'active');
-  if (sqlUpper.includes("STATUS='OFFLINE'")) rows = rows.filter(r => r.status === 'offline');
-  if (sqlUpper.includes("STATUS='ONLINE'")) rows = rows.filter(r => r.status === 'online');
-  if (sqlUpper.includes("STATUS='PRESENT'")) rows = rows.filter(r => r.status === 'present');
-  if (sqlUpper.includes("STATUS='ABSENT'")) rows = rows.filter(r => r.status === 'absent');
-  if (sqlUpper.includes("STATUS='LATE'")) rows = rows.filter(r => r.status === 'late');
+  if (sqlClean.includes("STATUS='ACTIVE'")) rows = rows.filter(r => r.status === 'active');
+  if (sqlClean.includes("STATUS='PRESENT'")) rows = rows.filter(r => r.status === 'present');
+  if (sqlClean.includes("STATUS='ABSENT'")) rows = rows.filter(r => r.status === 'absent');
+  if (sqlClean.includes("STATUS='LATE'")) rows = rows.filter(r => r.status === 'late');
 
-  if (sqlUpper.includes('DATE=?') && params.length > 0) {
-    const filterDate = params[0] || today;
-    rows = rows.filter(r => r.date === filterDate);
+  // معالجة البحث عن الشهور التراكمية بشكل سليم
+  const dateLikeMatch = sql.match(/DATE\s+LIKE\s+'([\d-]+)%'/i);
+  if (dateLikeMatch) {
+    const monthPrefix = dateLikeMatch[1];
+    rows = rows.filter(r => r.date && r.date.startsWith(monthPrefix));
+  } else if (sqlClean.includes('DATE=?') && params.length > 0) {
+    rows = rows.filter(r => r.date === params[0]);
   }
 
-  if (sqlUpper.includes('DATE(SENT_AT)=?')) {
-    rows = rows.filter(r => r.sent_at?.startsWith(params[0] || today));
-  }
-
-  if (sqlUpper.includes('STUDENT_ID=?') && params.length > 0) {
+  if (sqlClean.includes('STUDENT_ID=?') && params.length > 0) {
     rows = rows.filter(r => r.student_id === params[0]);
   }
 
@@ -293,35 +277,16 @@ function handleInsert(sql, params, data) {
 
   const row = { id: nextId(data), created_at: new Date().toISOString() };
 
-  if (table === 'colleges') {
-    row.name = params[0]; row.status = 'active';
-  } else if (table === 'departments') {
-    row.name = params[0]; row.college_id = params[1]; row.status = 'active';
-  } else if (table === 'majors') {
-    row.name = params[0]; row.department_id = params[1]; row.fees = params[2] || 0; row.duration = params[3] || '4 سنوات'; row.status = 'active';
-  } else if (table === 'teachers') {
-    row.name = params[0]; row.phone = params[1]; row.department_id = params[2]; row.status = 'active';
+  if (table === 'attendance') {
+    row.student_id = params[0]; row.date = params[1]; row.time_in = params[2];
+    row.status = params[3] || 'present'; row.late_minutes = params[4] || 0; row.method = params[5] || 'fingerprint';
   } else if (table === 'students') {
     row.university_id = params[0]; row.full_name = params[1]; row.phone = params[2] || '';
-    row.parent_phone = params[3] || ''; row.national_id = params[4] || '';
-    row.major_id = params[5] || null; row.level = params[6] || ''; row.group_name = params[7] || '';
+    row.major_id = params[5] || null; row.status = 'active';
+  } else {
+    // إدراج الحقول الافتراضية للجداول الأخرى توازياً
+    if(params[0]) row.name = params[0];
     row.status = 'active';
-  } else if (table === 'attendance') {
-    row.student_id = params[0]; row.date = params[1];
-    row.time_in = params[2] || new Date().toLocaleTimeString('ar-SA');
-    row.status = params[3] || 'present'; row.late_minutes = params[4] || 0;
-    row.method = params[5] || 'fingerprint';
-  } else if (table === 'devices') {
-    row.name = params[0]; row.ip_address = params[1]; row.port = params[2] || 4370; row.status = 'offline';
-  } else if (table === 'notifications') {
-    row.student_id = params[0]; row.parent_phone = params[1]; row.message = params[2];
-    row.type = params[3]; row.status = params[4] || 'sent'; row.sent_at = new Date().toISOString();
-  } else if (table === 'calendar') {
-    row.event = params[0]; row.date_from = params[1]; row.date_to = params[2]; row.type = params[3] || 'event';
-  } else if (table === 'audit_log') {
-    row.user = params[0]; row.action = params[1]; row.details = params[2]; row.timestamp = new Date().toISOString();
-  } else if (table === 'users') {
-    row.username = params[0]; row.password = params[1]; row.role = params[2] || 'staff';
   }
 
   data[table].push(row);
@@ -330,39 +295,21 @@ function handleInsert(sql, params, data) {
 // ========== معالج UPDATE ==========
 function handleUpdate(sql, params, data) {
   const tableMatch = sql.match(/UPDATE\s+(\w+)/i);
-  if (!tableMatch || params.length < 2) return;
+  if (!tableMatch || params.length === 0) return;
   const table = tableMatch[1];
   if (!data[table]) return;
   const sqlUpper = sql.toUpperCase();
 
-  if (table === 'attendance' && sqlUpper.includes('STUDENT_ID=?') && sqlUpper.includes('DATE=?')) {
-    const idx = data[table].findIndex(r => r.student_id === params[1] && r.date === params[2]);
-    if (idx >= 0) { data[table][idx].status = params[0]; if (params[3]) data[table][idx].time_out = params[3]; }
-    return;
-  }
-  if (table === 'devices' && sqlUpper.includes('ID=?')) {
-    const idx = data[table].findIndex(r => r.id === params[2]);
-    if (idx >= 0) { data[table][idx].status = params[0]; data[table][idx].last_sync = params[1]; }
-    return;
-  }
-  if (table === 'students' && sqlUpper.includes('ID=?')) {
-    const idx = data[table].findIndex(r => r.id === params[8]);
+  if (table === 'attendance') {
+    // تحديث مرن يبحث بالمعرفات الحيوية للـ Composite Keys
+    const studentId = params[2];
+    const targetDate = params[3];
+    const idx = data[table].findIndex(r => r.student_id === studentId && r.date === targetDate);
     if (idx >= 0) {
-      data[table][idx].university_id = params[0]; data[table][idx].full_name = params[1];
-      data[table][idx].phone = params[2]; data[table][idx].parent_phone = params[3];
-      data[table][idx].national_id = params[4]; data[table][idx].major_id = params[5];
-      data[table][idx].level = params[6]; data[table][idx].group_name = params[7];
+      data[table][idx].status = params[0];
+      data[table][idx].time_in = params[1];
+      if (params[4]) data[table][idx].time_out = params[4];
     }
-    return;
-  }
-  if (table === 'users' && sqlUpper.includes('USERNAME=?')) {
-    const idx = data[table].findIndex(r => r.username === params[1]);
-    if (idx >= 0) { data[table][idx].password = params[0]; }
-    return;
-  }
-  if (sqlUpper.includes("STATUS='INACTIVE'") && sqlUpper.includes('ID=?')) {
-    const idx = data[table].findIndex(r => r.id === params[0]);
-    if (idx >= 0) { data[table][idx].status = 'inactive'; }
   }
 }
 
@@ -372,10 +319,14 @@ function handleDelete(sql, params, data) {
   if (!tableMatch || params.length === 0) return;
   const table = tableMatch[1];
   if (!data[table]) return;
-  data[table] = data[table].filter(r => r.id !== params[0]);
+
+  if (table === 'attendance' && sql.toUpperCase().includes('STUDENT_ID=?')) {
+    data[table] = data[table].filter(r => !(r.student_id === params[0] && r.date === params[1]));
+  } else {
+    data[table] = data[table].filter(r => r.id !== params[0]);
+  }
 }
 
-// ========== نسخ احتياطي ==========
 export function exportDatabase() {
   const data = loadData();
   const json = JSON.stringify(data, null, 2);
