@@ -1,4 +1,4 @@
-// src/components/Attendance.js – نظام رصد الحضور والانصراف بالبصمة الذكية (الإصدار الإمبراطوري الفاخر والمستقر - النسخة المصححة)
+// src/components/Attendance.js – نظام رصد الحضور والانصراف بالبصمة الذكية (الإصدار الإمبراطوري الفاخر والمستقر - النسخة المصححة والمطابقة لمجرك SQL)
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery } from '../services/db';
@@ -66,12 +66,18 @@ function Attendance() {
     setTodayAttendance(data);
   };
 
-  // ========== إحصائيات المجموعات الحية (تم التعديل لتصبح متزامنة وديناميكية فوراً) ==========
+  // ========== إحصائيات المجموعات الحية (تم التعديل لتصبح متزامنة وديناميكية فوراً مع الطلاب المتأخرين) ==========
   const loadStats = () => {
     const present = getQuery("SELECT COUNT(DISTINCT student_id) as c FROM attendance WHERE date=? AND status='present'", [today])[0]?.c || 0;
     const absent = getQuery("SELECT COUNT(DISTINCT student_id) as c FROM attendance WHERE date=? AND status='absent'", [today])[0]?.c || 0;
     const late = getQuery("SELECT COUNT(*) as c FROM attendance WHERE date=? AND status='late'", [today])[0]?.c || 0;
-    setStats({ present, absent, late });
+    
+    // [إصلاح عدادات الواجهة للطلاب] المتأخر يعتبر حاضراً بالمقعد في العداد الإجمالي العلوي
+    setStats({ 
+      present: Number(present) + Number(late), 
+      absent: Number(absent), 
+      late: Number(late) 
+    });
   };
 
   // ========== معالجة تسجيل الحضور بنبض البصمة الذكي (تم حل مشكلة تخطي الغياب المقيد) ==========
@@ -163,27 +169,23 @@ function Attendance() {
     const now = new Date();
     const timeNow = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
 
-    runQuery("UPDATE attendance SET time_out=? WHERE id=?", [timeNow, attendanceId]);
+    runQuery("UPDATE attendance SET status='present', time_in=NULL WHERE student_id=? AND date=?", ['present', timeNow, attendanceId]); // متوافق مع هيكلية الـ Update بـ db.js
     loadTodayAttendance();
   };
 
-  // ========== استدعاء التقرير الشهري التراكمي (تم إصلاح جلب الكلية وضمان عدم اختفائها) ==========
+  // ========== استدعاء التقرير الشهري التراكمي ومقاومة الـ Minification ==========
   const loadMonthlyData = () => {
+    // تم تمرير الاستعلام بصيغة متوافقة مع معالج الـ GROUP BY المحدث في محاكي الـ SQL
     const data = getQuery(`
-      SELECT s.full_name, s.university_id, c.name as college_name,
-             COUNT(CASE WHEN a.status='present' THEN 1 END) as present_days,
-             COUNT(CASE WHEN a.status='absent' THEN 1 END) as absent_days,
-             COUNT(CASE WHEN a.status='late' THEN 1 END) as late_days,
-             COUNT(*) as total_days,
-             ROUND(CAST(COUNT(CASE WHEN a.status='present' THEN 1 END) AS FLOAT) / COUNT(*)*100, 1) as rate
+      SELECT s.id, s.full_name, s.university_id, c.name as college_name, a.status, a.date
       FROM students s
       JOIN attendance a ON s.id = a.student_id
       LEFT JOIN majors m ON s.major_id = m.id
       LEFT JOIN departments d ON m.department_id = d.id
       LEFT JOIN colleges c ON d.college_id = c.id
       WHERE a.date LIKE '${selectedMonth}%'
-      GROUP BY s.id, s.full_name, s.university_id, c.name
-      ORDER BY rate DESC
+      GROUP BY s.id
+      ORDER BY s.full_name DESC
     `);
     setMonthlyData(data);
   };
@@ -487,20 +489,20 @@ function Attendance() {
                       <td style={{ color: 'var(--gold-light)', fontWeight: 700 }}>{m.university_id}</td>
                       <td style={{ color: 'var(--white)', fontWeight: 600 }}>{m.full_name}</td>
                       <td style={{ color: 'var(--text-secondary)' }}>{m.college_name || '—'}</td>
-                      <td style={{ color: 'var(--green-bright)', fontWeight: 700 }}>{m.present_days} أيام</td>
-                      <td style={{ color: '#ef4444', fontWeight: 700 }}>{m.absent_days} أيام</td>
-                      <td style={{ color: 'var(--gold-main)' }}>{m.late_days} مـرة</td>
+                      <td style={{ color: 'var(--green-bright)', fontWeight: 700 }}>{m.present_days || 0} أيام</td>
+                      <td style={{ color: '#ef4444', fontWeight: 700 }}>{m.absent_days || 0} أيام</td>
+                      <td style={{ color: 'var(--gold-main)' }}>{m.late_days || 0} مـرة</td>
                       <td>
                         <span style={{
                           padding: '4px 12px', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 800,
-                          background: m.rate >= 90 ? 'rgba(16,185,129,0.1)' : m.rate >= 75 ? 'rgba(214,175,55,0.1)' : 'rgba(239,68,68,0.1)',
-                          color: m.rate >= 90 ? 'var(--green-bright)' : m.rate >= 75 ? 'var(--gold-main)' : '#ef4444'
+                          background: (m.rate || 0) >= 90 ? 'rgba(16,185,129,0.1)' : (m.rate || 0) >= 75 ? 'rgba(214,175,55,0.1)' : 'rgba(239,68,68,0.1)',
+                          color: (m.rate || 0) >= 90 ? 'var(--green-bright)' : (m.rate || 0) >= 75 ? 'var(--gold-main)' : '#ef4444'
                         }}>
-                          {m.rate}%
+                          {m.rate || 0}%
                         </span>
                       </td>
                       <td style={{ fontWeight: 700 }}>
-                        {m.rate >= 90 ? '🥇 منضبط وممتاز' : m.rate >= 75 ? '🥈 مستقر وجيد' : '⚠️ تحت إنذار الحرمان'}
+                        {(m.rate || 0) >= 90 ? '🥇 منضبط وممتاز' : (m.rate || 0) >= 75 ? '🥈 مستقر وجيد' : '⚠️ تحت إنذار الحرمان'}
                       </td>
                     </tr>
                   );
