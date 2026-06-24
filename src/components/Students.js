@@ -1,4 +1,4 @@
-// src/components/Students.js – إدارة شؤون الطلاب والكليات (الإصدار الملكي الفاخر الخارق - النسخة المستقرة)
+// src/components/Students.js – إدارة شؤون الطلاب والكليات (الإصدار الملكي الفاخر الخارق - النسخة المستقرة المصلحة)
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery } from '../services/db';
@@ -475,7 +475,7 @@ function Students() {
                     </div>
 
                     <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                      <div style={{ width: '65px', height: '65px', borderRadius: '50%', border: '2px solid var(--gold-main)', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justify-content: 'center', fontSize: '1.8rem' }}>🎓</div>
+                      <div style={{ width: '65px', height: '65px', borderRadius: '50%', border: '2px solid var(--gold-main)', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem' }}>🎓</div>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <span style={{ color: 'var(--white)', fontWeight: 800, fontSize: '1.05rem', letterSpacing: '-0.3px', paddingLeft: '50px' }}>{s.full_name}</span>
                         <span style={{ color: 'var(--gold-light)', fontWeight: 700, fontSize: '0.85rem', marginTop: '2px' }}>ID: {s.university_id}</span>
@@ -483,14 +483,14 @@ function Students() {
                     </div>
 
                     <div style={{ background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.02)', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <div style={{ display: 'flex', justify-content: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>🏛️ الكلية والأقسام:</span> <span style={{ color: 'var(--gold-light)', fontWeight: 600 }}>{s.college_name || '—'}</span></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>🏛️ الكلية والأقسام:</span> <span style={{ color: 'var(--gold-light)', fontWeight: 600 }}>{s.college_name || '—'}</span></div>
                       <div style={{ display: 'flex', justify-content: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>📜 المسار الدراسي:</span> <span style={{ color: '#fff', fontWeight: 600 }}>{s.major_name || 'عام'}</span></div>
-                      <div style={{ display: 'flex', justify-content: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>📈 الفوج والمستوى:</span> <span style={{ color: '#38bdf8', fontWeight: 600 }}>{s.level} (شعبة {s.group_name || 'أ'})</span></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>📈 الفوج والمستوى:</span> <span style={{ color: '#38bdf8', fontWeight: 600 }}>{s.level} (شعبة {s.group_name || 'أ'})</span></div>
                       <div style={{ display: 'flex', justify-content: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>📱 جوال المزامنة:</span> <span style={{ color: '#cbd5e1' }}>{s.phone}</span></div>
                     </div>
 
                     <div style={{ display: 'flex', gap: '8px', marginTop: '5px' }}>
-                      <motion.button onClick={() => printCard(s)} whileTap={{ scale: 0.95 }} style={{ flex: 1, background: 'rgba(214,175,55,0.08)', color: 'var(--gold-main)', border: '1px solid rgba(214,175,55,0.2)', padding: '8px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justify-content: 'center', gap: '4px' }}>🖨️ الهوية الذكية</motion.button>
+                      <motion.button onClick={() => printCard(s)} whileTap={{ scale: 0.95 }} style={{ flex: 1, background: 'rgba(214,175,55,0.08)', color: 'var(--gold-main)', border: '1px solid rgba(214,175,55,0.2)', padding: '8px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>🖨️ الهوية الذكية</motion.button>
                       <button className="btn-edit" onClick={() => handleEdit(s)} style={{ margin: 0, padding: '8px 12px', borderRadius: '10px' }}>✏️</button>
                       <button className="btn-delete" onClick={() => handleDelete(s.id)} style={{ margin: 0, padding: '8px 12px', borderRadius: '10px' }}>🗑️</button>
                     </div>
@@ -650,7 +650,7 @@ function Students() {
               )}
 
               {/* 🎮 الأزرار السفلية لحفظ وتأكيد السجلات */}
-              <div style={{ display: 'flex', justify-content: 'flex-end', gap: '12px', marginTop: '30px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '30px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                 <motion.button onClick={handleSave} whileHover={{ scale: 1.02, boxShadow: '0 0 15px rgba(214,175,55,0.3)' }} whileTap={{ scale: 0.98 }} style={{ background: 'linear-gradient(135deg, var(--gold-main), #b89324)', color: '#052218', border: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.95rem' }}>
                   💾 اعتماد وثيقة السجل
                 </motion.button>
