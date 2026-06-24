@@ -1,5 +1,5 @@
-// src/components/Students.js – إدارة شؤون الطلاب والكليات المطور
-import React, { useState, useEffect } from 'react';
+// src/components/Students.js – إدارة شؤون الطلاب والكليات المطور والمصحح
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery } from '../services/db';
 
@@ -14,8 +14,8 @@ function Students() {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('grid'); // grid, table
 
-  // حقول النموذج الملكي الموحد
-  const [formData, setFormData] = useState({
+  // الهيكل الأساسي لتنظيف البيانات
+  const initialFormState = {
     name: '',
     college_id: '',
     department_id: '',
@@ -29,27 +29,21 @@ function Students() {
     group_name: '',
     fees: '',
     duration: '4 سنوات'
-  });
-
-  useEffect(() => {
-    loadColleges();
-    loadDepartments();
-    loadMajors();
-    loadStudents();
-  }, []);
-
-  // ========== خدمات استدعاء البيانات المحلية (تم إصلاح استعلامات الربط) ==========
-  const loadColleges = () => {
-    const data = getQuery("SELECT * FROM colleges WHERE status='active' ORDER BY name");
-    setColleges(data);
   };
 
-  const loadDepartments = (collegeId = null) => {
+  const [formData, setFormData] = useState(initialFormState);
+
+  // ========== خدمات استدعاء البيانات (محسنة بـ useCallback لمنع تكرار الـ Render) ==========
+  const loadColleges = useCallback(() => {
+    const data = getQuery("SELECT * FROM colleges WHERE status='active' ORDER BY name");
+    setColleges(data || []);
+  }, []);
+
+  const loadDepartments = useCallback((collegeId = null) => {
     let data;
     if (collegeId) {
       data = getQuery("SELECT * FROM departments WHERE college_id=? AND status='active' ORDER BY name", [collegeId]);
     } else {
-      // تم التحويل إلى LEFT JOIN لضمان ظهور القسم حتى لو كانت الكلية غير نشطة أو مفقودة
       data = getQuery(`
         SELECT d.*, c.name as college_name 
         FROM departments d 
@@ -58,15 +52,14 @@ function Students() {
         ORDER BY c.name, d.name
       `);
     }
-    setDepartments(data);
-  };
+    setDepartments(data || []);
+  }, []);
 
-  const loadMajors = (deptId = null) => {
+  const loadMajors = useCallback((deptId = null) => {
     let data;
     if (deptId) {
       data = getQuery("SELECT * FROM majors WHERE department_id=? AND status='active' ORDER BY name", [deptId]);
     } else {
-      // تم إصلاح الربط المركب هنا باستخدام LEFT JOIN لمنع اختفاء الجدول بالكامل عند وجود خلل في العلاقات
       data = getQuery(`
         SELECT m.*, d.name as department_name, c.name as college_name 
         FROM majors m 
@@ -76,10 +69,10 @@ function Students() {
         ORDER BY c.name, d.name, m.name
       `);
     }
-    setMajors(data);
-  };
+    setMajors(data || []);
+  }, []);
 
-  const loadStudents = () => {
+  const loadStudents = useCallback(() => {
     const data = getQuery(`
       SELECT s.*, m.name as major_name, d.name as department_name, c.name as college_name,
              COALESCE(ROUND(CAST(COUNT(CASE WHEN a.status='absent' THEN 1 END) AS FLOAT) / NULLIF(COUNT(a.id), 0) * 100, 1), 0) as absence_rate
@@ -92,30 +85,29 @@ function Students() {
       GROUP BY s.id
       ORDER BY s.full_name
     `);
-    setStudents(data);
-  };
+    setStudents(data || []);
+  }, []);
+
+  useEffect(() => {
+    loadColleges();
+    loadDepartments();
+    loadMajors();
+    loadStudents();
+  }, [loadColleges, loadDepartments, loadMajors, loadStudents]);
 
   const resetForm = () => {
-    setFormData({
-      name: '',
-      college_id: '',
-      department_id: '',
-      major_id: '',
-      university_id: '',
-      full_name: '',
-      phone: '',
-      parent_phone: '',
-      national_id: '',
-      level: '',
-      group_name: '',
-      fees: '',
-      duration: '4 سنوات'
-    });
+    setFormData(initialFormState);
     setEditId(null);
     setShowForm(false);
   };
 
   const handleSave = () => {
+    // التحقق من الحقول الأساسية لمنع إدخال بيانات فارغة تكسر العلاقات
+    if (tab === 'colleges' && !formData.name.trim()) return alert("يرجى إدخال اسم الكلية");
+    if (tab === 'departments' && (!formData.name.trim() || !formData.college_id)) return alert("يرجى إكمال بيانات القسم والكلية");
+    if (tab === 'majors' && (!formData.name.trim() || !formData.department_id)) return alert("يرجى إكمال بيانات التخصص والقسم");
+    if (tab === 'students' && (!formData.full_name.trim() || !formData.university_id || !formData.major_id)) return alert("يرجى إكمال حقول الطالب الأساسية (الاسم، الرقم الجامعي، التخصص)");
+
     if (tab === 'colleges') {
       if (editId) {
         runQuery("UPDATE colleges SET name=? WHERE id=?", [formData.name, editId]);
@@ -162,38 +154,40 @@ function Students() {
 
   const handleDelete = (id) => {
     if (window.confirm("🏛️ هل أنت متأكد من رغبتك في أرشفة هذا السجل ضمن الأرشيف الجامعي الآمن؟")) {
-      if (tab === 'colleges') { runQuery("UPDATE colleges SET status='inactive' WHERE id=?", [id]); loadColleges(); }
-      if (tab === 'departments') { runQuery("UPDATE departments SET status='inactive' WHERE id=?", [id]); loadDepartments(); }
-      if (tab === 'majors') { runQuery("UPDATE majors SET status='inactive' WHERE id=?", [id]); loadMajors(); }
+      if (tab === 'colleges') { runQuery("UPDATE colleges SET status='inactive' WHERE id=?", [id]); loadColleges(); loadDepartments(); loadMajors(); loadStudents(); }
+      if (tab === 'departments') { runQuery("UPDATE departments SET status='inactive' WHERE id=?", [id]); loadDepartments(); loadMajors(); loadStudents(); }
+      if (tab === 'majors') { runQuery("UPDATE majors SET status='inactive' WHERE id=?", [id]); loadMajors(); loadStudents(); }
       if (tab === 'students') { runQuery("UPDATE students SET status='inactive' WHERE id=?", [id]); loadStudents(); }
     }
   };
 
   const handleEdit = (item) => {
     setEditId(item.id);
-    setShowForm(true);
+    
+    // إصلاح الثغرة: نقوم بتهيئة الـ State بالكامل بناءً على التبويب النشط لضمان عدم تداخل البيانات القديمة
     if (tab === 'colleges') {
-      setFormData({ ...formData, name: item.name });
+      setFormData({ ...initialFormState, name: item.name });
     }
     if (tab === 'departments') {
-      setFormData({ ...formData, name: item.name, college_id: item.college_id });
+      setFormData({ ...initialFormState, name: item.name, college_id: item.college_id });
     }
     if (tab === 'majors') {
-      setFormData({ ...formData, name: item.name, department_id: item.department_id, fees: item.fees, duration: item.duration });
+      setFormData({ ...initialFormState, name: item.name, department_id: item.department_id, fees: item.fees, duration: item.duration });
     }
     if (tab === 'students') {
       setFormData({
-        ...formData,
-        university_id: item.university_id,
-        full_name: item.full_name,
-        phone: item.phone,
-        parent_phone: item.parent_phone,
-        national_id: item.national_id,
-        major_id: item.major_id,
-        level: item.level,
-        group_name: item.group_name
+        ...initialFormState,
+        university_id: item.university_id || '',
+        full_name: item.full_name || '',
+        phone: item.phone || '',
+        parent_phone: item.parent_phone || '',
+        national_id: item.national_id || '',
+        major_id: item.major_id || '',
+        level: item.level || '',
+        group_name: item.group_name || ''
       });
     }
+    setShowForm(true);
   };
 
   const printCard = (student) => {
@@ -376,7 +370,6 @@ function Students() {
                   <motion.tr variants={itemVariants} key={d.id}>
                     <td><strong>{i + 1}</strong></td>
                     <td style={{ color: 'var(--white)', fontWeight: 600 }}>{d.name}</td>
-                    {/* تم الإصلاح هنا لإظهار تحذير واضح للمستخدم في حال لم يكن التخصص مربوطاً بكلية بدلاً من اختفاء الصف */}
                     <td style={{ color: d.college_name ? 'var(--gold-light)' : '#ef4444', fontWeight: 500 }}>
                       {d.college_name || '⚠️ لم يتم العثور على الكلية أو غير مربوطة!'}
                     </td>
@@ -412,7 +405,7 @@ function Students() {
                   <th>#</th>
                   <th>مساق التخصص الفرعي</th>
                   <th>القسم العلمي المرجعي</th>
-                  <th>الكلية التابع لها</th> {/* تمت إضافة هذا العمود لرفع جودة البيانات والتحقق الفوري */}
+                  <th>الكلية التابع لها</th>
                   <th>الرسوم المقيدة</th>
                   <th>فترة البقاء بالخطة</th>
                   <th>خيارات التحكم</th>
@@ -425,7 +418,7 @@ function Students() {
                     <td style={{ color: 'var(--white)', fontWeight: 600 }}>{m.name}</td>
                     <td>{m.department_name || '⚠️ بدون قسم'}</td>
                     <td style={{ color: 'var(--gold-light)' }}>{m.college_name || '⚠️ بدون كلية'}</td>
-                    <td style={{ color: 'var(--gold-main)', fontWeight: 800 }}>{Number(m.fees).toLocaleString('ar-YE')} ريال</td>
+                    <td style={{ color: 'var(--gold-main)', fontWeight: 800 }}>{Number(m.fees || 0).toLocaleString('ar-YE')} ريال</td>
                     <td><span style={{ color: '#cbd5e1' }}>{m.duration}</span></td>
                     <td>
                       <button className="btn-edit" onClick={() => handleEdit(m)}>✏️</button>
@@ -500,7 +493,7 @@ function Students() {
                     </div>
 
                     <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                      <div style={{ width: '65px', height: '65px', borderRadius: '50%', border: '2px solid var(--gold-main)', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem' }}>🎓</div>
+                      <div style={{ width: '65px', height: '65px', borderRadius: '50%', border: '2px solid var(--gold-main)', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifycontent: 'center', fontSize: '1.8rem' }}>🎓</div>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <span style={{ color: 'var(--white)', fontWeight: 800, fontSize: '1.05rem', letterSpacing: '-0.3px', paddingLeft: '50px' }}>{s.full_name}</span>
                         <span style={{ color: 'var(--gold-light)', fontWeight: 700, fontSize: '0.85rem', marginTop: '2px' }}>ID: {s.university_id}</span>
