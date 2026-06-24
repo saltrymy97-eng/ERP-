@@ -1,33 +1,35 @@
-// src/components/Attendance.js – نظام رصد الحضور والانصراف بالبصمة الذكية (الإصدار الإمبراطوري الفاخر والمستقر - النسخة المحدثة لبيئات SQL الحقيقية)
+// src/components/Attendance.js – نظام رصد الحضور والانصراف بالبصمة الذكية (Supabase Direct API)
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getQuery, runQuery } from '../services/db';
+import { createClient } from '@supabase/supabase-js';
+
+// ========== اتصال Supabase المباشر ==========
+const supabase = createClient(
+  'https://dboornlxohzwltylqceu.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRib29ybmx4b2h6d2x0eWxxY2V1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjI2MjA3MiwiZXhwIjoyMDk3ODM4MDcyfQ.lqqPioK_vWqJlfUnxDcmhBZqksKONIyuWA8dgDNwu1w'
+);
 
 function Attendance() {
-  const [tab, setTab] = useState('live'); // live, today, monthly
+  const [tab, setTab] = useState('live');
   const [students, setStudents] = useState([]);
   const [todayAttendance, setTodayAttendance] = useState([]);
   const [attendanceStatus, setAttendanceStatus] = useState(null);
-  const [scanningId, setScanningId] = useState(null); // لمحاكاة نبض الماسح البيومتري
+  const [scanningId, setScanningId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [stats, setStats] = useState({ present: 0, absent: 0, late: 0 });
   const [monthlyData, setMonthlyData] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
 
-  // مرجع (Ref) مخصص لتخزين وحذف مؤقت البصمة النشط لغلق باب الـ Race Conditions نهائياً
   const attendanceTimeoutRef = useRef(null);
   const today = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
-    // استدعاء الدوال بشكل آمن ومتزامن مع بداية المكون
     const initLoad = async () => {
       await loadStudents();
       await loadTodayAttendance();
       await loadStats();
     };
     initLoad();
-
-    // تنظيف المؤقت عند إغلاق المكون من الشاشة لتفادي تسريب الذاكرة Memory Leak
     return () => {
       if (attendanceTimeoutRef.current) clearTimeout(attendanceTimeoutRef.current);
     };
@@ -39,75 +41,90 @@ function Attendance() {
     }
   }, [selectedMonth, tab]);
 
-  // ========== تحميل سجلات الطلاب النشطين (تحديث لانتظار محرك SQL الحقيقي) ==========
+  // ========== تحميل الطلاب النشطين ==========
   const loadStudents = async () => {
-    try {
-      const data = await getQuery(`
-        SELECT s.*, m.name as major_name, d.name as department_name, c.name as college_name
-        FROM students s
-        LEFT JOIN majors m ON s.major_id = m.id
-        LEFT JOIN departments d ON m.department_id = d.id
-        LEFT JOIN colleges c ON d.college_id = c.id
-        WHERE s.status='active'
-        ORDER BY s.full_name
-      `);
-      setStudents(Array.isArray(data) ? data : []);
-    } catch (e) {
-      console.error("خطأ في جلب الطلاب الدراسية:", e);
-    }
+    const { data } = await supabase
+      .from('students')
+      .select('*, majors(name, departments(name, colleges(name)))')
+      .eq('status', 'active')
+      .order('full_name');
+    
+    const mapped = (data || []).map(s => ({
+      id: s.id,
+      university_id: s.university_id,
+      full_name: s.full_name,
+      phone: s.phone,
+      major_id: s.major_id,
+      major_name: s.majors?.name || null,
+      department_name: s.majors?.departments?.name || null,
+      college_name: s.majors?.departments?.colleges?.name || null
+    }));
+    setStudents(mapped);
   };
 
-  // ========== تحميل حركة حضور اليوم (تحديث لانتظار محرك SQL الحقيقي) ==========
+  // ========== تحميل حضور اليوم ==========
   const loadTodayAttendance = async () => {
-    try {
-      const data = await getQuery(`
-        SELECT a.*, s.full_name, s.university_id, s.phone,
-               m.name as major_name, c.name as college_name, sc.subject, sc.time_from, sc.time_to, sc.room
-        FROM attendance a
-        JOIN students s ON a.student_id = s.id
-        LEFT JOIN majors m ON s.major_id = m.id
-        LEFT JOIN departments d ON m.department_id = d.id
-        LEFT JOIN colleges c ON d.college_id = c.id
-        LEFT JOIN schedules sc ON a.schedule_id = sc.id
-        WHERE a.date = ?
-        ORDER BY a.time_in DESC
-      `, [today]);
-      setTodayAttendance(Array.isArray(data) ? data : []);
-    } catch (e) {
-      console.error("خطأ في جلب كشف الحضور اليومي:", e);
-    }
+    const { data } = await supabase
+      .from('attendance')
+      .select('*, students!inner(full_name, university_id, phone, majors(name, departments(name, colleges(name))))')
+      .eq('date', today)
+      .order('time_in', { ascending: false });
+
+    const mapped = (data || []).map(a => ({
+      id: a.id,
+      student_id: a.student_id,
+      date: a.date,
+      time_in: a.time_in,
+      time_out: a.time_out,
+      status: a.status,
+      method: a.method,
+      late_minutes: a.late_minutes,
+      full_name: a.students?.full_name,
+      university_id: a.students?.university_id,
+      phone: a.students?.phone,
+      major_name: a.students?.majors?.name,
+      college_name: a.students?.majors?.departments?.colleges?.name
+    }));
+    setTodayAttendance(mapped);
   };
 
-  // ========== إحصائيات المجموعات الحية (تحديث لانتظار محرك SQL الحقيقي والديناميكي) ==========
+  // ========== إحصائيات اليوم ==========
   const loadStats = async () => {
-    try {
-      const resPresent = await getQuery("SELECT COUNT(DISTINCT student_id) as c FROM attendance WHERE date=? AND status='present'", [today]);
-      const resAbsent = await getQuery("SELECT COUNT(DISTINCT student_id) as c FROM attendance WHERE date=? AND status='absent'", [today]);
-      const resLate = await getQuery("SELECT COUNT(*) as c FROM attendance WHERE date=? AND status='late'", [today]);
-      
-      const present = resPresent[0]?.c || 0;
-      const absent = resAbsent[0]?.c || 0;
-      const late = resLate[0]?.c || 0;
-      
-      setStats({ 
-        present: Number(present) + Number(late), 
-        absent: Number(absent), 
-        late: Number(late) 
-      });
-    } catch (e) {
-      console.error("خطأ في تحديث عدادات الإحصائيات:", e);
-    }
+    // جلب كل سجلات اليوم
+    const { data } = await supabase
+      .from('attendance')
+      .select('student_id, status')
+      .eq('date', today);
+
+    if (!data) return setStats({ present: 0, absent: 0, late: 0 });
+
+    // تجميع فريد حسب الطالب (آخر حالة لكل طالب)
+    const uniqueMap = {};
+    data.forEach(a => { uniqueMap[a.student_id] = a; });
+    const uniqueRecords = Object.values(uniqueMap);
+
+    const present = uniqueRecords.filter(a => a.status === 'present').length;
+    const absent = uniqueRecords.filter(a => a.status === 'absent').length;
+    const late = uniqueRecords.filter(a => a.status === 'late').length;
+
+    setStats({ present: present + late, absent, late });
   };
 
-  // ========== معالجة تسجيل الحضور بنبض البصمة الذكي (تحديث لانتظار محرك SQL الحقيقي) ==========
+  // ========== تسجيل الحضور بالبصمة ==========
   const markAttendance = async (student, status = 'present') => {
     if (attendanceTimeoutRef.current) {
       clearTimeout(attendanceTimeoutRef.current);
     }
 
-    // التحقق الفوري قبل بدء البصمة: هل الطالب مقيد كغائب إدارياً اليوم؟
-    const checkAbsent = await getQuery("SELECT status FROM attendance WHERE student_id=? AND date=? AND status='absent'", [student.id, today]);
-    if (checkAbsent.length > 0) {
+    // التحقق من غياب إداري مسبق
+    const { data: checkAbsent } = await supabase
+      .from('attendance')
+      .select('status')
+      .eq('student_id', student.id)
+      .eq('date', today)
+      .eq('status', 'absent');
+
+    if (checkAbsent && checkAbsent.length > 0) {
       setAttendanceStatus({
         student: student.full_name,
         time: '—',
@@ -115,11 +132,11 @@ function Attendance() {
         icon: '❌',
         color: '#ef4444'
       });
-      return; 
+      return;
     }
 
-    setScanningId(student.id); // بدء تأثير وميض البصمة الأخضر
-    
+    setScanningId(student.id);
+
     attendanceTimeoutRef.current = setTimeout(async () => {
       const now = new Date();
       const timeNow = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
@@ -127,14 +144,27 @@ function Attendance() {
       const isLate = timeNow > lateThreshold && status === 'present';
       const currentStatus = isLate ? 'late' : status;
 
-      const exists = await getQuery("SELECT id FROM attendance WHERE student_id=? AND date=?", [student.id, today]);
-      if (exists.length > 0) {
-        await runQuery("UPDATE attendance SET status=?, time_in=? WHERE student_id=? AND date=?", [currentStatus, timeNow, student.id, today]);
+      // فحص وجود سجل سابق
+      const { data: exists } = await supabase
+        .from('attendance')
+        .select('id')
+        .eq('student_id', student.id)
+        .eq('date', today);
+
+      if (exists && exists.length > 0) {
+        await supabase.from('attendance')
+          .update({ status: currentStatus, time_in: timeNow })
+          .eq('student_id', student.id)
+          .eq('date', today);
       } else {
-        await runQuery(
-          "INSERT INTO attendance (student_id, date, time_in, status, late_minutes, method) VALUES (?, ?, ?, ?, ?, ?)",
-          [student.id, today, timeNow, currentStatus, isLate ? 15 : 0, 'fingerprint']
-        );
+        await supabase.from('attendance').insert([{
+          student_id: student.id,
+          date: today,
+          time_in: timeNow,
+          status: currentStatus,
+          late_minutes: isLate ? 15 : 0,
+          method: 'fingerprint'
+        }]);
       }
 
       setAttendanceStatus({
@@ -152,7 +182,7 @@ function Attendance() {
     }, 1200);
   };
 
-  // ========== قيد غياب يدوي إداري ==========
+  // ========== تسجيل غياب يدوي ==========
   const markAbsent = async (student) => {
     if (scanningId === student.id && attendanceTimeoutRef.current) {
       clearTimeout(attendanceTimeoutRef.current);
@@ -160,15 +190,24 @@ function Attendance() {
       setScanningId(null);
     }
 
-    const exists = await getQuery("SELECT id FROM attendance WHERE student_id=? AND date=?", [student.id, today]);
+    const { data: exists } = await supabase
+      .from('attendance')
+      .select('id')
+      .eq('student_id', student.id)
+      .eq('date', today);
 
-    if (exists.length > 0) {
-      await runQuery("UPDATE attendance SET status='absent', time_in=NULL WHERE student_id=? AND date=?", [student.id, today]);
+    if (exists && exists.length > 0) {
+      await supabase.from('attendance')
+        .update({ status: 'absent', time_in: null })
+        .eq('student_id', student.id)
+        .eq('date', today);
     } else {
-      await runQuery(
-        "INSERT INTO attendance (student_id, date, status, method) VALUES (?, ?, 'absent', 'manual')",
-        [student.id, today]
-      );
+      await supabase.from('attendance').insert([{
+        student_id: student.id,
+        date: today,
+        status: 'absent',
+        method: 'manual'
+      }]);
     }
 
     setAttendanceStatus({
@@ -183,33 +222,71 @@ function Attendance() {
     await loadStats();
   };
 
-  // ========== تسجيل طرد / انصراف مسبق الموعد ==========
+  // ========== تسجيل انصراف ==========
   const markExit = async (attendanceId) => {
     const now = new Date();
     const timeNow = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
 
-    await runQuery("UPDATE attendance SET status='present', time_in=NULL WHERE student_id=? AND date=?", ['present', timeNow, attendanceId]); 
+    await supabase.from('attendance')
+      .update({ time_out: timeNow })
+      .eq('id', attendanceId);
+    
     await loadTodayAttendance();
   };
 
-  // ========== استدعاء التقرير الشهري التراكمي ومقاومة الـ Minification ==========
+  // ========== التقرير الشهري ==========
   const loadMonthlyData = async () => {
-    try {
-      const data = await getQuery(`
-        SELECT s.id, s.full_name, s.university_id, c.name as college_name, a.status, a.date
-        FROM students s
-        JOIN attendance a ON s.id = a.student_id
-        LEFT JOIN majors m ON s.major_id = m.id
-        LEFT JOIN departments d ON m.department_id = d.id
-        LEFT JOIN colleges c ON d.college_id = c.id
-        WHERE a.date LIKE '${selectedMonth}%'
-        GROUP BY s.id
-        ORDER BY s.full_name DESC
-      `);
-      setMonthlyData(Array.isArray(data) ? data : []);
-    } catch (e) {
-      console.error("خطأ في حساب المصفوفة الشهرية:", e);
-    }
+    const startDate = `${selectedMonth}-01`;
+    const endDate = `${selectedMonth}-31`;
+
+    const { data } = await supabase
+      .from('attendance')
+      .select('student_id, status, students!inner(full_name, university_id, majors(name, departments(name, colleges(name))))')
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('full_name', { foreignTable: 'students' });
+
+    if (!data) { setMonthlyData([]); return; }
+
+    // تجميع حسب الطالب
+    const studentMap = {};
+    data.forEach(a => {
+      const sid = a.student_id;
+      if (!studentMap[sid]) {
+        studentMap[sid] = {
+          id: sid,
+          full_name: a.students?.full_name,
+          university_id: a.students?.university_id,
+          college_name: a.students?.majors?.departments?.colleges?.name,
+          present_days: 0,
+          absent_days: 0,
+          late_days: 0,
+          total_days: 0,
+          rate: 0
+        };
+      }
+      studentMap[sid].total_days++;
+      if (a.status === 'present') studentMap[sid].present_days++;
+      if (a.status === 'absent') studentMap[sid].absent_days++;
+      if (a.status === 'late') studentMap[sid].late_days++;
+    });
+
+    const result = Object.values(studentMap).map(s => ({
+      ...s,
+      rate: s.total_days > 0 ? Math.round((s.present_days + s.late_days) / s.total_days * 100) : 0
+    }));
+
+    setMonthlyData(result);
+  };
+
+  // ========== إعادة ضبط حضور طالب ==========
+  const resetAttendance = async (studentId) => {
+    await supabase.from('attendance')
+      .delete()
+      .eq('student_id', studentId)
+      .eq('date', today);
+    await loadTodayAttendance();
+    await loadStats();
   };
 
   const containerVariants = {
@@ -222,10 +299,11 @@ function Attendance() {
     show: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 100 } }
   };
 
+  // ========== واجهة المستخدم (نفس التصميم، استدعاءات معدلة فقط) ==========
   return (
     <div className="attendance-module" style={{ padding: '5px 0' }}>
       
-      {/* 🧭 شريط التنقل الزجاجي الملوكي */}
+      {/* 🧭 شريط التنقل */}
       <div className="tabs" style={{ display: 'flex', gap: '10px', background: 'rgba(255,255,255,0.02)', padding: '10px', borderRadius: '18px', border: '1px solid var(--glass-border)', marginBottom: '30px' }}>
         {[
           { id: 'live', label: '🖐️ نظام مسح البصمة المباشر' },
@@ -252,20 +330,20 @@ function Attendance() {
         ))}
       </div>
 
-      {/* 🟢 القسم الأول: واجهة تسجيل الحضور الحي والمباشر بماسح البصمة */}
+      {/* 🟢 تسجيل الحضور المباشر */}
       {tab === 'live' && (
         <div className="live-attendance">
           <div className="live-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '25px' }}>
             <div>
               <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.7rem', color: 'var(--gold-light)', margin: 0 }}>🖐️ بوابات رصد البصمة البيومترية الحية</h3>
-              <p style={{ color: 'var(--text-secondary)', margin: '5px 0 0 0', fontSize: '0.88rem' }}>انقر فوق كرت الطالب لمحاكاة وضع إبهام الطالب فوق مستشعر الحضور الخاص بالبوابات</p>
+              <p style={{ color: 'var(--text-secondary)', margin: '5px 0 0 0', fontSize: '0.88rem' }}>انقر فوق كرت الطالب لمحاكاة وضع إبهام الطالب فوق مستشعر الحضور</p>
             </div>
             <input
               type="text"
-              placeholder="🔍 ابحث بالاسم أو الرقم الجامعي لمطابقة البصمة فوراً..."
+              placeholder="🔍 ابحث بالاسم أو الرقم الجامعي..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              style={{ width: '100%', maxWidth: '360px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 18px', borderRadius: '14px', color: '#fff', outline: 'none', transition: 'all 0.3s' }}
+              style={{ width: '100%', maxWidth: '360px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 18px', borderRadius: '14px', color: '#fff', outline: 'none' }}
             />
           </div>
 
@@ -278,14 +356,14 @@ function Attendance() {
                 style={{
                   background: 'linear-gradient(135deg, #062b1e, #0c4733)', border: `1px solid ${attendanceStatus.color}`,
                   padding: '15px 25px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '15px',
-                  marginBottom: '25px', boxShadow: '0 10px 30px rgba(0,0,0,0.4)', position: 'relative'
+                  marginBottom: '25px', boxShadow: '0 10px 30px rgba(0,0,0,0.4)'
                 }}
               >
                 <span style={{ fontSize: '2rem', animation: 'pulse 1.5s infinite', color: attendanceStatus.color }}>{attendanceStatus.icon}</span>
                 <div style={{ flex: 1 }}>
                   <h4 style={{ margin: 0, fontSize: '1.1rem', color: '#fff' }}>{attendanceStatus.student}</h4>
                   <p style={{ margin: '3px 0 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    موقع السجل الزمني الدراسي: <strong style={{ color: 'var(--gold-light)' }}>{attendanceStatus.time}</strong> | الحالة المعتمدة: <span style={{ color: attendanceStatus.color, fontWeight: 'bold' }}>{attendanceStatus.status}</span>
+                    موقع السجل الزمني: <strong style={{ color: 'var(--gold-light)' }}>{attendanceStatus.time}</strong> | الحالة: <span style={{ color: attendanceStatus.color, fontWeight: 'bold' }}>{attendanceStatus.status}</span>
                   </p>
                 </div>
                 <button onClick={() => setAttendanceStatus(null)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.2rem', opacity: 0.6 }}>✕</button>
@@ -314,7 +392,7 @@ function Attendance() {
                   <motion.div
                     key={student.id}
                     variants={cardVariants}
-                    whileHover={{ y: isScanning ? 0 : -5, transition: { duration: 0.2 } }}
+                    whileHover={{ y: isScanning ? 0 : -5 }}
                     style={{
                       background: 'linear-gradient(135deg, rgba(255,255,255,0.01), rgba(255,255,255,0.03))',
                       backdropFilter: 'blur(10px)', border: borderStyle, borderRadius: '20px', padding: '20px',
@@ -327,11 +405,9 @@ function Attendance() {
                     )}
 
                     <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '15px' }}>
-                      <div style={{ width: '65px', height: '65px', borderRadius: '14px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(212,175,55,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem' }}>
-                        🎓
-                      </div>
+                      <div style={{ width: '65px', height: '65px', borderRadius: '14px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(212,175,55,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem' }}>🎓</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                        <span style={{ color: '#fff', fontWeight: 700, fontSize: '1.05rem', letterSpacing: '-0.3px' }}>{student.full_name}</span>
+                        <span style={{ color: '#fff', fontWeight: 700, fontSize: '1.05rem' }}>{student.full_name}</span>
                         <span style={{ color: 'var(--gold-light)', fontSize: '0.85rem', fontWeight: 600 }}>🔢 {student.university_id}</span>
                         <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>🏛️ {student.college_name || 'بدون كلية'} - {student.major_name}</span>
                       </div>
@@ -372,9 +448,7 @@ function Attendance() {
                             disabled={scanningId !== null}
                             onClick={async () => {
                               if(window.confirm("هل ترغب في إعادة فتح بوابة الفحص لهذا الطالب؟")) {
-                                await runQuery("DELETE FROM attendance WHERE student_id=? AND date=?", [student.id, today]);
-                                await loadTodayAttendance(); 
-                                await loadStats();
+                                await resetAttendance(student.id);
                               }
                             }} 
                             style={{ background: 'none', border: 'none', color: scanningId !== null ? 'rgba(255,255,255,0.1)' : 'var(--text-secondary)', cursor: scanningId !== null ? 'not-allowed' : 'pointer', fontSize: '0.85rem' }}
@@ -391,7 +465,7 @@ function Attendance() {
         </div>
       )}
 
-      {/* 📊 القسم الثاني: بيان كشف الحضور التفصيلي لليوم */}
+      {/* 📊 بيان الحضور اليومي */}
       {tab === 'today' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="today-attendance">
           <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '30px' }}>
@@ -408,22 +482,14 @@ function Attendance() {
           </div>
 
           <div className="tab-header" style={{ marginBottom: '20px' }}>
-            <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)' }}>📋 كشف بيان التوقيع الإلكتروني الإجمالي لليوم ({today})</h3>
+            <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)' }}>📋 كشف بيان التوقيع الإلكتروني لليوم ({today})</h3>
           </div>
 
           <div className="data-table">
             <table>
               <thead>
                 <tr>
-                  <th>#</th>
-                  <th>الرقم الجامعي</th>
-                  <th>اسم الطالب الأكاديمي رباعياً</th>
-                  <th>الكلية</th>
-                  <th>التخصص الدراسي</th>
-                  <th>توقيت البصمة (دخول)</th>
-                  <th>توقيت البصمة (خروج)</th>
-                  <th>حالة القيد الحالية</th>
-                  <th>أوامر تحكم</th>
+                  <th>#</th><th>الرقم الجامعي</th><th>اسم الطالب</th><th>الكلية</th><th>التخصص</th><th>توقيت الدخول</th><th>توقيت الخروج</th><th>الحالة</th><th>تحكم</th>
                 </tr>
               </thead>
               <tbody>
@@ -447,12 +513,8 @@ function Attendance() {
                     </td>
                     <td>
                       {!a.time_out && a.status !== 'absent' ? (
-                        <motion.button
-                          className="btn-exit"
-                          onClick={() => markExit(a.id)}
-                          whileHover={{ scale: 1.05 }}
-                          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--gold-main)', padding: '5px 12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}
-                        >
+                        <motion.button className="btn-exit" onClick={() => markExit(a.id)} whileHover={{ scale: 1.05 }}
+                          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--gold-main)', padding: '5px 12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>
                           🚪 إثبات انصراف
                         </motion.button>
                       ) : (
@@ -462,9 +524,7 @@ function Attendance() {
                   </tr>
                 ))}
                 {todayAttendance.length === 0 && (
-                  <tr>
-                    <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>🚫 لم يتم تسجيل أي حركة حضور أو غياب بيومنا هذا بعد.</td>
-                  </tr>
+                  <tr><td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>🚫 لم يتم تسجيل أي حركة حضور اليوم.</td></tr>
                 )}
               </tbody>
             </table>
@@ -472,42 +532,30 @@ function Attendance() {
         </motion.div>
       )}
 
-      {/* 📊 القسم الثالث: التقارير الكلية الشهرية ومعدلات الحرمان الفورية */}
+      {/* 📊 التقارير الشهرية */}
       {tab === 'monthly' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="monthly-attendance">
           <div className="monthly-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
             <div>
               <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)', margin: 0 }}>📊 مصفوفة رصد نسب الغياب والحرمان التراكمية</h3>
-              <p style={{ color: 'var(--text-secondary)', margin: '5px 0 0 0', fontSize: '0.88rem' }}>يتم تلوين السجلات باللون الأحمر بشكل آلي إذا تراجعت نسبة حضور الطالب عن <strong style={{ color: '#ef4444' }}>75%</strong> (حد الحرمان الجامعي)</p>
+              <p style={{ color: 'var(--text-secondary)', margin: '5px 0 0 0', fontSize: '0.88rem' }}>تلوين أحمر آلي إذا تراجعت نسبة الحضور عن <strong style={{ color: '#ef4444' }}>75%</strong></p>
             </div>
-            <input
-              type="month"
-              value={selectedMonth}
-              onChange={e => setSelectedMonth(e.target.value)}
-              style={{ background: '#062b1e', border: '1px solid var(--glass-border)', padding: '10px 15px', borderRadius: '12px', color: '#fff', fontWeight: 700 }}
-            />
+            <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
+              style={{ background: '#062b1e', border: '1px solid var(--glass-border)', padding: '10px 15px', borderRadius: '12px', color: '#fff', fontWeight: 700 }} />
           </div>
 
           <div className="data-table">
             <table>
               <thead>
                 <tr>
-                  <th>#</th>
-                  <th>الرقم الجامعي</th>
-                  <th>اسم الطالب الأكاديمي</th>
-                  <th>الكلية</th>
-                  <th>أيام الحضور</th>
-                  <th>أيام الغياب</th>
-                  <th>أيام التأخير</th>
-                  <th>نسبة الالتزام الفورية</th>
-                  <th>التقييم الإداري العام</th>
+                  <th>#</th><th>الرقم الجامعي</th><th>اسم الطالب</th><th>الكلية</th><th>أيام الحضور</th><th>أيام الغياب</th><th>أيام التأخير</th><th>نسبة الالتزام</th><th>التقييم</th>
                 </tr>
               </thead>
               <tbody>
                 {monthlyData.map((m, i) => {
                   const isDanger = m.rate < 75;
                   return (
-                    <tr key={i} style={{ background: isDanger ? 'rgba(239,68,68,0.03)' : 'none', transition: 'all 0.2s' }}>
+                    <tr key={i} style={{ background: isDanger ? 'rgba(239,68,68,0.03)' : 'none' }}>
                       <td><strong>{i + 1}</strong></td>
                       <td style={{ color: 'var(--gold-light)', fontWeight: 700 }}>{m.university_id}</td>
                       <td style={{ color: 'var(--white)', fontWeight: 600 }}>{m.full_name}</td>
@@ -531,9 +579,7 @@ function Attendance() {
                   );
                 })}
                 {monthlyData.length === 0 && (
-                  <tr>
-                    <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>📭 لا توجد حركات توقيع مسجلة خلال النطاق الزمني المحدد لهذا الشهر.</td>
-                  </tr>
+                  <tr><td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>📭 لا توجد حركات توقيع مسجلة لهذا الشهر.</td></tr>
                 )}
               </tbody>
             </table>
