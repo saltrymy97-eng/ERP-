@@ -1,4 +1,4 @@
-// src/components/Students.js – إدارة شؤون الطلاب والكليات (الإصدار الملكي الفاخر الخارق - النسخة المستقرة المصلحة)
+// src/components/Students.js – إدارة شؤون الطلاب والكليات (الإصدار الملكي الفاخر الخارق - النسخة المستقرة الخالية من أخطاء الـ Build)
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery } from '../services/db';
@@ -203,9 +203,9 @@ function Students() {
             .gold-line { height: 4px; background: linear-gradient(90deg, transparent, #D4AF37, transparent); margin: 12px 0; }
             .header-title { font-family: 'Amiri', serif; font-size: 1.3rem; color: #D4AF37; margin: 0; font-weight:700; }
             .sub-title { font-size: 0.78rem; color: #a3b8cc; margin: 2px 0 15px 0; letter-spacing: 0.5px; }
-            .avatar-zone { width: 105px; height: 105px; border-radius: 50%; border: 2px solid #D4AF37; background: rgba(255,255,255,0.03); margin: 0 auto 15px; display: flex; align-items: center; justify-content: center; font-size: 3rem; boxShadow: 0 0 15px rgba(214,175,55,0.1); }
+            .avatar-zone { width: 105px; height: 105px; border-radius: 50%; border: 2px solid #D4AF37; background: rgba(255,255,255,0.03); margin: 0 auto 15px; display: flex; align-items: center; justify-content: center; font-size: 3rem; box-shadow: 0 0 15px rgba(214,175,55,0.1); }
             .name { font-size: 1.35rem; font-weight: 900; color: #fff; margin: 10px 0 5px 0; letter-spacing: -0.3px; }
-            .id-badge { background: linear-gradient(135deg, #D4AF37, #b89324); color: #020b07; display: inline-block; padding: 5px 20px; border-radius: 50px; font-weight: 900; font-size: 1rem; margin-bottom: 15px; boxShadow: 0 4px 10px rgba(214,175,55,0.2); }
+            .id-badge { background: linear-gradient(135deg, #D4AF37, #b89324); color: #020b07; display: inline-block; padding: 5px 20px; border-radius: 50px; font-weight: 900; font-size: 1rem; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(214,175,55,0.2); }
             .qr-container { background: white; padding: 12px; display: inline-block; border-radius: 18px; margin: 5px 0; box-shadow: 0 8px 20px rgba(0,0,0,0.4); }
             .info-box { text-align: right; background: rgba(0,0,0,0.3); padding: 14px 18px; border-radius: 16px; margin-top: 18px; border: 1px solid rgba(212,175,55,0.12); font-size: 0.88rem; }
             .info-box p { margin: 6px 0; color: #cbd5e1; display:flex; justify-content:space-between; }
@@ -484,7 +484,7 @@ function Students() {
 
                     <div style={{ background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.02)', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>🏛️ الكلية والأقسام:</span> <span style={{ color: 'var(--gold-light)', fontWeight: 600 }}>{s.college_name || '—'}</span></div>
-                      <div style={{ display: 'flex', justify-content: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>📜 المسار الدراسي:</span> <span style={{ color: '#fff', fontWeight: 600 }}>{s.major_name || 'عام'}</span></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>📜 المسار الدراسي:</span> <span style={{ color: '#fff', fontWeight: 600 }}>{s.major_name || 'عام'}</span></div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>📈 الفوج والمستوى:</span> <span style={{ color: '#38bdf8', fontWeight: 600 }}>{s.level} (شعبة {s.group_name || 'أ'})</span></div>
                       <div style={{ display: 'flex', justify-content: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>📱 جوال المزامنة:</span> <span style={{ color: '#cbd5e1' }}>{s.phone}</span></div>
                     </div>
@@ -540,7 +540,7 @@ function Students() {
       {/* 🪟 النافذة المنبثقة الشفافة للنماذج الإدخالية (Glassmorphic Deluxe Modal) */}
       <AnimatePresence>
         {showForm && (
-          <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(2, 11, 7, 0.8)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justify-content: 'center', zIndex: 9999, padding: '20px' }}>
+          <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(2, 11, 7, 0.8)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
             <motion.div
               className="form-card-modal"
               initial={{ opacity: 0, scale: 0.93, y: 20 }}
