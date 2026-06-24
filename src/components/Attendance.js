@@ -1,4 +1,4 @@
-// src/components/Attendance.js – نظام رصد الحضور والانصراف بالبصمة الذكية (الإصدار الإمبراطوري الفاخر والمستقر - النسخة المصححة والمطابقة لمجرك SQL)
+// src/components/Attendance.js – نظام رصد الحضور والانصراف بالبصمة الذكية (الإصدار الإمبراطوري الفاخر والمستقر - النسخة المحدثة لبيئات SQL الحقيقية)
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery } from '../services/db';
@@ -19,9 +19,13 @@ function Attendance() {
   const today = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
-    loadStudents();
-    loadTodayAttendance();
-    loadStats();
+    // استدعاء الدوال بشكل آمن ومتزامن مع بداية المكون
+    const initLoad = async () => {
+      await loadStudents();
+      await loadTodayAttendance();
+      await loadStats();
+    };
+    initLoad();
 
     // تنظيف المؤقت عند إغلاق المكون من الشاشة لتفادي تسريب الذاكرة Memory Leak
     return () => {
@@ -35,59 +39,74 @@ function Attendance() {
     }
   }, [selectedMonth, tab]);
 
-  // ========== تحميل سجلات الطلاب النشطين (تم إضافة ربط الكليات هنا) ==========
-  const loadStudents = () => {
-    const data = getQuery(`
-      SELECT s.*, m.name as major_name, d.name as department_name, c.name as college_name
-      FROM students s
-      LEFT JOIN majors m ON s.major_id = m.id
-      LEFT JOIN departments d ON m.department_id = d.id
-      LEFT JOIN colleges c ON d.college_id = c.id
-      WHERE s.status='active'
-      ORDER BY s.full_name
-    `);
-    setStudents(data);
+  // ========== تحميل سجلات الطلاب النشطين (تحديث لانتظار محرك SQL الحقيقي) ==========
+  const loadStudents = async () => {
+    try {
+      const data = await getQuery(`
+        SELECT s.*, m.name as major_name, d.name as department_name, c.name as college_name
+        FROM students s
+        LEFT JOIN majors m ON s.major_id = m.id
+        LEFT JOIN departments d ON m.department_id = d.id
+        LEFT JOIN colleges c ON d.college_id = c.id
+        WHERE s.status='active'
+        ORDER BY s.full_name
+      `);
+      setStudents(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error("خطأ في جلب الطلاب الدراسية:", e);
+    }
   };
 
-  // ========== تحميل حركة حضور اليوم (تم إضافة ربط الكليات هنا) ==========
-  const loadTodayAttendance = () => {
-    const data = getQuery(`
-      SELECT a.*, s.full_name, s.university_id, s.phone,
-             m.name as major_name, c.name as college_name, sc.subject, sc.time_from, sc.time_to, sc.room
-      FROM attendance a
-      JOIN students s ON a.student_id = s.id
-      LEFT JOIN majors m ON s.major_id = m.id
-      LEFT JOIN departments d ON m.department_id = d.id
-      LEFT JOIN colleges c ON d.college_id = c.id
-      LEFT JOIN schedules sc ON a.schedule_id = sc.id
-      WHERE a.date = ?
-      ORDER BY a.time_in DESC
-    `, [today]);
-    setTodayAttendance(data);
+  // ========== تحميل حركة حضور اليوم (تحديث لانتظار محرك SQL الحقيقي) ==========
+  const loadTodayAttendance = async () => {
+    try {
+      const data = await getQuery(`
+        SELECT a.*, s.full_name, s.university_id, s.phone,
+               m.name as major_name, c.name as college_name, sc.subject, sc.time_from, sc.time_to, sc.room
+        FROM attendance a
+        JOIN students s ON a.student_id = s.id
+        LEFT JOIN majors m ON s.major_id = m.id
+        LEFT JOIN departments d ON m.department_id = d.id
+        LEFT JOIN colleges c ON d.college_id = c.id
+        LEFT JOIN schedules sc ON a.schedule_id = sc.id
+        WHERE a.date = ?
+        ORDER BY a.time_in DESC
+      `, [today]);
+      setTodayAttendance(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error("خطأ في جلب كشف الحضور اليومي:", e);
+    }
   };
 
-  // ========== إحصائيات المجموعات الحية (تم التعديل لتصبح متزامنة وديناميكية فوراً مع الطلاب المتأخرين) ==========
-  const loadStats = () => {
-    const present = getQuery("SELECT COUNT(DISTINCT student_id) as c FROM attendance WHERE date=? AND status='present'", [today])[0]?.c || 0;
-    const absent = getQuery("SELECT COUNT(DISTINCT student_id) as c FROM attendance WHERE date=? AND status='absent'", [today])[0]?.c || 0;
-    const late = getQuery("SELECT COUNT(*) as c FROM attendance WHERE date=? AND status='late'", [today])[0]?.c || 0;
-    
-    // [إصلاح عدادات الواجهة للطلاب] المتأخر يعتبر حاضراً بالمقعد في العداد الإجمالي العلوي
-    setStats({ 
-      present: Number(present) + Number(late), 
-      absent: Number(absent), 
-      late: Number(late) 
-    });
+  // ========== إحصائيات المجموعات الحية (تحديث لانتظار محرك SQL الحقيقي والديناميكي) ==========
+  const loadStats = async () => {
+    try {
+      const resPresent = await getQuery("SELECT COUNT(DISTINCT student_id) as c FROM attendance WHERE date=? AND status='present'", [today]);
+      const resAbsent = await getQuery("SELECT COUNT(DISTINCT student_id) as c FROM attendance WHERE date=? AND status='absent'", [today]);
+      const resLate = await getQuery("SELECT COUNT(*) as c FROM attendance WHERE date=? AND status='late'", [today]);
+      
+      const present = resPresent[0]?.c || 0;
+      const absent = resAbsent[0]?.c || 0;
+      const late = resLate[0]?.c || 0;
+      
+      setStats({ 
+        present: Number(present) + Number(late), 
+        absent: Number(absent), 
+        late: Number(late) 
+      });
+    } catch (e) {
+      console.error("خطأ في تحديث عدادات الإحصائيات:", e);
+    }
   };
 
-  // ========== معالجة تسجيل الحضور بنبض البصمة الذكي (تم حل مشكلة تخطي الغياب المقيد) ==========
-  const markAttendance = (student, status = 'present') => {
+  // ========== معالجة تسجيل الحضور بنبض البصمة الذكي (تحديث لانتظار محرك SQL الحقيقي) ==========
+  const markAttendance = async (student, status = 'present') => {
     if (attendanceTimeoutRef.current) {
       clearTimeout(attendanceTimeoutRef.current);
     }
 
-    // [إصلاح 1] التحقق الفوري قبل بدء البصمة: هل الطالب مقيد كغائب إدارياً اليوم؟
-    const checkAbsent = getQuery("SELECT status FROM attendance WHERE student_id=? AND date=? AND status='absent'", [student.id, today]);
+    // التحقق الفوري قبل بدء البصمة: هل الطالب مقيد كغائب إدارياً اليوم؟
+    const checkAbsent = await getQuery("SELECT status FROM attendance WHERE student_id=? AND date=? AND status='absent'", [student.id, today]);
     if (checkAbsent.length > 0) {
       setAttendanceStatus({
         student: student.full_name,
@@ -96,23 +115,23 @@ function Attendance() {
         icon: '❌',
         color: '#ef4444'
       });
-      return; // إلغاء العملية فوراً ومنع تحويل الحالة إلى حاضر
+      return; 
     }
 
     setScanningId(student.id); // بدء تأثير وميض البصمة الأخضر
     
-    attendanceTimeoutRef.current = setTimeout(() => {
+    attendanceTimeoutRef.current = setTimeout(async () => {
       const now = new Date();
       const timeNow = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
       const lateThreshold = '08:15';
       const isLate = timeNow > lateThreshold && status === 'present';
       const currentStatus = isLate ? 'late' : status;
 
-      const exists = getQuery("SELECT id FROM attendance WHERE student_id=? AND date=?", [student.id, today]);
+      const exists = await getQuery("SELECT id FROM attendance WHERE student_id=? AND date=?", [student.id, today]);
       if (exists.length > 0) {
-        runQuery("UPDATE attendance SET status=?, time_in=? WHERE student_id=? AND date=?", [currentStatus, timeNow, student.id, today]);
+        await runQuery("UPDATE attendance SET status=?, time_in=? WHERE student_id=? AND date=?", [currentStatus, timeNow, student.id, today]);
       } else {
-        runQuery(
+        await runQuery(
           "INSERT INTO attendance (student_id, date, time_in, status, late_minutes, method) VALUES (?, ?, ?, ?, ?, ?)",
           [student.id, today, timeNow, currentStatus, isLate ? 15 : 0, 'fingerprint']
         );
@@ -128,25 +147,25 @@ function Attendance() {
 
       setScanningId(null);
       attendanceTimeoutRef.current = null;
-      loadTodayAttendance();
-      loadStats();
+      await loadTodayAttendance();
+      await loadStats();
     }, 1200);
   };
 
   // ========== قيد غياب يدوي إداري ==========
-  const markAbsent = (student) => {
+  const markAbsent = async (student) => {
     if (scanningId === student.id && attendanceTimeoutRef.current) {
       clearTimeout(attendanceTimeoutRef.current);
       attendanceTimeoutRef.current = null;
       setScanningId(null);
     }
 
-    const exists = getQuery("SELECT id FROM attendance WHERE student_id=? AND date=?", [student.id, today]);
+    const exists = await getQuery("SELECT id FROM attendance WHERE student_id=? AND date=?", [student.id, today]);
 
     if (exists.length > 0) {
-      runQuery("UPDATE attendance SET status='absent', time_in=NULL WHERE student_id=? AND date=?", [student.id, today]);
+      await runQuery("UPDATE attendance SET status='absent', time_in=NULL WHERE student_id=? AND date=?", [student.id, today]);
     } else {
-      runQuery(
+      await runQuery(
         "INSERT INTO attendance (student_id, date, status, method) VALUES (?, ?, 'absent', 'manual')",
         [student.id, today]
       );
@@ -160,34 +179,37 @@ function Attendance() {
       color: '#ef4444'
     });
 
-    loadTodayAttendance();
-    loadStats();
+    await loadTodayAttendance();
+    await loadStats();
   };
 
   // ========== تسجيل طرد / انصراف مسبق الموعد ==========
-  const markExit = (attendanceId) => {
+  const markExit = async (attendanceId) => {
     const now = new Date();
     const timeNow = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
 
-    runQuery("UPDATE attendance SET status='present', time_in=NULL WHERE student_id=? AND date=?", ['present', timeNow, attendanceId]); // متوافق مع هيكلية الـ Update بـ db.js
-    loadTodayAttendance();
+    await runQuery("UPDATE attendance SET status='present', time_in=NULL WHERE student_id=? AND date=?", ['present', timeNow, attendanceId]); 
+    await loadTodayAttendance();
   };
 
   // ========== استدعاء التقرير الشهري التراكمي ومقاومة الـ Minification ==========
-  const loadMonthlyData = () => {
-    // تم تمرير الاستعلام بصيغة متوافقة مع معالج الـ GROUP BY المحدث في محاكي الـ SQL
-    const data = getQuery(`
-      SELECT s.id, s.full_name, s.university_id, c.name as college_name, a.status, a.date
-      FROM students s
-      JOIN attendance a ON s.id = a.student_id
-      LEFT JOIN majors m ON s.major_id = m.id
-      LEFT JOIN departments d ON m.department_id = d.id
-      LEFT JOIN colleges c ON d.college_id = c.id
-      WHERE a.date LIKE '${selectedMonth}%'
-      GROUP BY s.id
-      ORDER BY s.full_name DESC
-    `);
-    setMonthlyData(data);
+  const loadMonthlyData = async () => {
+    try {
+      const data = await getQuery(`
+        SELECT s.id, s.full_name, s.university_id, c.name as college_name, a.status, a.date
+        FROM students s
+        JOIN attendance a ON s.id = a.student_id
+        LEFT JOIN majors m ON s.major_id = m.id
+        LEFT JOIN departments d ON m.department_id = d.id
+        LEFT JOIN colleges c ON d.college_id = c.id
+        WHERE a.date LIKE '${selectedMonth}%'
+        GROUP BY s.id
+        ORDER BY s.full_name DESC
+      `);
+      setMonthlyData(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error("خطأ في حساب المصفوفة الشهرية:", e);
+    }
   };
 
   const containerVariants = {
@@ -348,10 +370,11 @@ function Attendance() {
                           </span>
                           <button 
                             disabled={scanningId !== null}
-                            onClick={() => {
+                            onClick={async () => {
                               if(window.confirm("هل ترغب في إعادة فتح بوابة الفحص لهذا الطالب؟")) {
-                                runQuery("DELETE FROM attendance WHERE student_id=? AND date=?", [student.id, today]);
-                                loadTodayAttendance(); loadStats();
+                                await runQuery("DELETE FROM attendance WHERE student_id=? AND date=?", [student.id, today]);
+                                await loadTodayAttendance(); 
+                                await loadStats();
                               }
                             }} 
                             style={{ background: 'none', border: 'none', color: scanningId !== null ? 'rgba(255,255,255,0.1)' : 'var(--text-secondary)', cursor: scanningId !== null ? 'not-allowed' : 'pointer', fontSize: '0.85rem' }}
