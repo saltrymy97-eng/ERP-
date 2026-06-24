@@ -1,4 +1,4 @@
-// src/components/Students.js – إدارة شؤون الطلاب والكليات 
+// src/components/Students.js – إدارة شؤون الطلاب والكليات المطور
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery } from '../services/db';
@@ -38,7 +38,7 @@ function Students() {
     loadStudents();
   }, []);
 
-  // ========== خدمات استدعاء البيانات المحلية ==========
+  // ========== خدمات استدعاء البيانات المحلية (تم إصلاح استعلامات الربط) ==========
   const loadColleges = () => {
     const data = getQuery("SELECT * FROM colleges WHERE status='active' ORDER BY name");
     setColleges(data);
@@ -49,7 +49,14 @@ function Students() {
     if (collegeId) {
       data = getQuery("SELECT * FROM departments WHERE college_id=? AND status='active' ORDER BY name", [collegeId]);
     } else {
-      data = getQuery("SELECT d.*, c.name as college_name FROM departments d JOIN colleges c ON d.college_id=c.id WHERE d.status='active' ORDER BY c.name, d.name");
+      // تم التحويل إلى LEFT JOIN لضمان ظهور القسم حتى لو كانت الكلية غير نشطة أو مفقودة
+      data = getQuery(`
+        SELECT d.*, c.name as college_name 
+        FROM departments d 
+        LEFT JOIN colleges c ON d.college_id = c.id 
+        WHERE d.status='active' 
+        ORDER BY c.name, d.name
+      `);
     }
     setDepartments(data);
   };
@@ -59,7 +66,15 @@ function Students() {
     if (deptId) {
       data = getQuery("SELECT * FROM majors WHERE department_id=? AND status='active' ORDER BY name", [deptId]);
     } else {
-      data = getQuery("SELECT m.*, d.name as department_name, c.name as college_name FROM majors m JOIN departments d ON m.department_id=d.id JOIN colleges c ON d.college_id=c.id WHERE m.status='active' ORDER BY c.name, d.name, m.name");
+      // تم إصلاح الربط المركب هنا باستخدام LEFT JOIN لمنع اختفاء الجدول بالكامل عند وجود خلل في العلاقات
+      data = getQuery(`
+        SELECT m.*, d.name as department_name, c.name as college_name 
+        FROM majors m 
+        LEFT JOIN departments d ON m.department_id = d.id 
+        LEFT JOIN colleges c ON d.college_id = c.id 
+        WHERE m.status='active' 
+        ORDER BY c.name, d.name, m.name
+      `);
     }
     setMajors(data);
   };
@@ -361,7 +376,10 @@ function Students() {
                   <motion.tr variants={itemVariants} key={d.id}>
                     <td><strong>{i + 1}</strong></td>
                     <td style={{ color: 'var(--white)', fontWeight: 600 }}>{d.name}</td>
-                    <td style={{ color: 'var(--gold-light)', fontWeight: 500 }}>{d.college_name}</td>
+                    {/* تم الإصلاح هنا لإظهار تحذير واضح للمستخدم في حال لم يكن التخصص مربوطاً بكلية بدلاً من اختفاء الصف */}
+                    <td style={{ color: d.college_name ? 'var(--gold-light)' : '#ef4444', fontWeight: 500 }}>
+                      {d.college_name || '⚠️ لم يتم العثور على الكلية أو غير مربوطة!'}
+                    </td>
                     <td>
                       <button className="btn-edit" onClick={() => handleEdit(d)}>✏️</button>
                       <button className="btn-delete" onClick={() => handleDelete(d.id)}>🗑️</button>
@@ -394,6 +412,7 @@ function Students() {
                   <th>#</th>
                   <th>مساق التخصص الفرعي</th>
                   <th>القسم العلمي المرجعي</th>
+                  <th>الكلية التابع لها</th> {/* تمت إضافة هذا العمود لرفع جودة البيانات والتحقق الفوري */}
                   <th>الرسوم المقيدة</th>
                   <th>فترة البقاء بالخطة</th>
                   <th>خيارات التحكم</th>
@@ -404,7 +423,8 @@ function Students() {
                   <motion.tr variants={itemVariants} key={m.id}>
                     <td><strong>{i + 1}</strong></td>
                     <td style={{ color: 'var(--white)', fontWeight: 600 }}>{m.name}</td>
-                    <td>{m.department_name}</td>
+                    <td>{m.department_name || '⚠️ بدون قسم'}</td>
+                    <td style={{ color: 'var(--gold-light)' }}>{m.college_name || '⚠️ بدون كلية'}</td>
                     <td style={{ color: 'var(--gold-main)', fontWeight: 800 }}>{Number(m.fees).toLocaleString('ar-YE')} ريال</td>
                     <td><span style={{ color: '#cbd5e1' }}>{m.duration}</span></td>
                     <td>
@@ -413,6 +433,13 @@ function Students() {
                     </td>
                   </motion.tr>
                 ))}
+                {majors.length === 0 && (
+                  <tr>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '25px', color: 'var(--text-secondary)' }}>
+                      📭 لا توجد مساقات خطط دراسية مضافة حالياً أو نشطة.
+                    </td>
+                  </tr>
+                )}
               </motion.tbody>
             </table>
           </div>
@@ -473,7 +500,7 @@ function Students() {
                     </div>
 
                     <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                      <div style={{ width: '65px', height: '65px', borderRadius: '50%', border: '2px solid var(--gold-main)', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifycontent: 'center', fontSize: '1.8rem' }}>🎓</div>
+                      <div style={{ width: '65px', height: '65px', borderRadius: '50%', border: '2px solid var(--gold-main)', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem' }}>🎓</div>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <span style={{ color: 'var(--white)', fontWeight: 800, fontSize: '1.05rem', letterSpacing: '-0.3px', paddingLeft: '50px' }}>{s.full_name}</span>
                         <span style={{ color: 'var(--gold-light)', fontWeight: 700, fontSize: '0.85rem', marginTop: '2px' }}>ID: {s.university_id}</span>
@@ -594,7 +621,7 @@ function Students() {
                   <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.9rem' }}>القسم العلمي التابع له المسار</label>
                   <select className="glass-input" value={formData.department_id} onChange={e => setFormData({ ...formData, department_id: e.target.value })} style={{ background: '#052218', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff', fontSize: '1rem' }}>
                     <option value="">-- حدد القسم التخصصي --</option>
-                    {departments.map(d => <option key={d.id} value={d.id}>{d.name} ({d.college_name})</option>)}
+                    {departments.map(d => <option key={d.id} value={d.id}>{d.name} ({d.college_name || 'بدون كلية'})</option>)}
                   </select>
                   <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.9rem' }}>اسم مسار التخصص الفرعي</label>
                   <input type="text" className="glass-input" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="مثال: تخصص التفسير" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff' }} />
@@ -645,7 +672,7 @@ function Students() {
                       <label style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>📜 مسار خطة القبول المعتمد</label>
                       <select className="glass-input" value={formData.major_id} onChange={e => setFormData({ ...formData, major_id: e.target.value })} style={{ width: '100%', background: '#052218', border: '1px solid var(--glass-border)', padding: '12px 16px', borderRadius: '12px', color: '#fff', fontSize: '0.95rem' }}>
                         <option value="">-- حدد المساق والمخطط --</option>
-                        {majors.map(m => <option key={m.id} value={m.id}>{m.name} ({m.department_name})</option>)}
+                        {majors.map(m => <option key={m.id} value={m.id}>{m.name} ({m.department_name || 'بدون قسم'})</option>)}
                       </select>
                     </div>
                   </div>
