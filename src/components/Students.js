@@ -1,4 +1,4 @@
-// src/components/Students.js – إدارة شؤون الطلاب والكليات (الإصدار الملكي الفاخر الخارق - النسخة المستقرة الخالية من أخطاء الـ Build)
+// src/components/Students.js – إدارة شؤون الطلاب والكليات 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery } from '../services/db';
@@ -12,7 +12,7 @@ function Students() {
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState('grid'); // grid, table (للتبديل العرضي المبهر)
+  const [viewMode, setViewMode] = useState('grid'); // grid, table
 
   // حقول النموذج الملكي الموحد
   const [formData, setFormData] = useState({
@@ -32,7 +32,6 @@ function Students() {
   });
 
   useEffect(() => {
-    // شحن وقائي متزامن لكافة الجداول لضمان جاهزية النوافذ المنبثقة فوراً
     loadColleges();
     loadDepartments();
     loadMajors();
@@ -66,7 +65,6 @@ function Students() {
   };
 
   const loadStudents = () => {
-    // جلب الطلاب مع حساب نسبة الغياب فوريًا لكل طالب لتقديم إنذار مرئي للجنة
     const data = getQuery(`
       SELECT s.*, m.name as major_name, d.name as department_name, c.name as college_name,
              COALESCE(ROUND(CAST(COUNT(CASE WHEN a.status='absent' THEN 1 END) AS FLOAT) / NULLIF(COUNT(a.id), 0) * 100, 1), 0) as absence_rate
@@ -266,7 +264,7 @@ function Students() {
   return (
     <div className="students-module" style={{ padding: '5px 0' }}>
       
-      {/* 🧭 شريط التبويبات الفاخر ثلاثي الأبعاد المضيء */}
+      {/* 🧭 شريط التبويبات الفاخر */}
       <div className="tabs" style={{ display: 'flex', gap: '10px', background: 'rgba(255,255,255,0.01)', padding: '10px', borderRadius: '20px', border: '1px solid var(--glass-border)', marginBottom: '30px', boxShadow: 'inset 0 0 15px rgba(255,255,255,0.01)' }}>
         {[
           { id: 'colleges', label: '🏫 هيكلة الكليات', load: loadColleges },
@@ -294,7 +292,7 @@ function Students() {
         ))}
       </div>
 
-      {/* 🏛️ 1. إدارة الكليات */}
+      {/* 🏛️ 1. الكليات */}
       {tab === 'colleges' && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="tab-content">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px' }}>
@@ -335,7 +333,7 @@ function Students() {
         </motion.div>
       )}
 
-      {/* 📂 2. إدارة الأقسام */}
+      {/* 📂 2. الأقسام */}
       {tab === 'departments' && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="tab-content">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px' }}>
@@ -376,7 +374,7 @@ function Students() {
         </motion.div>
       )}
 
-      {/* 🎓 3. إدارة التخصصات */}
+      {/* 🎓 3. التخصصات */}
       {tab === 'majors' && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="tab-content">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px' }}>
@@ -421,7 +419,7 @@ function Students() {
         </motion.div>
       )}
 
-      {/* 👥 4. قاعدة شؤون الطلاب */}
+      {/* 👥 4. الطلاب */}
       {tab === 'students' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="tab-content">
           <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '15px', alignItems: 'center', marginBottom: '25px' }}>
@@ -475,7 +473,7 @@ function Students() {
                     </div>
 
                     <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                      <div style={{ width: '65px', height: '65px', borderRadius: '50%', border: '2px solid var(--gold-main)', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem' }}>🎓</div>
+                      <div style={{ width: '65px', height: '65px', borderRadius: '50%', border: '2px solid var(--gold-main)', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifycontent: 'center', fontSize: '1.8rem' }}>🎓</div>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <span style={{ color: 'var(--white)', fontWeight: 800, fontSize: '1.05rem', letterSpacing: '-0.3px', paddingLeft: '50px' }}>{s.full_name}</span>
                         <span style={{ color: 'var(--gold-light)', fontWeight: 700, fontSize: '0.85rem', marginTop: '2px' }}>ID: {s.university_id}</span>
@@ -486,7 +484,7 @@ function Students() {
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>🏛️ الكلية والأقسام:</span> <span style={{ color: 'var(--gold-light)', fontWeight: 600 }}>{s.college_name || '—'}</span></div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>📜 المسار الدراسي:</span> <span style={{ color: '#fff', fontWeight: 600 }}>{s.major_name || 'عام'}</span></div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>📈 الفوج والمستوى:</span> <span style={{ color: '#38bdf8', fontWeight: 600 }}>{s.level} (شعبة {s.group_name || 'أ'})</span></div>
-                      <div style={{ display: 'flex', justify-content: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>📱 جوال المزامنة:</span> <span style={{ color: '#cbd5e1' }}>{s.phone}</span></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>📱 جوال المزامنة:</span> <span style={{ color: '#cbd5e1' }}>{s.phone}</span></div>
                     </div>
 
                     <div style={{ display: 'flex', gap: '8px', marginTop: '5px' }}>
@@ -537,10 +535,26 @@ function Students() {
         </motion.div>
       )}
 
-      {/* 🪟 النافذة المنبثقة الشفافة للنماذج الإدخالية (Glassmorphic Deluxe Modal) */}
+      {/* 🪟 النافذة المنبثقة الشفافة للنماذج الإدخالية */}
       <AnimatePresence>
         {showForm && (
-          <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(2, 11, 7, 0.8)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
+          <div 
+            className="modal-overlay" 
+            style={{ 
+              position: 'fixed', 
+              top: 0, 
+              left: 0, 
+              width: '100vw', 
+              height: '100vh', 
+              background: 'rgba(2, 11, 7, 0.8)', 
+              backdropFilter: 'blur(12px)', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              zIndex: 9999, 
+              padding: '20px' 
+            }}
+          >
             <motion.div
               className="form-card-modal"
               initial={{ opacity: 0, scale: 0.93, y: 20 }}
@@ -649,7 +663,7 @@ function Students() {
                 </div>
               )}
 
-              {/* 🎮 الأزرار السفلية لحفظ وتأكيد السجلات */}
+              {/* 🎮 الأزرار السفلية */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '30px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                 <motion.button onClick={handleSave} whileHover={{ scale: 1.02, boxShadow: '0 0 15px rgba(214,175,55,0.3)' }} whileTap={{ scale: 0.98 }} style={{ background: 'linear-gradient(135deg, var(--gold-main), #b89324)', color: '#052218', border: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.95rem' }}>
                   💾 اعتماد وثيقة السجل
