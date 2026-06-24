@@ -1,166 +1,171 @@
-// src/services/db.js - محرك SQLite المحلي الحقيقي والنهائي (إصدار الحوكمة والاستقرار المطلق)
-import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
-import path from 'path';
+// src/services/db.js - قاعدة بيانات Supabase السحابية
+import { createClient } from '@supabase/supabase-js';
 
-// تحديد مسار ثابت وآمن لملف قاعدة البيانات الحقيقي على القرص الصلب
-const DB_PATH = path.join(process.cwd(), 'data', 'university.db');
+// ========== إعدادات Supabase ==========
+const SUPABASE_URL = 'https://dboornlxohzwltylqceu.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRib29ybmx4b2h6d2x0eWxxY2V1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjI2MjA3MiwiZXhwIjoyMDk3ODM4MDcyfQ.lqqPioK_vWqJlfUnxDcmhBZqksKONIyuWA8dgDNwu1w';
 
-// دالة مخصصة لفتح الاتصال وضمان تطبيق إعدادات الأداء العالي والنزاهة
-export async function getDatabaseConnection() {
-  // التأكد من تهيئة المكتبات بالشكل السليم
-  const db = await open({
-    filename: DB_PATH,
-    driver: sqlite3.Database
-  });
-  
-  // تفعيل وضع WAL لسرعة القراءة والكتابة المتزامنة ومنع تعليق النظام (Database Locked)
-  await db.execute("PRAGMA journal_mode=WAL");
-  // تفعيل القيود الخارجية الصارمة (Foreign Keys) لحماية العلاقات بين الجداول ومنع القيم الميتة
-  await db.execute("PRAGMA foreign_keys = ON");
-  
-  return db;
-}
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// ========== 1. تهيئة وبناء الجداول النموذجية والمترابطة للجامعة ==========
+// ========== API العامة ==========
 export async function initDatabase() {
-  const db = await getDatabaseConnection();
-
-  // أ. جدول الكليات
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS colleges (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL UNIQUE,
-      code TEXT UNIQUE,
-      status TEXT DEFAULT 'active',
-      created_at TEXT DEFAULT (datetime('now', 'localtime'))
-    )
-  `);
-
-  // ب. جدول الأقسام (مرتبط بالكليات)
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS departments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      college_id INTEGER NOT NULL,
-      code TEXT,
-      status TEXT DEFAULT 'active',
-      created_at TEXT DEFAULT (datetime('now', 'localtime')),
-      FOREIGN KEY (college_id) REFERENCES colleges(id) ON DELETE CASCADE
-    )
-  `);
-
-  // ج. جدول التخصصات الدراسية (مرتبط بالأقسام والكليات)
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS majors (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      department_id INTEGER NOT NULL,
-      college_id INTEGER NOT NULL,
-      fees REAL DEFAULT 0 CHECK(fees >= 0),
-      duration INTEGER DEFAULT 4,
-      status TEXT DEFAULT 'active',
-      created_at TEXT DEFAULT (datetime('now', 'localtime')),
-      FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE,
-      FOREIGN KEY (college_id) REFERENCES colleges(id) ON DELETE CASCADE
-    )
-  `);
-
-  // د. جدول الطلاب (هيكل الحوكمة الصارم والمحمي بنسبة 100%)
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS students (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      university_id TEXT UNIQUE NOT NULL,
-      full_name TEXT NOT NULL,
-      phone TEXT,
-      major_id INTEGER NOT NULL,
-      department_id INTEGER NOT NULL,
-      college_id INTEGER NOT NULL,
-      status TEXT DEFAULT 'active',
-      created_at TEXT DEFAULT (datetime('now', 'localtime')),
-      FOREIGN KEY (major_id) REFERENCES majors(id) ON DELETE RESTRICT,
-      FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE RESTRICT,
-      FOREIGN KEY (college_id) REFERENCES colleges(id) ON DELETE RESTRICT
-    )
-  `);
-
-  // هـ. جدول البصمة والحضور والغياب اليومي
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS attendance (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      student_id INTEGER NOT NULL,
-      date TEXT NOT NULL DEFAULT (date('now', 'localtime')),
-      time_in TEXT,
-      time_out TEXT,
-      status TEXT NOT NULL CHECK(status IN ('present', 'absent', 'late')),
-      late_minutes INTEGER DEFAULT 0,
-      method TEXT DEFAULT 'fingerprint',
-      FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
-    )
-  `);
-
-  // و. الفهارس (Indexes) لضمان تسريع عمليات جلب كشوف الغياب ومطابقة البصمة فوراً
-  await db.execute("CREATE INDEX IF NOT EXISTS idx_students_uid ON students(university_id)");
-  await db.execute("CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date)");
-  await db.execute("CREATE INDEX IF NOT EXISTS idx_attendance_student ON attendance(student_id)");
-
-  // ز. حقن حساب المدير الافتراضي إذا لم يكن موجوداً
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      role TEXT DEFAULT 'admin'
-    )
-  `);
-  await db.execute("INSERT OR IGNORE INTO users (id, username, password, role) VALUES (1, 'admin', 'admin123', 'admin')");
-
-  console.log("🚀 تم إطلاق محرك SQLite الحقيقي وبناء الهيكل الأكاديمي بنجاح باهر!");
-  
-  // إعادة هيكلية البيانات الحالية للتوافق الكامل
-  return db;
+  console.log('✅ Supabase جاهز');
+  return true;
 }
 
-// ========== 2. محرك الجلب الذكي والأصيل (GET QUERY) ==========
+export async function loadFromLocalStorage() {
+  return [];
+}
+
+export function closeDatabase() {}
+
+// ========== جلب البيانات (GET) ==========
 export async function getQuery(sql, params = []) {
-  const db = await getDatabaseConnection();
   try {
-    // إرسال استعلام الـ SQL الصريح والـ JOIN المعقد مباشرة للمحرك الحقيقي لفرزه ومعالجته
-    const rows = await db.all(sql, params);
+    // استخراج اسم الجدول من الاستعلام
+    const tableMatch = sql.match(/FROM\s+(\w+)/i);
+    if (!tableMatch) return [];
     
-    // إرجاع البيانات في مصفوفة كائنات جاهزة، لتستقبلها شاشات React وتفهمها فوراً دون أي تعديل بكود الواجهة
-    return rows;
-  } catch (error) {
-    console.error("❌ فشل المحرك الحقيقي في معالجة استعلام الجلب (SQL Error):", error);
+    const table = tableMatch[1];
+    let query = supabase.from(table).select('*');
+
+    // WHERE
+    if (sql.toUpperCase().includes("STATUS='ACTIVE'")) {
+      query = query.eq('status', 'active');
+    }
+
+    // WHERE date = ?
+    if (sql.toUpperCase().includes('DATE=?') && params.length > 0) {
+      query = query.eq('date', params[0]);
+    }
+
+    // ORDER BY
+    const orderMatch = sql.match(/ORDER\s+BY\s+(\w+)/i);
+    if (orderMatch) {
+      query = query.order(orderMatch[1], { ascending: true });
+    }
+
+    // LIMIT
+    const limitMatch = sql.match(/LIMIT\s+(\d+)/i);
+    if (limitMatch) {
+      query = query.limit(parseInt(limitMatch[1]));
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('❌ Supabase Query Error:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (e) {
+    console.error('❌ getQuery Error:', e);
     return [];
   }
 }
 
-// ========== 3. محرك التنفيذ والتعديل الصارم (RUN QUERY) ==========
+// ========== تنفيذ أوامر (INSERT/UPDATE/DELETE) ==========
 export async function runQuery(sql, params = []) {
-  const db = await getDatabaseConnection();
   try {
-    // تنفيذ استعلامات INSERT, UPDATE, DELETE القياسية مباشرة
-    const result = await db.run(sql, params);
-    return result;
-  } catch (error) {
-    console.error("❌ فشل المحرك الحقيقي في تنفيذ عملية التعديل/الإدخال:", error);
-    throw error;
+    const sqlUpper = sql.toUpperCase().trim();
+
+    // INSERT
+    if (sqlUpper.startsWith('INSERT')) {
+      const tableMatch = sql.match(/INTO\s+(\w+)/i);
+      if (!tableMatch) return null;
+      const table = tableMatch[1];
+
+      const row = {};
+      if (table === 'colleges') {
+        row.name = params[0];
+        row.status = 'active';
+      } else if (table === 'departments') {
+        row.name = params[0];
+        row.college_id = params[1];
+        row.status = 'active';
+      } else if (table === 'majors') {
+        row.name = params[0];
+        row.department_id = params[1];
+        row.fees = params[2] || 0;
+        row.duration = params[3] || '4 سنوات';
+        row.status = 'active';
+      } else if (table === 'students') {
+        row.university_id = params[0];
+        row.full_name = params[1];
+        row.phone = params[2] || '';
+        row.major_id = params[5] || null;
+        row.status = 'active';
+      } else if (table === 'attendance') {
+        row.student_id = params[0];
+        row.date = params[1];
+        row.time_in = params[2] || new Date().toLocaleTimeString('ar-SA');
+        row.status = params[3] || 'present';
+        row.method = params[5] || 'fingerprint';
+      } else if (table === 'devices') {
+        row.name = params[0];
+        row.ip_address = params[1];
+        row.port = params[2] || 4370;
+        row.status = 'offline';
+      } else if (table === 'calendar') {
+        row.event = params[0];
+        row.date_from = params[1];
+        row.date_to = params[2];
+        row.type = params[3] || 'event';
+      }
+
+      const { error } = await supabase.from(table).insert([row]);
+      if (error) console.error('❌ Insert Error:', error);
+      return { error };
+    }
+
+    // UPDATE
+    if (sqlUpper.startsWith('UPDATE')) {
+      const tableMatch = sql.match(/UPDATE\s+(\w+)/i);
+      if (!tableMatch) return null;
+      const table = tableMatch[1];
+
+      if (table === 'attendance' && sqlUpper.includes('STUDENT_ID=?') && sqlUpper.includes('DATE=?')) {
+        const { error } = await supabase.from(table)
+          .update({ status: params[0], time_in: params[3] })
+          .eq('student_id', params[1])
+          .eq('date', params[2]);
+        if (error) console.error('❌ Update Error:', error);
+        return { error };
+      }
+
+      if (table === 'devices' && sqlUpper.includes('ID=?')) {
+        const { error } = await supabase.from(table)
+          .update({ status: params[0], last_sync: params[1] })
+          .eq('id', params[2]);
+        if (error) console.error('❌ Update Error:', error);
+        return { error };
+      }
+    }
+
+    // DELETE
+    if (sqlUpper.startsWith('DELETE')) {
+      const tableMatch = sql.match(/FROM\s+(\w+)/i);
+      if (!tableMatch) return null;
+      const table = tableMatch[1];
+
+      const { error } = await supabase.from(table).delete().eq('id', params[0]);
+      if (error) console.error('❌ Delete Error:', error);
+      return { error };
+    }
+
+    return null;
+  } catch (e) {
+    console.error('❌ runQuery Error:', e);
+    return null;
   }
 }
 
-// ========== 4. دوال التوافقية والأمان والمزامنة الحية ==========
-export async function loadFromLocalStorage() {
-  // تُترك للحفاظ على استقرار الاستدعاءات القديمة في بعض شاشات التهيئة
-  return [];
+// ========== نسخ احتياطي ==========
+export function exportDatabase() {
+  console.log('📥 النسخ الاحتياطي متاح عبر Supabase Dashboard');
 }
 
-export function closeDatabase() {
-  // محرك SQLite محلي يغلق الاتصالات تلقائياً عند انتهاء العمليات بفضل الإعدادات الذكية
-}
-
-// تصدير نسخة احتياطية حقيقية بصيغة SQL القياسية
-export async function exportDatabase() {
-  // يمكنك استدعاء هذا لنسخ ملف الـ university.db بالكامل كنسخة احتياطية آمنة في فلاش ميموري
-  console.log(`🔒 البيانات محفوظة بأمان في المسار: ${DB_PATH}`);
+export async function importDatabase(file) {
+  console.log('📤 الاستيراد متاح عبر Supabase Dashboard');
 }
