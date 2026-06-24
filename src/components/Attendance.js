@@ -1,4 +1,4 @@
-// src/components/Attendance.js – نظام رصد الحضور والانصراف بالبصمة الذكية (الإصدار الإمبراطوري الفاخر والمستقر)
+// src/components/Attendance.js – نظام رصد الحضور والانصراف بالبصمة الذكية (الإصدار الإمبراطوري الفاخر والمستقر - النسخة المصححة)
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery } from '../services/db';
@@ -66,7 +66,7 @@ function Attendance() {
     setTodayAttendance(data);
   };
 
-  // ========== إحصائيات المجموعات الحية ==========
+  // ========== إحصائيات المجموعات الحية (تم التعديل لتصبح متزامنة وديناميكية فوراً) ==========
   const loadStats = () => {
     const present = getQuery("SELECT COUNT(DISTINCT student_id) as c FROM attendance WHERE date=? AND status='present'", [today])[0]?.c || 0;
     const absent = getQuery("SELECT COUNT(DISTINCT student_id) as c FROM attendance WHERE date=? AND status='absent'", [today])[0]?.c || 0;
@@ -74,10 +74,23 @@ function Attendance() {
     setStats({ present, absent, late });
   };
 
-  // ========== معالجة تسجيل الحضور بنبض البصمة الذكي ==========
+  // ========== معالجة تسجيل الحضور بنبض البصمة الذكي (تم حل مشكلة تخطي الغياب المقيد) ==========
   const markAttendance = (student, status = 'present') => {
     if (attendanceTimeoutRef.current) {
       clearTimeout(attendanceTimeoutRef.current);
+    }
+
+    // [إصلاح 1] التحقق الفوري قبل بدء البصمة: هل الطالب مقيد كغائب إدارياً اليوم؟
+    const checkAbsent = getQuery("SELECT status FROM attendance WHERE student_id=? AND date=? AND status='absent'", [student.id, today]);
+    if (checkAbsent.length > 0) {
+      setAttendanceStatus({
+        student: student.full_name,
+        time: '—',
+        status: 'مرفوض! حالة غياب مقيدة الإدارة ولا يمكن تخطيها بالبصمة',
+        icon: '❌',
+        color: '#ef4444'
+      });
+      return; // إلغاء العملية فوراً ومنع تحويل الحالة إلى حاضر
     }
 
     setScanningId(student.id); // بدء تأثير وميض البصمة الأخضر
@@ -154,7 +167,7 @@ function Attendance() {
     loadTodayAttendance();
   };
 
-  // ========== استدعاء التقرير الشهري التراكمي (تم إضافة جلب الكلية هنا) ==========
+  // ========== استدعاء التقرير الشهري التراكمي (تم إصلاح جلب الكلية وضمان عدم اختفائها) ==========
   const loadMonthlyData = () => {
     const data = getQuery(`
       SELECT s.full_name, s.university_id, c.name as college_name,
@@ -169,7 +182,7 @@ function Attendance() {
       LEFT JOIN departments d ON m.department_id = d.id
       LEFT JOIN colleges c ON d.college_id = c.id
       WHERE a.date LIKE '${selectedMonth}%'
-      GROUP BY s.id
+      GROUP BY s.id, s.full_name, s.university_id, c.name
       ORDER BY rate DESC
     `);
     setMonthlyData(data);
@@ -192,7 +205,7 @@ function Attendance() {
       <div className="tabs" style={{ display: 'flex', gap: '10px', background: 'rgba(255,255,255,0.02)', padding: '10px', borderRadius: '18px', border: '1px solid var(--glass-border)', marginBottom: '30px' }}>
         {[
           { id: 'live', label: '🖐️ نظام مسح البصمة المباشر' },
-          { id: 'today', label: '📋 بيان الحضور اليومي للمقاعد', action: loadTodayAttendance },
+          { id: 'today', label: '📋 بيان الحضور اليومي للمقاعد', action: () => { loadTodayAttendance(); loadStats(); } },
           { id: 'monthly', label: '📊 مصفوفة التقارير الشهرية التراكمية', action: loadMonthlyData }
         ].map(t => (
           <motion.button
@@ -404,7 +417,7 @@ function Attendance() {
                         background: a.status === 'present' ? 'rgba(16,185,129,0.1)' : a.status === 'late' ? 'rgba(214,175,55,0.1)' : 'rgba(239,68,68,0.1)',
                         color: a.status === 'present' ? 'var(--green-bright)' : a.status === 'late' ? 'var(--gold-main)' : '#ef4444'
                       }}>
-                        {a.status === 'present' ? 'حاضر معتمد' : a.status === 'late' ? 'متأخر صباحاً' : 'غائب'}
+                        {a.status === 'present' ? 'حاضر معتمد' : a.status === 'late' ? 'متأخر صباحاً' : 'غائب إداري'}
                       </span>
                     </td>
                     <td>
