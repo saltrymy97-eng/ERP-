@@ -56,7 +56,7 @@ export function closeDatabase() {}
 // ========== محرك SQL المطور ==========
 export function getQuery(sql, params = []) {
   const data = loadData();
-  const sqlUpper = sql.toUpperCase().replace(/\s+/g, ' ').trim(); // توحيد المسافات لضمان ثبات البحث
+  const sqlUpper = sql.toUpperCase().replace(/\s+/g, ' ').trim();
 
   if (/\bJOIN\b/i.test(sqlUpper)) {
     return handleJoin(sql, sqlUpper, params, data);
@@ -85,7 +85,7 @@ export function runQuery(sql, params = []) {
   return data;
 }
 
-// ========== معالج JOIN المقاوم لضغط أدوات الـ Build ==========
+// ========== معالج JOIN ==========
 function handleJoin(sql, sqlUpper, params, data) {
   const tableMatches = sql.match(/FROM\s+(\w+)(?:\s+(\w+))?/i);
   if (!tableMatches) return [];
@@ -93,7 +93,6 @@ function handleJoin(sql, sqlUpper, params, data) {
   const mainTable = tableMatches[1];
   const mainAlias = tableMatches[2] || mainTable;
   
-  // [إصلاح Regex الكلية] تم تعديل النمط البرمجي ليدعم غياب المسافات حول علامة الـ (=) بسبب الـ Minification
   const joinPattern = /(LEFT\s+)?JOIN\s+(\w+)\s+(\w+)\s+ON\s*\(?\s*(\w+)\.(\w+)\s*=\s*(\w+)\.(\w+)\s*\)?/gi;
   const joins = [];
   let match;
@@ -113,7 +112,7 @@ function handleJoin(sql, sqlUpper, params, data) {
 
   let rows = [...(data[mainTable] || [])];
 
-  // تطبيق الفلاتر
+  // تطبيق الفلاتر أولاً على الجدول الرئيسي قبل الربط أو بعده
   const whereMatch = sql.match(/WHERE\s+(.+?)(?:ORDER|GROUP|LIMIT|$)/i);
   if (whereMatch) {
     rows = applyFilters(rows, sql, params);
@@ -158,10 +157,9 @@ function handleJoin(sql, sqlUpper, params, data) {
         if (!aggregated[key]) {
           aggregated[key] = { ...row, present_days: 0, absent_days: 0, late_days: 0, total_days: 0 };
         }
-        // حساب العدادات الشهرية ديناميكياً أثناء التجميع لمنع تجمّد التقرير التراكمي
         if (row.status === 'present') aggregated[key].present_days++;
         if (row.status === 'absent') aggregated[key].absent_days++;
-        if (row.status === 'late') { aggregated[key].late_days++; aggregated[key].present_days++; } // المتأخر يعتبر حاضراً أيضاً
+        if (row.status === 'late') { aggregated[key].late_days++; aggregated[key].present_days++; }
         
         aggregated[key].total_days++;
         aggregated[key].rate = aggregated[key].total_days > 0 ? Math.round((aggregated[key].present_days / aggregated[key].total_days) * 100) : 0;
@@ -195,7 +193,7 @@ function handleJoin(sql, sqlUpper, params, data) {
   return rows;
 }
 
-// ========== معالج COUNT المطور حسابياً ==========
+// ========== معالج COUNT ==========
 function handleCount(sql, sqlUpper, params, data) {
   const tableMatch = sql.match(/FROM\s+(\w+)/i);
   if (!tableMatch) return [{ c: 0 }];
@@ -242,17 +240,17 @@ function handleSelect(sql, sqlUpper, params, data) {
   return rows;
 }
 
-// ========== الفلترة الذكية والمصححة التزامياً ==========
+// ========== الفلترة الذكية المحدثة بالتوافقية الكاملة ==========
 function applyFilters(rows, sql, params) {
   const sqlClean = sql.toUpperCase().replace(/\s+/g, ' ');
-  const today = new Date().toISOString().slice(0, 10);
-
+  
+  // فلاتر الحالة العامة
   if (sqlClean.includes("STATUS='ACTIVE'")) rows = rows.filter(r => r.status === 'active');
   if (sqlClean.includes("STATUS='PRESENT'")) rows = rows.filter(r => r.status === 'present');
   if (sqlClean.includes("STATUS='ABSENT'")) rows = rows.filter(r => r.status === 'absent');
   if (sqlClean.includes("STATUS='LATE'")) rows = rows.filter(r => r.status === 'late');
 
-  // معالجة البحث عن الشهور التراكمية بشكل سليم
+  // معالجة التواريخ والطلاب
   const dateLikeMatch = sql.match(/DATE\s+LIKE\s+'([\d-]+)%'/i);
   if (dateLikeMatch) {
     const monthPrefix = dateLikeMatch[1];
@@ -265,34 +263,50 @@ function applyFilters(rows, sql, params) {
     rows = rows.filter(r => r.student_id === params[0]);
   }
 
+  // [إضافة إمبراطورية للربط] دعم فلترة الكليات والأقسام ديناميكياً عند الاستعلام الفرعي
+  if (sqlClean.includes('COLLEGE_ID=?') && params.length > 0) {
+    // العثور على موقع المعامل الخاص بـ college_id اعتماداً على نص الاستعلام
+    rows = rows.filter(r => String(r.college_id) === String(params[0]));
+  }
+  if (sqlClean.includes('DEPARTMENT_ID=?') && params.length > 0) {
+    // في حال كان هناك أكثر من معامل، نأخذ المعامل المناسب
+    const idx = sqlClean.indexOf('DEPARTMENT_ID=?') < sqlClean.indexOf('COLLEGE_ID=?') ? 0 : (params.length - 1);
+    rows = rows.filter(r => String(r.department_id) === String(params[idx]));
+  }
+
   return rows;
 }
 
-// ========== معالج INSERT ==========
+// ========== معالج INSERT المطور لدعم الهيكلية الأكاديمية ==========
 function handleInsert(sql, params, data) {
   const tableMatch = sql.match(/INTO\s+(\w+)/i);
   if (!tableMatch) return;
   const table = tableMatch[1];
   if (!data[table]) data[table] = [];
 
-  const row = { id: nextId(data), created_at: new Date().toISOString() };
+  const row = { id: nextId(data), created_at: new Date().toISOString(), status: 'active' };
 
   if (table === 'attendance') {
     row.student_id = params[0]; row.date = params[1]; row.time_in = params[2];
     row.status = params[3] || 'present'; row.late_minutes = params[4] || 0; row.method = params[5] || 'fingerprint';
   } else if (table === 'students') {
     row.university_id = params[0]; row.full_name = params[1]; row.phone = params[2] || '';
-    row.major_id = params[5] || null; row.status = 'active';
+    row.major_id = params[5] || null;
+  } else if (table === 'colleges') {
+    row.name = params[0]; row.code = params[1] || '';
+  } else if (table === 'departments') {
+    row.name = params[0]; row.college_id = params[1]; row.code = params[2] || '';
+  } else if (table === 'majors') {
+    row.name = params[0]; row.department_id = params[1]; row.college_id = params[2];
+    row.fees = params[3] || 0; row.duration = params[4] || 4;
   } else {
-    // إدراج الحقول الافتراضية للجداول الأخرى توازياً
     if(params[0]) row.name = params[0];
-    row.status = 'active';
   }
 
   data[table].push(row);
 }
 
-// ========== معالج UPDATE ==========
+// ========== معالج UPDATE المطور ==========
 function handleUpdate(sql, params, data) {
   const tableMatch = sql.match(/UPDATE\s+(\w+)/i);
   if (!tableMatch || params.length === 0) return;
@@ -301,7 +315,6 @@ function handleUpdate(sql, params, data) {
   const sqlUpper = sql.toUpperCase();
 
   if (table === 'attendance') {
-    // تحديث مرن يبحث بالمعرفات الحيوية للـ Composite Keys
     const studentId = params[2];
     const targetDate = params[3];
     const idx = data[table].findIndex(r => r.student_id === studentId && r.date === targetDate);
@@ -309,6 +322,20 @@ function handleUpdate(sql, params, data) {
       data[table][idx].status = params[0];
       data[table][idx].time_in = params[1];
       if (params[4]) data[table][idx].time_out = params[4];
+    }
+  } else {
+    // تحديث عام للمستندات الأكاديمية بناءً على الـ ID (الـ ID يكون دائماً المعامل الأخير في الـ WHERE)
+    const id = params[params.length - 1];
+    const idx = data[table].findIndex(r => r.id === id);
+    if (idx >= 0) {
+      if (table === 'colleges') {
+        data[table][idx].name = params[0]; data[table][idx].code = params[1] || '';
+      } else if (table === 'departments') {
+        data[table][idx].name = params[0]; data[table][idx].college_id = params[1]; data[table][idx].code = params[2] || '';
+      } else if (table === 'majors') {
+        data[table][idx].name = params[0]; data[table][idx].department_id = params[1];
+        data[table][idx].college_id = params[2]; data[table][idx].fees = params[3]; data[table][idx].duration = params[4];
+      }
     }
   }
 }
