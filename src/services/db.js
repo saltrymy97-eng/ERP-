@@ -1,4 +1,4 @@
-// src/services/db.js – قاعدة بيانات محلية احترافية ومطورة (النسخة الإمبراطورية المصححة والمقاومة للمينيفكيشن)
+// src/services/db.js – قاعدة بيانات محلية احترافية ومطورة (النسخة الإمبراطورية الذكية المرنة)
 const DB_KEY = 'attendance_db';
 
 function loadData() {
@@ -112,13 +112,11 @@ function handleJoin(sql, sqlUpper, params, data) {
 
   let rows = [...(data[mainTable] || [])];
 
-  // تطبيق الفلاتر أولاً على الجدول الرئيسي قبل الربط أو بعده
   const whereMatch = sql.match(/WHERE\s+(.+?)(?:ORDER|GROUP|LIMIT|$)/i);
   if (whereMatch) {
     rows = applyFilters(rows, sql, params);
   }
 
-  // ربط الجداول ديناميكياً
   for (const join of joins) {
     const rightData = data[join.table] || [];
     
@@ -144,7 +142,6 @@ function handleJoin(sql, sqlUpper, params, data) {
     }).filter(Boolean);
   }
 
-  // GROUP BY
   if (sqlUpper.includes('GROUP BY')) {
     const groupMatch = sql.match(/GROUP\s+BY\s+([\w.]+)/i);
     if (groupMatch) {
@@ -169,7 +166,6 @@ function handleJoin(sql, sqlUpper, params, data) {
     }
   }
 
-  // ORDER BY
   const orderMatch = sql.match(/ORDER\s+BY\s+([\w.]+)\s*(DESC)?/i);
   if (orderMatch) {
     const fullCol = orderMatch[1];
@@ -184,7 +180,6 @@ function handleJoin(sql, sqlUpper, params, data) {
     });
   }
 
-  // LIMIT
   const limitMatch = sql.match(/LIMIT\s+(\d+)/i);
   if (limitMatch) {
     rows = rows.slice(0, parseInt(limitMatch[1]));
@@ -240,17 +235,15 @@ function handleSelect(sql, sqlUpper, params, data) {
   return rows;
 }
 
-// ========== الفلترة الذكية المحدثة بالتوافقية الكاملة ==========
+// ========== الفلترة الذكية ==========
 function applyFilters(rows, sql, params) {
   const sqlClean = sql.toUpperCase().replace(/\s+/g, ' ');
   
-  // فلاتر الحالة العامة
   if (sqlClean.includes("STATUS='ACTIVE'")) rows = rows.filter(r => r.status === 'active');
   if (sqlClean.includes("STATUS='PRESENT'")) rows = rows.filter(r => r.status === 'present');
   if (sqlClean.includes("STATUS='ABSENT'")) rows = rows.filter(r => r.status === 'absent');
   if (sqlClean.includes("STATUS='LATE'")) rows = rows.filter(r => r.status === 'late');
 
-  // معالجة التواريخ والطلاب
   const dateLikeMatch = sql.match(/DATE\s+LIKE\s+'([\d-]+)%'/i);
   if (dateLikeMatch) {
     const monthPrefix = dateLikeMatch[1];
@@ -260,16 +253,13 @@ function applyFilters(rows, sql, params) {
   }
 
   if (sqlClean.includes('STUDENT_ID=?') && params.length > 0) {
-    rows = rows.filter(r => r.student_id === params[0]);
+    rows = rows.filter(r => String(r.student_id) === String(params[0]));
   }
 
-  // [إضافة إمبراطورية للربط] دعم فلترة الكليات والأقسام ديناميكياً عند الاستعلام الفرعي
   if (sqlClean.includes('COLLEGE_ID=?') && params.length > 0) {
-    // العثور على موقع المعامل الخاص بـ college_id اعتماداً على نص الاستعلام
     rows = rows.filter(r => String(r.college_id) === String(params[0]));
   }
   if (sqlClean.includes('DEPARTMENT_ID=?') && params.length > 0) {
-    // في حال كان هناك أكثر من معامل، نأخذ المعامل المناسب
     const idx = sqlClean.indexOf('DEPARTMENT_ID=?') < sqlClean.indexOf('COLLEGE_ID=?') ? 0 : (params.length - 1);
     rows = rows.filter(r => String(r.department_id) === String(params[idx]));
   }
@@ -277,7 +267,7 @@ function applyFilters(rows, sql, params) {
   return rows;
 }
 
-// ========== معالج INSERT المطور لدعم الهيكلية الأكاديمية ==========
+// ========== معالج INSERT الإمبراطوري المرن (يقبل أي ترتيب وأي هيكلية) ==========
 function handleInsert(sql, params, data) {
   const tableMatch = sql.match(/INTO\s+(\w+)/i);
   if (!tableMatch) return;
@@ -286,33 +276,63 @@ function handleInsert(sql, params, data) {
 
   const row = { id: nextId(data), created_at: new Date().toISOString(), status: 'active' };
 
-  if (table === 'attendance') {
-    row.student_id = params[0]; row.date = params[1]; row.time_in = params[2];
-    row.status = params[3] || 'present'; row.late_minutes = params[4] || 0; row.method = params[5] || 'fingerprint';
-  } else if (table === 'students') {
-    row.university_id = params[0]; row.full_name = params[1]; row.phone = params[2] || '';
-    row.major_id = params[5] || null;
-  } else if (table === 'colleges') {
-    row.name = params[0]; row.code = params[1] || '';
-  } else if (table === 'departments') {
-    row.name = params[0]; row.college_id = params[1]; row.code = params[2] || '';
-  } else if (table === 'majors') {
-    row.name = params[0]; row.department_id = params[1]; row.college_id = params[2];
-    row.fees = params[3] || 0; row.duration = params[4] || 4;
+  // إذا تم تمرير البيانات كـ Object مباشر بدلاً من مصفوفة معماة
+  if (params && !Array.isArray(params) && typeof params === 'object') {
+    Object.keys(params).forEach(key => {
+      row[key] = (params[key] === '' || params[key] === undefined) ? null : params[key];
+    });
   } else {
-    if(params[0]) row.name = params[0];
+    // استخراج أسماء الأعمدة المستهدفة من الاستعلام لربطها بالـ params بشكل ديناميكي مرن
+    const columnsMatch = sql.match(/\(([^)]+)\)\s+VALUES/i);
+    if (columnsMatch && params.length > 0) {
+      const cols = columnsMatch[1].split(',').map(c => c.trim().toLowerCase());
+      cols.forEach((col, idx) => {
+        if (params[idx] !== undefined) {
+          row[col] = (params[idx] === '' || params[idx] === undefined) ? null : params[idx];
+        }
+      });
+    } else {
+      // الـ Fallback التقليدي القديم للحفاظ على التوافقية الكاملة
+      if (table === 'attendance') {
+        row.student_id = params[0]; row.date = params[1]; row.time_in = params[2];
+        row.status = params[3] || 'present'; row.late_minutes = params[4] || 0; row.method = params[5] || 'fingerprint';
+      } else if (table === 'students') {
+        row.university_id = params[0]; row.full_name = params[1]; row.phone = params[2] || ''; row.major_id = params[3] || params[5] || null;
+      } else if (table === 'colleges') {
+        row.name = params[0]; row.code = params[1] || '';
+      } else if (table === 'departments') {
+        row.name = params[0]; row.college_id = params[1]; row.code = params[2] || '';
+      } else if (table === 'majors') {
+        row.name = params[0]; row.department_id = params[1]; row.college_id = params[2]; row.fees = params[3] || 0; row.duration = params[4] || 4;
+      } else if (params[0]) {
+        row.name = params[0];
+      }
+    }
+  }
+
+  // دعم تكميلي ذكي: التأكد من سحب الحقول الحيوية المتقاطعة لضمان عدم حدوث قيم ميتة
+  if (table === 'students') {
+    if (!row.university_id && params[0]) row.university_id = params[0];
+    if (!row.full_name && params[1]) row.full_name = params[1];
+    // ربط تلقائي ذكي للكلية عبر التخصص المختار إذا لم يُرسل صراحة
+    if (row.major_id && data.majors) {
+      const major = data.majors.find(m => String(m.id) === String(row.major_id));
+      if (major) {
+        row.college_id = major.college_id;
+        row.department_id = major.department_id;
+      }
+    }
   }
 
   data[table].push(row);
 }
 
-// ========== معالج UPDATE المطور ==========
+// ========== معالج UPDATE الإمبراطوري المرن ==========
 function handleUpdate(sql, params, data) {
   const tableMatch = sql.match(/UPDATE\s+(\w+)/i);
-  if (!tableMatch || params.length === 0) return;
+  if (!tableMatch || !params || params.length === 0) return;
   const table = tableMatch[1];
   if (!data[table]) return;
-  const sqlUpper = sql.toUpperCase();
 
   if (table === 'attendance') {
     const studentId = params[2];
@@ -324,10 +344,29 @@ function handleUpdate(sql, params, data) {
       if (params[4]) data[table][idx].time_out = params[4];
     }
   } else {
-    // تحديث عام للمستندات الأكاديمية بناءً على الـ ID (الـ ID يكون دائماً المعامل الأخير في الـ WHERE)
-    const id = params[params.length - 1];
+    // استخراج كود الـ SET ديناميكياً لتحديث الحقول بأسمائها بغض النظر عن موقعها
+    const setMatch = sql.match(/SET\s+(.+?)\s+WHERE/i);
+    const id = params[params.length - 1]; // الـ ID هو المعامل الأخير دائماً بالـ WHERE
     const idx = data[table].findIndex(r => r.id === id);
-    if (idx >= 0) {
+
+    if (idx >= 0 && setMatch) {
+      const setFields = setMatch[1].split(',').map(f => f.split('=')[0].trim().toLowerCase());
+      setFields.forEach((field, i) => {
+        if (params[i] !== undefined) {
+          data[table][idx][field] = params[i];
+        }
+      });
+      
+      // مزامنة أمنية حية بعد التحديث
+      if (table === 'students' && data[table][idx].major_id && data.majors) {
+        const major = data.majors.find(m => String(m.id) === String(data[table][idx].major_id));
+        if (major) {
+          data[table][idx].college_id = major.college_id;
+          data[table][idx].department_id = major.department_id;
+        }
+      }
+    } else if (idx >= 0) {
+      // الـ Fallback التقليدي
       if (table === 'colleges') {
         data[table][idx].name = params[0]; data[table][idx].code = params[1] || '';
       } else if (table === 'departments') {
