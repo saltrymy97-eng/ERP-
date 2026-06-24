@@ -35,27 +35,30 @@ function Attendance() {
     }
   }, [selectedMonth, tab]);
 
-  // ========== تحميل سجلات الطلاب النشطين ==========
+  // ========== تحميل سجلات الطلاب النشطين (تم إضافة ربط الكليات هنا) ==========
   const loadStudents = () => {
     const data = getQuery(`
-      SELECT s.*, m.name as major_name, d.name as department_name
+      SELECT s.*, m.name as major_name, d.name as department_name, c.name as college_name
       FROM students s
       LEFT JOIN majors m ON s.major_id = m.id
       LEFT JOIN departments d ON m.department_id = d.id
+      LEFT JOIN colleges c ON d.college_id = c.id
       WHERE s.status='active'
       ORDER BY s.full_name
     `);
     setStudents(data);
   };
 
-  // ========== تحميل حركة حضور اليوم ==========
+  // ========== تحميل حركة حضور اليوم (تم إضافة ربط الكليات هنا) ==========
   const loadTodayAttendance = () => {
     const data = getQuery(`
       SELECT a.*, s.full_name, s.university_id, s.phone,
-             m.name as major_name, sc.subject, sc.time_from, sc.time_to, sc.room
+             m.name as major_name, c.name as college_name, sc.subject, sc.time_from, sc.time_to, sc.room
       FROM attendance a
       JOIN students s ON a.student_id = s.id
       LEFT JOIN majors m ON s.major_id = m.id
+      LEFT JOIN departments d ON m.department_id = d.id
+      LEFT JOIN colleges c ON d.college_id = c.id
       LEFT JOIN schedules sc ON a.schedule_id = sc.id
       WHERE a.date = ?
       ORDER BY a.time_in DESC
@@ -73,7 +76,6 @@ function Attendance() {
 
   // ========== معالجة تسجيل الحضور بنبض البصمة الذكي ==========
   const markAttendance = (student, status = 'present') => {
-    // إلغاء أي مؤقت فحص بصمة سابق قيد الانتظار لتأمين العمليات الحالية
     if (attendanceTimeoutRef.current) {
       clearTimeout(attendanceTimeoutRef.current);
     }
@@ -87,7 +89,6 @@ function Attendance() {
       const isLate = timeNow > lateThreshold && status === 'present';
       const currentStatus = isLate ? 'late' : status;
 
-      // التأكد من عدم تكرار القيد لنفس اليوم
       const exists = getQuery("SELECT id FROM attendance WHERE student_id=? AND date=?", [student.id, today]);
       if (exists.length > 0) {
         runQuery("UPDATE attendance SET status=?, time_in=? WHERE student_id=? AND date=?", [currentStatus, timeNow, student.id, today]);
@@ -110,12 +111,11 @@ function Attendance() {
       attendanceTimeoutRef.current = null;
       loadTodayAttendance();
       loadStats();
-    }, 1200); // محاكاة زمن مسح مستشعر البصمة البيومتري
+    }, 1200);
   };
 
   // ========== قيد غياب يدوي إداري ==========
   const markAbsent = (student) => {
-    // 💥 خطوة الحماية الذهبية: إذا كان هناك مؤقت حضور يعمل لهذا الطالب بالتحديد، نقوم بقتله فوراً!
     if (scanningId === student.id && attendanceTimeoutRef.current) {
       clearTimeout(attendanceTimeoutRef.current);
       attendanceTimeoutRef.current = null;
@@ -154,10 +154,10 @@ function Attendance() {
     loadTodayAttendance();
   };
 
-  // ========== استدعاء التقرير الشهري التراكمي ==========
+  // ========== استدعاء التقرير الشهري التراكمي (تم إضافة جلب الكلية هنا) ==========
   const loadMonthlyData = () => {
     const data = getQuery(`
-      SELECT s.full_name, s.university_id,
+      SELECT s.full_name, s.university_id, c.name as college_name,
              COUNT(CASE WHEN a.status='present' THEN 1 END) as present_days,
              COUNT(CASE WHEN a.status='absent' THEN 1 END) as absent_days,
              COUNT(CASE WHEN a.status='late' THEN 1 END) as late_days,
@@ -165,6 +165,9 @@ function Attendance() {
              ROUND(CAST(COUNT(CASE WHEN a.status='present' THEN 1 END) AS FLOAT) / COUNT(*)*100, 1) as rate
       FROM students s
       JOIN attendance a ON s.id = a.student_id
+      LEFT JOIN majors m ON s.major_id = m.id
+      LEFT JOIN departments d ON m.department_id = d.id
+      LEFT JOIN colleges c ON d.college_id = c.id
       WHERE a.date LIKE '${selectedMonth}%'
       GROUP BY s.id
       ORDER BY rate DESC
@@ -172,7 +175,6 @@ function Attendance() {
     setMonthlyData(data);
   };
 
-  // ========== عناصر تحريك المكونات الحية (Framer Motion) ==========
   const containerVariants = {
     hidden: { opacity: 0 },
     show: { opacity: 1, transition: { staggerChildren: 0.04 } }
@@ -230,7 +232,6 @@ function Attendance() {
             />
           </div>
 
-          {/* 🔔 نافذة الإشعار العائم العلوي عند التمرير الفوري */}
           <AnimatePresence>
             {attendanceStatus && (
               <motion.div 
@@ -255,7 +256,6 @@ function Attendance() {
             )}
           </AnimatePresence>
 
-          {/* 👥 شبكة بطاقات الطلاب العائمة المجسمة */}
           <motion.div className="students-grid" variants={containerVariants} initial="hidden" animate="show" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
             {students
               .filter(s => s.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || s.university_id?.includes(searchTerm))
@@ -296,7 +296,7 @@ function Attendance() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                         <span style={{ color: '#fff', fontWeight: 700, fontSize: '1.05rem', letterSpacing: '-0.3px' }}>{student.full_name}</span>
                         <span style={{ color: 'var(--gold-light)', fontSize: '0.85rem', fontWeight: 600 }}>🔢 {student.university_id}</span>
-                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>📂 {student.major_name}</span>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>🏛️ {student.college_name || 'بدون كلية'} - {student.major_name}</span>
                       </div>
                     </div>
 
@@ -305,7 +305,7 @@ function Attendance() {
                         <>
                           <motion.button
                             onClick={() => markAttendance(student, 'present')}
-                            disabled={scanningId !== null} // تعطيل كافة الأزرار أثناء فحص بصمة أي طالب
+                            disabled={scanningId !== null}
                             whileHover={{ scale: scanningId !== null ? 1 : 1.03 }}
                             style={{ flex: 2, background: scanningId !== null ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, var(--emerald-light), var(--green-bright))', color: scanningId !== null ? 'var(--text-secondary)' : '#fff', border: 'none', padding: '10px', borderRadius: '10px', fontWeight: 700, cursor: scanningId !== null ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
                           >
@@ -313,7 +313,7 @@ function Attendance() {
                           </motion.button>
                           <button
                             onClick={() => markAbsent(student)}
-                            disabled={scanningId !== null && scanningId !== student.id} // تمكين الإداري من كسر الفحص الجاري لهذا الطالب بالذات لتقييد غيابه
+                            disabled={scanningId !== null && scanningId !== student.id}
                             style={{ flex: 1, background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', padding: '10px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}
                           >
                             ❌ غياب
@@ -356,7 +356,6 @@ function Attendance() {
       {/* 📊 القسم الثاني: بيان كشف الحضور التفصيلي لليوم */}
       {tab === 'today' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="today-attendance">
-          {/* كتل الإحصائيات الفاخرة ثلاثية الأبعاد */}
           <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '30px' }}>
             {[
               { label: 'الطلاب الحاضرين اليوم', count: stats.present, color: 'var(--green-bright)', bg: 'rgba(16,185,129,0.03)', border: 'rgba(16,185,129,0.15)' },
@@ -381,7 +380,8 @@ function Attendance() {
                   <th>#</th>
                   <th>الرقم الجامعي</th>
                   <th>اسم الطالب الأكاديمي رباعياً</th>
-                  <th>مساق المسار الدراسي</th>
+                  <th>الكلية</th>
+                  <th>التخصص الدراسي</th>
                   <th>توقيت البصمة (دخول)</th>
                   <th>توقيت البصمة (خروج)</th>
                   <th>حالة القيد الحالية</th>
@@ -394,6 +394,7 @@ function Attendance() {
                     <td><strong>{i + 1}</strong></td>
                     <td style={{ color: 'var(--gold-light)', fontWeight: 700 }}>{a.university_id}</td>
                     <td style={{ color: 'var(--white)', fontWeight: 600 }}>{a.full_name}</td>
+                    <td style={{ color: 'var(--text-secondary)' }}>{a.college_name || '—'}</td>
                     <td>{a.major_name}</td>
                     <td style={{ fontWeight: 700, color: '#e2e8f0' }}>⏱️ {a.time_in || '—'}</td>
                     <td style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>🚪 {a.time_out || '—'}</td>
@@ -424,7 +425,7 @@ function Attendance() {
                 ))}
                 {todayAttendance.length === 0 && (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>🚫 لم يتم تسجيل أي حركة حضور أو غياب بيومنا هذا بعد.</td>
+                    <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>🚫 لم يتم تسجيل أي حركة حضور أو غياب بيومنا هذا بعد.</td>
                   </tr>
                 )}
               </tbody>
@@ -456,6 +457,7 @@ function Attendance() {
                   <th>#</th>
                   <th>الرقم الجامعي</th>
                   <th>اسم الطالب الأكاديمي</th>
+                  <th>الكلية</th>
                   <th>أيام الحضور</th>
                   <th>أيام الغياب</th>
                   <th>أيام التأخير</th>
@@ -471,6 +473,7 @@ function Attendance() {
                       <td><strong>{i + 1}</strong></td>
                       <td style={{ color: 'var(--gold-light)', fontWeight: 700 }}>{m.university_id}</td>
                       <td style={{ color: 'var(--white)', fontWeight: 600 }}>{m.full_name}</td>
+                      <td style={{ color: 'var(--text-secondary)' }}>{m.college_name || '—'}</td>
                       <td style={{ color: 'var(--green-bright)', fontWeight: 700 }}>{m.present_days} أيام</td>
                       <td style={{ color: '#ef4444', fontWeight: 700 }}>{m.absent_days} أيام</td>
                       <td style={{ color: 'var(--gold-main)' }}>{m.late_days} مـرة</td>
@@ -491,7 +494,7 @@ function Attendance() {
                 })}
                 {monthlyData.length === 0 && (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>📭 لا توجد حركات توقيع مسجلة خلال النطاق الزمني المحدد لهذا الشهر.</td>
+                    <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>📭 لا توجد حركات توقيع مسجلة خلال النطاق الزمني المحدد لهذا الشهر.</td>
                   </tr>
                 )}
               </tbody>
