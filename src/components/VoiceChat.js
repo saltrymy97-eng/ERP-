@@ -1,4 +1,4 @@
-// src/components/VoiceChat.js – بوابة التفاعل الصوتي الذكي والتحليل النطقي (الإصدار الإمبراطوري الفاخر)
+// src/components/VoiceChat.js – بوابة التفاعل الصوتي الذكي والتحليل النطقي (SQLite محلية حقيقية)
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { askAI, speakText } from '../services/ai';
@@ -7,14 +7,22 @@ function VoiceChat({ onClose }) {
   const [listening, setListening] = useState(false);
   const [conversation, setConversation] = useState([]);
   const [status, setStatus] = useState('');
-  const [currentStage, setCurrentStage] = useState('idle'); // idle | listening | thinking | speaking
+  const [currentStage, setCurrentStage] = useState('idle');
   const recognitionRef = useRef(null);
   const chatEndRef = useRef(null);
 
-  // التمرير التلقائي الفاخر لأسفل المحادثة عند تدفق البيانات الصوتية
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conversation, status]);
+
+  // تنظيف عند الخروج
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, []);
 
   const startListening = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -49,7 +57,12 @@ function VoiceChat({ onClose }) {
         setCurrentStage('speaking');
         setStatus('🔊 جاري توليد النطق ومحاكاة الصوت الرئوي المعتمد...');
         
-        speakText(answer);
+        speakText(answer, {
+          onEnd: () => {
+            setCurrentStage('idle');
+            setStatus('');
+          }
+        });
       } catch (error) {
         setStatus('❌ واجهت خوادم التفكير عارضاً تقنياً أثناء المعالجة');
         setCurrentStage('idle');
@@ -64,7 +77,6 @@ function VoiceChat({ onClose }) {
 
     recognition.onend = () => {
       setListening(false);
-      // نتركه على حالة التفكير أو التحدث حتى ينتهي الخادم من المعالجة والنطق كاملاً
     };
 
     recognitionRef.current = recognition;
@@ -91,10 +103,8 @@ function VoiceChat({ onClose }) {
         className="voice-chat-card-lux" 
         style={{ background: 'linear-gradient(145deg, #052217, #02110b)', border: '1px solid var(--glass-border)', boxShadow: '0 25px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)', width: '100%', maxWidth: '580px', borderRadius: '24px', padding: '30px', display: 'flex', flexDirection: 'column', gap: '20px', position: 'relative', overflow: 'hidden' }}
       >
-        {/* الزخرفة الإمبراطورية الخلفية للوحة العلوية */}
         <div style={{ position: 'absolute', top: 0, right: 0, width: '150px', height: '4px', background: 'linear-gradient(90deg, transparent, var(--gold-main), transparent)' }} />
 
-        {/* الترويسة الملوكية */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(214,175,55,0.1)', paddingBottom: '15px' }}>
           <div>
             <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -105,7 +115,6 @@ function VoiceChat({ onClose }) {
           <motion.button whileHover={{ scale: 1.1, rotate: 90 }} whileTap={{ scale: 0.9 }} onClick={onClose} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', color: 'rgba(255,255,255,0.5)', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>✕</motion.button>
         </div>
 
-        {/* 🌊 عرض ومحاكاة مصفوفة الموجات الصوتية الكوانتية (Quantum Audio Visualizer) */}
         <div style={{ height: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'rgba(0,0,0,0.2)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.02)', position: 'relative' }}>
           {currentStage === 'idle' && <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontStyle: 'italic' }}>بوابة الاستشعار الصوتي بانتظار أمر التفعيل...</span>}
           
@@ -132,7 +141,6 @@ function VoiceChat({ onClose }) {
           </AnimatePresence>
         </div>
 
-        {/* 📜 شريط التاريخ الزمني والترجمة النصية للحديث */}
         <div className="voice-conversation-container" style={{ height: '220px', overflowY: 'auto', padding: '10px 5px', display: 'flex', flexDirection: 'column', gap: '15px', scrollbarWidth: 'thin' }}>
           <AnimatePresence>
             {conversation.map((msg, i) => (
@@ -171,7 +179,6 @@ function VoiceChat({ onClose }) {
           <div ref={chatEndRef} />
         </div>
 
-        {/* 📡 شريط مؤشر التدقيق والحالة البنيوية العليا */}
         <AnimatePresence>
           {status && (
             <motion.p 
@@ -183,7 +190,6 @@ function VoiceChat({ onClose }) {
           )}
         </AnimatePresence>
 
-        {/* 🎛️ وحدة التحكم والأزرار الفاخرة المدمجة بنظام الألوان السيادي */}
         <div className="voice-actions-lux" style={{ display: 'flex', gap: '12px', marginTop: '5px' }}>
           <motion.button
             whileHover={{ y: -3, boxShadow: listening ? '0 10px 25px rgba(239,68,68,0.2)' : '0 10px 25px rgba(214,175,55,0.2)' }}
