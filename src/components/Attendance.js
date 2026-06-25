@@ -1,7 +1,8 @@
-// src/components/Attendance.js – نظام رصد الحضور والانصراف (SQLite محلية + صورة الطالب)
+// src/components/Attendance.js – نظام رصد الحضور والانصراف (SQLite محلية + صورة الطالب + إرسال إشعار للغائبين)
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery, initDatabase } from '../services/db';
+import { notifyAllAbsent } from '../services/whatsapp';
 
 function Attendance() {
   const [tab, setTab] = useState('live');
@@ -14,6 +15,8 @@ function Attendance() {
   const [monthlyData, setMonthlyData] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [dbReady, setDbReady] = useState(false);
+  const [sendingNotification, setSendingNotification] = useState(false);
+  const [notificationResult, setNotificationResult] = useState(null);
 
   const attendanceTimeoutRef = useRef(null);
   const today = new Date().toISOString().slice(0, 10);
@@ -72,7 +75,6 @@ function Attendance() {
       return setStats({ present: 0, absent: 0, late: 0 });
     }
 
-    // تجميع فريد حسب الطالب
     const uniqueMap = {};
     data.forEach(a => { uniqueMap[a.student_id] = a; });
     const uniqueRecords = Object.values(uniqueMap);
@@ -90,7 +92,6 @@ function Attendance() {
       clearTimeout(attendanceTimeoutRef.current);
     }
 
-    // التحقق من غياب إداري مسبق
     const checkAbsent = await getQuery(
       "SELECT status FROM attendance WHERE student_id = ? AND date = ? AND status = 'absent'",
       [student.id, today]
@@ -116,7 +117,6 @@ function Attendance() {
       const isLate = timeNow > lateThreshold && status === 'present';
       const currentStatus = isLate ? 'late' : status;
 
-      // فحص وجود سجل سابق
       const exists = await getQuery(
         "SELECT id FROM attendance WHERE student_id = ? AND date = ?",
         [student.id, today]
@@ -199,6 +199,26 @@ function Attendance() {
     await loadTodayAttendance();
   };
 
+  // ========== إرسال إشعارات لجميع الغائبين ==========
+  const handleNotifyAbsent = async () => {
+    setSendingNotification(true);
+    setNotificationResult(null);
+    
+    try {
+      const result = await notifyAllAbsent();
+      if (result.success) {
+        setNotificationResult({ type: 'success', message: `✅ تم إرسال ${result.sent} إشعار من أصل ${result.total} طالب غائب` });
+      } else {
+        setNotificationResult({ type: 'error', message: `❌ ${result.error || 'فشل الإرسال'}` });
+      }
+    } catch (e) {
+      setNotificationResult({ type: 'error', message: '❌ فشل الاتصال بخدمة الواتساب' });
+    }
+    
+    setSendingNotification(false);
+    setTimeout(() => setNotificationResult(null), 5000);
+  };
+
   // ========== التقرير الشهري ==========
   const loadMonthlyData = async () => {
     const startDate = `${selectedMonth}-01`;
@@ -218,7 +238,6 @@ function Attendance() {
       return;
     }
 
-    // تجميع حسب الطالب
     const studentMap = {};
     data.forEach(a => {
       const sid = a.student_id;
@@ -465,9 +484,55 @@ function Attendance() {
                 ))}
               </div>
 
-              <div className="tab-header" style={{ marginBottom: '20px' }}>
-                <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)' }}>📋 كشف بيان التوقيع الإلكتروني لليوم ({today})</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)', margin: 0 }}>📋 كشف بيان التوقيع الإلكتروني لليوم ({today})</h3>
+                
+                {/* زر إرسال إشعار للغائبين */}
+                <motion.button
+                  onClick={handleNotifyAbsent}
+                  disabled={sendingNotification || stats.absent === 0}
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  style={{
+                    background: sendingNotification ? 'rgba(255,255,255,0.05)' : stats.absent > 0 ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'rgba(255,255,255,0.05)',
+                    color: stats.absent > 0 ? '#fff' : 'var(--text-secondary)',
+                    border: 'none',
+                    padding: '10px 20px',
+                    borderRadius: '12px',
+                    fontWeight: 700,
+                    cursor: stats.absent > 0 && !sendingNotification ? 'pointer' : 'not-allowed',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '0.9rem'
+                  }}
+                >
+                  {sendingNotification ? '⏳ جاري الإرسال...' : `💬 إرسال إشعار للغائبين (${stats.absent})`}
+                </motion.button>
               </div>
+
+              {/* رسالة نتيجة الإرسال */}
+              <AnimatePresence>
+                {notificationResult && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    style={{
+                      padding: '12px 20px',
+                      borderRadius: '12px',
+                      marginBottom: '20px',
+                      background: notificationResult.type === 'success' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
+                      border: `1px solid ${notificationResult.type === 'success' ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                      color: notificationResult.type === 'success' ? '#10b981' : '#ef4444',
+                      fontWeight: 600,
+                      fontSize: '0.9rem'
+                    }}
+                  >
+                    {notificationResult.message}
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <div className="data-table">
                 <table>
