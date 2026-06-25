@@ -1,4 +1,5 @@
 // electron/main.js – تطبيق Electron مع SQLite حقيقية محلية احترافية
+// الإصدار 3.0 – جميع الجداول موحدة + صورة الطالب + الجداول الدراسية الكاملة
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const Database = require('better-sqlite3');
@@ -19,7 +20,7 @@ try {
   app.quit();
 }
 
-// ========== إنشاء جميع الجداول ==========
+// ========== إنشاء جميع الجداول (متوافقة مع db.js) ==========
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,6 +72,7 @@ db.exec(`
     major_id INTEGER,
     level TEXT DEFAULT '',
     group_name TEXT DEFAULT '',
+    photo TEXT DEFAULT '',
     fingerprint_data TEXT,
     status TEXT DEFAULT 'active',
     created_at TEXT DEFAULT (datetime('now', 'localtime')),
@@ -111,10 +113,14 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS schedules (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    day TEXT DEFAULT '',
     subject TEXT DEFAULT '',
+    teacher TEXT DEFAULT '',
     time_from TEXT DEFAULT '',
     time_to TEXT DEFAULT '',
-    room TEXT DEFAULT ''
+    room TEXT DEFAULT '',
+    break_time INTEGER DEFAULT 0,
+    late_tolerance INTEGER DEFAULT 10
   );
 
   CREATE TABLE IF NOT EXISTS notifications (
@@ -152,7 +158,7 @@ if (!adminExists) {
   console.log('👑 تم إنشاء حساب المدير الافتراضي');
 }
 
-console.log('✅ جميع الجداول جاهزة');
+console.log('✅ جميع الجداول جاهزة (13 جدول)');
 
 // ========== IPC: استعلام SELECT ==========
 ipcMain.handle('getQuery', (event, sql, params = []) => {
@@ -231,7 +237,6 @@ function createWindow() {
     }
   });
 
-  // تحميل التطبيق
   const isDev = process.env.NODE_ENV === 'development';
   if (isDev) {
     mainWindow.loadURL('http://localhost:3000');
@@ -267,7 +272,6 @@ app.on('window-all-closed', () => {
   }
 });
 
-// ========== تنظيف عند الخروج ==========
 app.on('before-quit', () => {
   if (db) {
     db.close();
