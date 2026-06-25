@@ -1,18 +1,26 @@
-// src/components/FaceRecognition.js – نظام التعرف على الوجه الحقيقي
-import React, { useRef, useState, useEffect } from 'react';
+// src/components/FaceRecognition.js – نظام التعرف على الوجه الحقيقي (SQLite محلية حقيقية)
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import * as faceapi from '@vladmandic/face-api';
 
 function FaceRecognition({ onRecognize, onClose }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const streamRef = useRef(null);
   const [status, setStatus] = useState('loading');
   const [message, setMessage] = useState('⏳ جاري تحميل نماذج التعرف...');
+
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     loadModels();
     return () => stopCamera();
-  }, []);
+  }, [stopCamera]);
 
   const loadModels = async () => {
     try {
@@ -23,10 +31,11 @@ function FaceRecognition({ onRecognize, onClose }) {
         faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
         faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL),
       ]);
-      startCamera();
+      await startCamera();
     } catch (e) {
+      console.error('❌ فشل تحميل نماذج التعرف:', e);
       setStatus('error');
-      setMessage('❌ فشل تحميل نماذج التعرف');
+      setMessage('❌ فشل تحميل نماذج التعرف على الوجه');
     }
   };
 
@@ -35,27 +44,26 @@ function FaceRecognition({ onRecognize, onClose }) {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: 640, height: 480 }
       });
+      
+      streamRef.current = stream;
+      
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         setStatus('ready');
-        setMessage('👁️ الكاميرا جاهزة... اضغط التقاط');
+        setMessage('👁️ الكاميرا جاهزة... اضغط التقاط للتعرف على الوجه');
       }
     } catch (error) {
+      console.error('❌ تعذر الوصول للكاميرا:', error);
       setStatus('error');
-      setMessage('❌ تعذر الوصول للكاميرا');
-    }
-  };
-
-  const stopCamera = () => {
-    if (videoRef.current?.srcObject) {
-      videoRef.current.srcObject.getTracks().forEach(t => t.stop());
+      setMessage('❌ تعذر الوصول إلى الكاميرا. تأكد من السماح بالوصول.');
     }
   };
 
   const captureFace = async () => {
     if (!videoRef.current) return;
+    
     setStatus('capturing');
-    setMessage('🧠 جاري تحليل الوجه...');
+    setMessage('🧠 جاري تحليل ملامح الوجه...');
 
     try {
       const detection = await faceapi
@@ -64,23 +72,26 @@ function FaceRecognition({ onRecognize, onClose }) {
         .withFaceDescriptor();
 
       if (detection) {
-        const confidence = Math.round((1 - detection.detection.score) * 100);
+        const confidence = Math.round(detection.detection.score * 100);
         setStatus('recognized');
-        setMessage(`✅ تم التعرف على الوجه (${confidence}%)`);
+        setMessage(`✅ تم التعرف على الوجه بنجاح (نسبة الثقة: ${confidence}%)`);
+        
         if (onRecognize) {
           onRecognize({
             name: 'طالب',
             confidence: detection.detection.score,
+            descriptor: Array.from(detection.descriptor),
             timestamp: new Date().toISOString()
           });
         }
       } else {
         setStatus('unknown');
-        setMessage('⚠️ لم يتم اكتشاف وجه... حاول مرة أخرى');
+        setMessage('⚠️ لم يتم اكتشاف وجه واضح... حاول مرة أخرى في إضاءة أفضل');
       }
     } catch (e) {
+      console.error('❌ خطأ في تحليل الوجه:', e);
       setStatus('error');
-      setMessage('❌ خطأ في التحليل');
+      setMessage('❌ خطأ في معالجة الصورة');
     }
   };
 
@@ -94,6 +105,8 @@ function FaceRecognition({ onRecognize, onClose }) {
       default: return '#64748b';
     }
   };
+
+  const isButtonDisabled = status !== 'ready' && status !== 'unknown';
 
   return (
     <div style={{
@@ -111,16 +124,24 @@ function FaceRecognition({ onRecognize, onClose }) {
         }}
       >
         <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.5rem', color: '#D4AF37', marginBottom: '15px' }}>
-          👤 التعرف على الوجه
+          👤 نظام التعرف البيومتري على الوجه
         </h3>
 
         <div style={{
           position: 'relative', borderRadius: '16px', overflow: 'hidden',
           border: `2px solid ${getStatusColor()}`, aspectRatio: '4/3', background: '#000'
         }}>
-          <video ref={videoRef} autoPlay playsInline muted
-            style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
-          <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0 }} />
+          <video 
+            ref={videoRef} 
+            autoPlay 
+            playsInline 
+            muted
+            style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} 
+          />
+          <canvas 
+            ref={canvasRef} 
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }} 
+          />
         </div>
 
         <p style={{
@@ -134,17 +155,17 @@ function FaceRecognition({ onRecognize, onClose }) {
         <div style={{ display: 'flex', gap: '10px' }}>
           <motion.button
             onClick={captureFace}
-            disabled={status !== 'ready' && status !== 'unknown'}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+            disabled={isButtonDisabled}
+            whileHover={{ scale: isButtonDisabled ? 1 : 1.02 }}
+            whileTap={{ scale: isButtonDisabled ? 1 : 0.98 }}
             style={{
               flex: 2, padding: '14px', borderRadius: '12px', fontWeight: 700,
-              background: status === 'ready' || status === 'unknown' ? '#D4AF37' : 'rgba(255,255,255,0.1)',
-              color: status === 'ready' || status === 'unknown' ? '#000' : '#666',
-              border: 'none', cursor: status === 'ready' || status === 'unknown' ? 'pointer' : 'not-allowed'
+              background: !isButtonDisabled ? '#D4AF37' : 'rgba(255,255,255,0.1)',
+              color: !isButtonDisabled ? '#000' : '#666',
+              border: 'none', cursor: isButtonDisabled ? 'not-allowed' : 'pointer'
             }}
           >
-            {status === 'capturing' ? '⏳ جاري التحليل...' : '📸 التقاط'}
+            {status === 'capturing' ? '⏳ جاري التحليل...' : '📸 التقاط الوجه'}
           </motion.button>
           
           <motion.button
