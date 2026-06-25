@@ -1,7 +1,7 @@
 {
   "name": "alquran-attendance-system",
-  "version": "1.0.0",
-  "description": "نظام متابعة حضور وغياب الطلاب - جامعة القرآن الكريم والعلوم الإسلامية",
+  "version": "3.0.0",
+  "description": "نظام متابعة حضور وغياب الطلاب - جامعة القرآن الكريم والعلوم الإسلامية - SQLite محلية + أيقونات 3D",
   "main": "electron/main.js",
   "scripts": {
     "start": "react-scripts start",
@@ -14,17 +14,8 @@
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1",
     "framer-motion": "^11.0.0",
-    "react-icons": "^5.0.0",
-    "react-router-dom": "^6.20.0",
-    "recharts": "^2.10.0",
-    "jspdf": "^2.5.1",
-    "jspdf-autotable": "^3.8.0",
     "xlsx": "^0.18.5",
-    "qrcode": "^1.5.3",
-    "qrcode.react": "^3.1.0",
-    "axios": "^1.6.0",
     "sql.js": "^1.9.0",
-    "@xenova/transformers": "^2.0.0",
     "@vladmandic/face-api": "^1.7.14",
     "better-sqlite3": "^11.0.0"
   },
@@ -40,8 +31,14 @@
     },
     "win": {
       "target": "nsis",
-      "icon": "public/icon.ico"
-    }
+      "icon": "public/logo.png"
+    },
+    "files": [
+      "build/**/*",
+      "electron/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ]
   },
   "author": "سالم التريمي",
   "license": "MIT",
