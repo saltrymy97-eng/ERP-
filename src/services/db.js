@@ -1,11 +1,11 @@
 // src/services/db.js – SQLite حقيقية محلية احترافية
-// تدعم Electron و Termux والمتصفح بحفظ دائم في ملف .db
+// تدعم Electron و Termux والمتصفح بحفظ دائم في IndexedDB
+// الإصدار 3.0 – جميع الجداول موحدة + حقل الصورة
 
 let getQuery, runQuery, initDatabase, closeDatabase, exportDatabase, importDatabase;
 
 // ========== اكتشاف البيئة تلقائياً ==========
 const isElectron = !!(window.electronAPI);
-const isNode = (typeof process !== 'undefined' && process.versions && process.versions.node);
 
 if (isElectron) {
   // ========== Electron + SQLite حقيقية ==========
@@ -40,12 +40,11 @@ if (isElectron) {
   };
 
 } else {
-  // ========== sql.js مع IndexedDB (وليس localStorage) ==========
+  // ========== sql.js مع IndexedDB ==========
   let db = null;
   let SQL = null;
   let dbReady = false;
 
-  // تهيئة sql.js مرة واحدة فقط
   const initSQL = async () => {
     if (SQL) return SQL;
     const initSqlJs = (await import('sql.js')).default;
@@ -55,7 +54,6 @@ if (isElectron) {
     return SQL;
   };
 
-  // استخدام IndexedDB بدل localStorage (أكبر وأكثر استقراراً)
   const DB_NAME = 'AttendanceSystem';
   const DB_STORE = 'database';
   const DB_KEY = 'university_db';
@@ -65,9 +63,9 @@ if (isElectron) {
       const request = indexedDB.open(DB_NAME, 1);
       
       request.onupgradeneeded = (event) => {
-        const db = event.target.result;
-        if (!db.objectStoreNames.contains(DB_STORE)) {
-          db.createObjectStore(DB_STORE);
+        const idb = event.target.result;
+        if (!idb.objectStoreNames.contains(DB_STORE)) {
+          idb.createObjectStore(DB_STORE);
         }
       };
       
@@ -112,7 +110,6 @@ if (isElectron) {
     try {
       await initSQL();
       
-      // تحميل البيانات من IndexedDB
       const saved = await loadFromIDB();
       
       if (saved) {
@@ -125,44 +122,180 @@ if (isElectron) {
       
       dbReady = true;
       
-      // إنشاء الجداول الأساسية إذا لم تكن موجودة
+      // ========== إنشاء جميع الجداول ==========
+      
+      // 1. المستخدمين
       db.run(`
-        CREATE TABLE IF NOT EXISTS students (
+        CREATE TABLE IF NOT EXISTS users (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT NOT NULL,
-          email TEXT UNIQUE,
-          department TEXT,
-          student_id TEXT UNIQUE,
-          fingerprint_data TEXT,
+          username TEXT UNIQUE NOT NULL,
+          password TEXT NOT NULL,
+          role TEXT DEFAULT 'staff',
           created_at TEXT DEFAULT (datetime('now', 'localtime'))
         )
       `);
-      
+
+      // 2. سجل التدقيق
+      db.run(`
+        CREATE TABLE IF NOT EXISTS audit_log (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user TEXT,
+          action TEXT,
+          details TEXT,
+          timestamp TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+      `);
+
+      // 3. الكليات
+      db.run(`
+        CREATE TABLE IF NOT EXISTS colleges (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          status TEXT DEFAULT 'active'
+        )
+      `);
+
+      // 4. الأقسام
+      db.run(`
+        CREATE TABLE IF NOT EXISTS departments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          college_id INTEGER,
+          status TEXT DEFAULT 'active'
+        )
+      `);
+
+      // 5. التخصصات
+      db.run(`
+        CREATE TABLE IF NOT EXISTS majors (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          department_id INTEGER,
+          fees INTEGER DEFAULT 0,
+          duration TEXT DEFAULT '4 سنوات',
+          status TEXT DEFAULT 'active'
+        )
+      `);
+
+      // 6. الطلاب (مع حقل الصورة)
+      db.run(`
+        CREATE TABLE IF NOT EXISTS students (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          university_id TEXT UNIQUE NOT NULL,
+          full_name TEXT NOT NULL,
+          phone TEXT DEFAULT '',
+          parent_phone TEXT DEFAULT '',
+          national_id TEXT DEFAULT '',
+          major_id INTEGER,
+          level TEXT DEFAULT '',
+          group_name TEXT DEFAULT '',
+          photo TEXT DEFAULT '',
+          fingerprint_data TEXT,
+          status TEXT DEFAULT 'active',
+          created_at TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+      `);
+
+      // 7. الحضور والغياب
       db.run(`
         CREATE TABLE IF NOT EXISTS attendance (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
-          student_id TEXT NOT NULL,
+          student_id INTEGER NOT NULL,
           date TEXT NOT NULL,
           time_in TEXT,
           time_out TEXT,
-          status TEXT DEFAULT 'غائب',
-          method TEXT DEFAULT 'يدوي',
+          status TEXT DEFAULT 'present',
+          method TEXT DEFAULT 'fingerprint',
+          late_minutes INTEGER DEFAULT 0,
+          notes TEXT,
           created_at TEXT DEFAULT (datetime('now', 'localtime')),
           UNIQUE(student_id, date)
         )
       `);
-      
+
+      // 8. الأجهزة
+      db.run(`
+        CREATE TABLE IF NOT EXISTS devices (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          ip_address TEXT NOT NULL,
+          port INTEGER DEFAULT 4370,
+          status TEXT DEFAULT 'offline',
+          last_sync TEXT
+        )
+      `);
+
+      // 9. التقويم الأكاديمي
+      db.run(`
+        CREATE TABLE IF NOT EXISTS calendar (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          event TEXT NOT NULL,
+          date_from TEXT NOT NULL,
+          date_to TEXT NOT NULL,
+          type TEXT DEFAULT 'event'
+        )
+      `);
+
+      // 10. الجداول الدراسية
+      db.run(`
+        CREATE TABLE IF NOT EXISTS schedules (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          day TEXT DEFAULT '',
+          subject TEXT DEFAULT '',
+          teacher TEXT DEFAULT '',
+          time_from TEXT DEFAULT '',
+          time_to TEXT DEFAULT '',
+          room TEXT DEFAULT '',
+          break_time INTEGER DEFAULT 0,
+          late_tolerance INTEGER DEFAULT 10
+        )
+      `);
+
+      // 11. الإشعارات
+      db.run(`
+        CREATE TABLE IF NOT EXISTS notifications (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          student_id INTEGER,
+          parent_phone TEXT,
+          message TEXT DEFAULT '',
+          type TEXT DEFAULT 'manual',
+          status TEXT DEFAULT 'sent',
+          sent_at TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+      `);
+
+      // 12. تقييم الانضباط
+      db.run(`
+        CREATE TABLE IF NOT EXISTS discipline (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          student_id INTEGER UNIQUE,
+          attendance_score INTEGER DEFAULT 0,
+          punctuality_score INTEGER DEFAULT 0,
+          absence_score INTEGER DEFAULT 0,
+          discipline_score INTEGER DEFAULT 0,
+          total_score INTEGER DEFAULT 0
+        )
+      `);
+
+      // 13. الإعدادات
       db.run(`
         CREATE TABLE IF NOT EXISTS settings (
           key TEXT PRIMARY KEY,
           value TEXT
         )
       `);
+
+      // مستخدم افتراضي
+      const adminExists = db.exec("SELECT id FROM users WHERE username = 'admin'");
+      if (!adminExists || adminExists.length === 0 || !adminExists[0].values.length) {
+        db.run("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", ['admin', 'admin123', 'admin']);
+        console.log('👑 تم إنشاء حساب المدير الافتراضي');
+      }
       
       // حفظ الجداول المنشأة
       await saveToIDB(Array.from(db.export()));
       
-      console.log('✅ SQLite جاهزة (IndexedDB)');
+      console.log('✅ SQLite جاهزة (IndexedDB) - 13 جدول');
       return true;
     } catch (e) {
       console.error('❌ فشل تهيئة قاعدة البيانات:', e);
@@ -198,7 +331,6 @@ if (isElectron) {
     try {
       db.run(sql, params);
       
-      // حفظ فوري بعد كل تعديل
       const data = db.export();
       await saveToIDB(Array.from(data));
       
