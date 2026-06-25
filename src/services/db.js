@@ -49,7 +49,7 @@ if (isElectron) {
     if (SQL) return SQL;
     const initSqlJs = (await import('sql.js')).default;
     SQL = await initSqlJs({ 
-      locateFile: file => `https://sql.js.org/dist/${file}` 
+      locateFile: file => `/sql-wasm.wasm`
     });
     return SQL;
   };
