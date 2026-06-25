@@ -11,9 +11,10 @@ import './App.css';
 // ========== إعدادات التطبيق ==========
 const APP_CONFIG = {
   name: 'نظام الحضور والغياب',
-  version: '1.0.0',
+  version: '2.0.0',
   developer: 'سالم التريمي',
   university: 'جامعة القرآن الكريم والعلوم الإسلامية',
+  database: 'SQLite محلية حقيقية',
 };
 
 // ========== تسجيل Service Worker ==========
@@ -83,6 +84,7 @@ console.log(`
 📌  ${APP_CONFIG.university}
 🔢  الإصدار: ${APP_CONFIG.version}
 👨‍💻  المطور: ${APP_CONFIG.developer}
+🗄️  قاعدة البيانات: ${APP_CONFIG.database}
 ✅  جاهز للعمل
 `);
 
