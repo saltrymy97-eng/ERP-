@@ -1,5 +1,5 @@
-// src/services/auth.js – نظام المصادقة والأمان (كلمة مرور فقط)
-// متوافق مع db.js | localStorage مباشر | بدون اعتماديات خارجية
+// src/services/auth.js – نظام المصادقة والأمان (SQLite محلية حقيقية)
+import { getQuery, runQuery } from './db';
 
 // ========== متغيرات الجلسة ==========
 let currentUser = null;
@@ -7,50 +7,33 @@ let sessionTimer = null;
 const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 دقيقة
 
 // ==========================================
-// ١. الطبقة الأساسية (Core)
+// ١. الطبقة الأساسية (Core) – SQLite
 // ==========================================
 
-function getUsers() {
+async function getUsers() {
   try {
-    const saved = localStorage.getItem('attendance_db');
-    if (!saved) return [];
-    const data = JSON.parse(saved);
-    return data.users || [];
+    const users = await getQuery("SELECT * FROM users ORDER BY id");
+    return users || [];
   } catch (e) {
     console.error('❌ فشل قراءة المستخدمين:', e);
     return [];
   }
 }
 
-function saveUsers(users) {
+async function addAuditEntry(username, action, details) {
   try {
-    const saved = localStorage.getItem('attendance_db');
-    const data = saved ? JSON.parse(saved) : {};
-    data.users = users;
-    localStorage.setItem('attendance_db', JSON.stringify(data));
-  } catch (e) {
-    console.error('❌ فشل حفظ المستخدمين:', e);
-  }
-}
-
-function addAuditEntry(username, action, details) {
-  try {
-    const saved = localStorage.getItem('attendance_db');
-    const data = saved ? JSON.parse(saved) : {};
-    if (!data.audit_log) data.audit_log = [];
-    data.audit_log.push({
-      id: Date.now(),
-      user: username,
-      action,
-      details,
-      timestamp: new Date().toISOString()
-    });
+    await runQuery(
+      "INSERT INTO audit_log (user, action, details, timestamp) VALUES (?, ?, ?, ?)",
+      [username, action, details, new Date().toISOString()]
+    );
+    
     // حد أقصى 500 سجل
-    if (data.audit_log.length > 500) {
-      data.audit_log = data.audit_log.slice(-500);
-    }
-    localStorage.setItem('attendance_db', JSON.stringify(data));
-  } catch (e) {}
+    await runQuery(
+      "DELETE FROM audit_log WHERE id NOT IN (SELECT id FROM audit_log ORDER BY id DESC LIMIT 500)"
+    );
+  } catch (e) {
+    console.error('❌ فشل تسجيل التدقيق:', e);
+  }
 }
 
 // ==========================================
@@ -58,23 +41,19 @@ function addAuditEntry(username, action, details) {
 // ==========================================
 
 export async function login(password) {
-  // تحقق سريع
   if (!password || !password.trim()) {
     return { success: false, message: '❌ الرجاء إدخال كلمة المرور' };
   }
 
-  const users = getUsers();
+  let users = await getUsers();
 
   // إذا لم يوجد مستخدمين... أنشئ مدير افتراضي
   if (users.length === 0) {
-    users.push({
-      id: 1,
-      username: 'admin',
-      password: 'admin123',
-      role: 'admin',
-      created_at: new Date().toISOString()
-    });
-    saveUsers(users);
+    await runQuery(
+      "INSERT INTO users (username, password, role, created_at) VALUES (?, ?, ?, ?)",
+      ['admin', 'admin123', 'admin', new Date().toISOString()]
+    );
+    users = await getUsers();
   }
 
   // البحث عن المستخدم
@@ -91,16 +70,16 @@ export async function login(password) {
     role: user.role
   };
 
-  addAuditEntry(user.username, 'تسجيل دخول', 'دخول النظام');
+  await addAuditEntry(user.username, 'تسجيل دخول', 'دخول النظام');
   saveSession(password.trim());
   startSession();
 
   return { success: true, user: currentUser };
 }
 
-export function logout() {
+export async function logout() {
   if (currentUser) {
-    addAuditEntry(currentUser.username, 'تسجيل خروج', 'خروج من النظام');
+    await addAuditEntry(currentUser.username, 'تسجيل خروج', 'خروج من النظام');
   }
   currentUser = null;
   clearSession();
@@ -138,7 +117,7 @@ export async function restoreSession() {
     const savedPassword = localStorage.getItem('current_session');
     if (!savedPassword) return null;
 
-    const users = getUsers();
+    const users = await getUsers();
     const user = users.find(u => u.password === savedPassword);
 
     if (user) {
@@ -187,23 +166,24 @@ export function hasRole(role) {
 // ٥. إدارة المستخدمين (User Management)
 // ==========================================
 
-export async function changePassword(oldPassword, newPassword) {
+export async function changePassword(username, oldPassword, newPassword) {
   if (!newPassword || newPassword.length < 4) {
     return { success: false, message: '❌ كلمة المرور الجديدة قصيرة جداً (4 أحرف على الأقل)' };
   }
 
-  const users = getUsers();
-  const idx = users.findIndex(u => u.password === oldPassword);
+  const users = await getUsers();
+  const user = users.find(u => u.username === username && u.password === oldPassword);
 
-  if (idx === -1) {
+  if (!user) {
     return { success: false, message: '❌ كلمة المرور القديمة غير صحيحة' };
   }
 
-  users[idx].password = newPassword;
-  saveUsers(users);
-  addAuditEntry(currentUser?.username || 'admin', 'تغيير كلمة المرور', 'تم بنجاح');
+  await runQuery(
+    "UPDATE users SET password = ? WHERE id = ?",
+    [newPassword, user.id]
+  );
 
-  // تحديث الجلسة
+  await addAuditEntry(username, 'تغيير كلمة المرور', 'تم بنجاح');
   saveSession(newPassword);
 
   return { success: true, message: '✅ تم تغيير كلمة المرور بنجاح' };
@@ -218,22 +198,18 @@ export async function addUser(username, password, role = 'staff') {
     return { success: false, message: '❌ الرجاء إدخال اسم المستخدم وكلمة المرور' };
   }
 
-  const users = getUsers();
+  const users = await getUsers();
 
   if (users.find(u => u.username === username)) {
     return { success: false, message: '❌ اسم المستخدم موجود مسبقاً' };
   }
 
-  users.push({
-    id: Date.now(),
-    username,
-    password,
-    role,
-    created_at: new Date().toISOString()
-  });
+  await runQuery(
+    "INSERT INTO users (username, password, role, created_at) VALUES (?, ?, ?, ?)",
+    [username, password, role, new Date().toISOString()]
+  );
 
-  saveUsers(users);
-  addAuditEntry(currentUser.username, 'إضافة مستخدم', `${username} بدور ${role}`);
+  await addAuditEntry(currentUser.username, 'إضافة مستخدم', `${username} بدور ${role}`);
 
   return { success: true, message: '✅ تم إضافة المستخدم بنجاح' };
 }
@@ -243,25 +219,26 @@ export async function deleteUser(userId) {
     return { success: false, message: '❌ لا تملك صلاحية حذف مستخدمين' };
   }
 
-  if (userId === 1) {
-    return { success: false, message: '❌ لا يمكن حذف المدير الافتراضي' };
-  }
+  const users = await getUsers();
+  const user = users.find(u => u.id === userId);
 
-  const users = getUsers();
-  const filtered = users.filter(u => u.id !== userId);
-
-  if (filtered.length === users.length) {
+  if (!user) {
     return { success: false, message: '❌ المستخدم غير موجود' };
   }
 
-  saveUsers(filtered);
-  addAuditEntry(currentUser.username, 'حذف مستخدم', `رقم ${userId}`);
+  if (user.username === 'admin') {
+    return { success: false, message: '❌ لا يمكن حذف المدير الافتراضي' };
+  }
+
+  await runQuery("DELETE FROM users WHERE id = ?", [userId]);
+  await addAuditEntry(currentUser.username, 'حذف مستخدم', `رقم ${userId}`);
 
   return { success: true, message: '✅ تم حذف المستخدم بنجاح' };
 }
 
-export function getAllUsers() {
-  return getUsers().map(u => ({
+export async function getAllUsers() {
+  const users = await getUsers();
+  return users.map(u => ({
     id: u.id,
     username: u.username,
     role: u.role,
@@ -273,13 +250,13 @@ export function getAllUsers() {
 // ٦. سجل التدقيق (Audit Log)
 // ==========================================
 
-export function getAuditLog(limit = 100) {
+export async function getAuditLog(limit = 100) {
   try {
-    const saved = localStorage.getItem('attendance_db');
-    if (!saved) return [];
-    const data = JSON.parse(saved);
-    const logs = data.audit_log || [];
-    return logs.slice(-limit).reverse();
+    const logs = await getQuery(
+      "SELECT * FROM audit_log ORDER BY id DESC LIMIT ?",
+      [limit]
+    );
+    return logs || [];
   } catch (e) {
     return [];
   }
