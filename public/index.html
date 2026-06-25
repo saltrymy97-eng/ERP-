@@ -11,9 +11,9 @@
   <meta name="description" content="المنظومة الإمبراطورية الموحدة لإدارة السياسات الأكاديمية ومتابعة الحضور والغياب البيومتري - جامعة القرآن الكريم والعلوم الإسلامية، فرع غيل باوزير بحضرموت." />
   <meta name="author" content="سالم التريمي" />
   
-  <!-- 🌐 بروتوكولات النشر والبطاقات الذكية (Open Graph / Meta Meta Tags) -->
+  <!-- 🌐 بروتوكولات النشر والبطاقات الذكية -->
   <meta property="og:title" content="بوابة السيطرة المركزية | جامعة القرآن الكريم والعلوم الإسلامية" />
-  <meta property="og:description" content="المنظومة الرقمية السيادية لإدارة الرصد البيومتري، تكامل مع محركات WhatsApp Cloud API، واستخراج الصكوك والتقارير الأكاديمية الذكية للجامعة." />
+  <meta property="og:description" content="المنظومة الرقمية السيادية لإدارة الرصد البيومتري، قاعدة بيانات SQLite محلية، تكامل مع محركات WhatsApp Cloud API، واستخراج الصكوك والتقارير الأكاديمية الذكية." />
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="ar_SA" />
   <meta property="og:site_name" content="جامعة القرآن الكريم والعلوم الإسلامية" />
@@ -23,22 +23,21 @@
   <link rel="icon" type="image/png" sizes="192x192" href="%PUBLIC_URL%/logo.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="%PUBLIC_URL%/logo.png" />
   
-  <!-- 📱 تطبيقات الويب التقدمية والأمان الفوري (PWA Capabilities) -->
+  <!-- 📱 تطبيقات الويب التقدمية -->
   <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="الرصد السيادي" />
   
-  <!-- 🏛️ ربط واستدعاء الخطوط والقرائح الملكية المعتمدة -->
+  <!-- 🏛️ ربط الخطوط -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&family=Tajawal:wght@300;400;500;700;800;900&display=swap" rel="stylesheet" />
   
   <title>بوابة السيطرة والتحكم البيومتري الموحد | جامعة القرآن الكريم والعلوم الإسلامية</title>
   
-  <!-- 💎 التنسيقات الهيكلية وشاشة الإقلاع الفاخرة للأنظمة العليا -->
+  <!-- 💎 التنسيقات الهيكلية وشاشة الإقلاع -->
   <style>
-    /* مصفوفة التصفير وضبط المحاذاة الكونية */
     * { 
       margin: 0; 
       padding: 0; 
@@ -62,7 +61,7 @@
       min-height: 100vh;
     }
 
-    /* 🔮 شاشة التحميل والإقلاع الزجاجية الفاخرة (Imperial Loader Window) */
+    /* 🔮 شاشة التحميل والإقلاع */
     #imperial-splash-screen {
       position: fixed;
       top: 0;
@@ -106,7 +105,7 @@
       object-fit: contain;
     }
 
-    /* 💎 طوق النور الدوار حول الشعار */
+    /* 💎 طوق النور الدوار */
     .quantum-ring {
       position: absolute;
       width: 126px;
@@ -141,7 +140,7 @@
       text-transform: uppercase;
     }
 
-    /* شريط تقدم معالجة البيانات السفلي */
+    /* شريط تقدم التحميل */
     .progress-bar-track {
       width: 220px;
       height: 3px;
@@ -163,7 +162,7 @@
       animation: dataFlow 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
     }
 
-    /* 🎭 الحركات الانسيابية (Animations) */
+    /* 🎭 الحركات الانسيابية */
     @keyframes emblemGlow {
       0% { transform: scale(1); border-color: rgba(214, 175, 55, 0.15); box-shadow: 0 0 30px rgba(214, 175, 55, 0.05); }
       100% { transform: scale(1.03); border-color: rgba(214, 175, 55, 0.4); box-shadow: 0 0 50px rgba(214, 175, 55, 0.15); }
@@ -179,7 +178,6 @@
       100% { left: 110%; width: 30%; }
     }
 
-    /* حجب شريط التمرير أثناء تشغيل شاشة الإقلاع الإمبراطورية */
     body.loading-active {
       overflow: hidden !important;
     }
@@ -187,12 +185,11 @@
 </head>
 <body class="loading-active">
 
-  <!-- 🔮 نافذة الإقلاع الإمبراطورية (تختفي تلقائياً فور جاهزية حزم React للتصيير) -->
+  <!-- 🔮 نافذة الإقلاع -->
   <div id="imperial-splash-screen">
     <div class="loader-container">
       <div class="loader-emblem">
         <div class="quantum-ring"></div>
-        <!-- سيتم جلب اللوجو تلقائياً أو إظهار بديل فخم في حال عدم توفره -->
         <img src="%PUBLIC_URL%/logo.png" alt="شعار الجامعة" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
         <span style="display:none; font-size:2.2rem;">🏛️</span>
       </div>
@@ -208,32 +205,34 @@
     </div>
   </div>
 
-  <!-- 🛑 جدار الأمان وحماية تجربة المستخدم في حال تعطيل الجافا سكريبت -->
+  <!-- 🛑 جدار الأمان في حال تعطيل JavaScript -->
   <noscript>
     <div style="position:fixed; top:0; left:0; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center; font-family:'Tajawal',sans-serif; background:radial-gradient(circle at center, #041d14 20%, #020b07 100%); z-index:9999999; padding:20px;">
-      <div style="text-align:center; background:rgba(255,255,255,0.02); border:1px solid rgba(214,175,55,0.2); padding:40px; borderRadius:20px; maxWidth:500px; boxShadow:0 20px 50px rgba(0,0,0,0.5);">
-        <div style="font-size:4.5rem; marginBottom:15px; animation: pulse 2s infinite;">⚠️</div>
-        <h2 style="color:#f3e5ab; font-family:'Amiri',serif; fontSize:2rem; marginBottom:12px; fontWeight:700;">بروتوكول أمان المنظومة</h2>
-        <p style="color:rgba(255,255,255,0.7); fontSize:0.95rem; lineHeight:1.6;">يتطلب هذا النظام السيادي تفعيل **بروتوكولات JavaScript** للقيام بعمليات التحقق الرقمي والمطابقة البيومترية الحية. يرجى تفعيلها من إعدادات المتصفح وإعادة إنعاش البوابة.</p>
+      <div style="text-align:center; background:rgba(255,255,255,0.02); border:1px solid rgba(214,175,55,0.2); padding:40px; border-radius:20px; max-width:500px; box-shadow:0 20px 50px rgba(0,0,0,0.5);">
+        <div style="font-size:4.5rem; margin-bottom:15px; animation: pulse 2s infinite;">⚠️</div>
+        <h2 style="color:#f3e5ab; font-family:'Amiri',serif; font-size:2rem; margin-bottom:12px; font-weight:700;">بروتوكول أمان المنظومة</h2>
+        <p style="color:rgba(255,255,255,0.7); font-size:0.95rem; line-height:1.6;">يتطلب هذا النظام السيادي تفعيل <strong>بروتوكولات JavaScript</strong> للقيام بعمليات التحقق الرقمي والمطابقة البيومترية الحية. يرجى تفعيلها من إعدادات المتصفح وإعادة إنعاش البوابة.</p>
       </div>
     </div>
   </noscript>
   
-  <!-- 🏛️ الجذر الأساسي لتدفق شاشات لوحة التحكم (React Core Root) -->
+  <!-- 🏛️ الجذر الأساسي لتطبيق React -->
   <div id="root"></div>
 
-  <!-- ⚡ بروتوكول تدمير شاشة الإقلاع فور حقن الـ DOM الرئيسي لـ React -->
+  <!-- ⚡ بروتوكول إخفاء شاشة الإقلاع -->
   <script>
     window.addEventListener('load', function() {
-      // إعطاء مهلة نصف ثانية إضافية لإبهار اللجنة ومن ثم إخفاء الشاشة بانسيابية مذهلة
       setTimeout(function() {
         var splash = document.getElementById('imperial-splash-screen');
         if (splash) {
           splash.style.opacity = '0';
           splash.style.visibility = 'hidden';
           document.body.classList.remove('loading-active');
-          // إزالتها نهائياً من الذاكرة بعد اكتمال التلاشي للحفاظ على سرعة الأداء
-          setTimeout(function() { splash.remove(); }, 800);
+          setTimeout(function() { 
+            if (splash.parentNode) {
+              splash.remove(); 
+            }
+          }, 800);
         }
       }, 700);
     });
