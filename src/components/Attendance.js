@@ -1,4 +1,4 @@
-// src/components/Attendance.js – نظام رصد الحضور والانصراف (SQLite محلية حقيقية)
+// src/components/Attendance.js – نظام رصد الحضور والانصراف (SQLite محلية + صورة الطالب)
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery, initDatabase } from '../services/db';
@@ -42,7 +42,7 @@ function Attendance() {
   // ========== تحميل الطلاب النشطين ==========
   const loadStudents = async () => {
     const data = await getQuery(
-      "SELECT id, university_id, full_name, phone, major_name, department_name, college_name FROM students WHERE status = 'active' ORDER BY full_name"
+      "SELECT id, university_id, full_name, phone, photo, major_name, department_name, college_name FROM students WHERE status = 'active' ORDER BY full_name"
     );
     setStudents(data || []);
   };
@@ -51,7 +51,7 @@ function Attendance() {
   const loadTodayAttendance = async () => {
     const data = await getQuery(
       `SELECT a.id, a.student_id, a.date, a.time_in, a.time_out, a.status, a.method, a.late_minutes,
-              s.full_name, s.university_id, s.phone, s.major_name, s.college_name
+              s.full_name, s.university_id, s.phone, s.photo, s.major_name, s.college_name
        FROM attendance a
        INNER JOIN students s ON a.student_id = s.id
        WHERE a.date = ?
@@ -383,7 +383,13 @@ function Attendance() {
                         )}
 
                         <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '15px' }}>
-                          <div style={{ width: '65px', height: '65px', borderRadius: '14px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(212,175,55,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem' }}>🎓</div>
+                          <div style={{ width: '65px', height: '65px', borderRadius: '50%', border: '2px solid var(--gold-main)', background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', overflow: 'hidden', flexShrink: 0 }}>
+                            {student.photo ? (
+                              <img src={student.photo} alt={student.full_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              '🎓'
+                            )}
+                          </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             <span style={{ color: '#fff', fontWeight: 700, fontSize: '1.05rem' }}>{student.full_name}</span>
                             <span style={{ color: 'var(--gold-light)', fontSize: '0.85rem', fontWeight: 600 }}>🔢 {student.university_id}</span>
@@ -467,13 +473,31 @@ function Attendance() {
                 <table>
                   <thead>
                     <tr>
-                      <th>#</th><th>الرقم الجامعي</th><th>اسم الطالب</th><th>الكلية</th><th>التخصص</th><th>توقيت الدخول</th><th>توقيت الخروج</th><th>الحالة</th><th>تحكم</th>
+                      <th>#</th>
+                      <th>صورة</th>
+                      <th>الرقم الجامعي</th>
+                      <th>اسم الطالب</th>
+                      <th>الكلية</th>
+                      <th>التخصص</th>
+                      <th>توقيت الدخول</th>
+                      <th>توقيت الخروج</th>
+                      <th>الحالة</th>
+                      <th>تحكم</th>
                     </tr>
                   </thead>
                   <tbody>
                     {todayAttendance.map((a, i) => (
                       <tr key={a.id}>
                         <td><strong>{i + 1}</strong></td>
+                        <td>
+                          <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', fontSize: '1.2rem' }}>
+                            {a.photo ? (
+                              <img src={a.photo} alt={a.full_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              '🎓'
+                            )}
+                          </div>
+                        </td>
                         <td style={{ color: 'var(--gold-light)', fontWeight: 700 }}>{a.university_id}</td>
                         <td style={{ color: 'var(--white)', fontWeight: 600 }}>{a.full_name}</td>
                         <td style={{ color: 'var(--text-secondary)' }}>{a.college_name || '—'}</td>
@@ -502,7 +526,7 @@ function Attendance() {
                       </tr>
                     ))}
                     {todayAttendance.length === 0 && (
-                      <tr><td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>🚫 لم يتم تسجيل أي حركة حضور اليوم.</td></tr>
+                      <tr><td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>🚫 لم يتم تسجيل أي حركة حضور اليوم.</td></tr>
                     )}
                   </tbody>
                 </table>
