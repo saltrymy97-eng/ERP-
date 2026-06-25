@@ -1,14 +1,7 @@
-// src/components/Dashboard.js – لوحة التحكم الرئيسية (Supabase Direct API)
+// src/components/Dashboard.js – لوحة التحكم الرئيسية (SQLite محلية حقيقية)
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { createClient } from '@supabase/supabase-js';
-import { analyzeDailyAttendance } from '../services/ai';
-
-// ========== اتصال Supabase المباشر ==========
-const supabase = createClient(
-  'https://dboornlxohzwltylqceu.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRib29ybmx4b2h6d2x0eWxxY2V1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjI2MjA3MiwiZXhwIjoyMDk3ODM4MDcyfQ.lqqPioK_vWqJlfUnxDcmhBZqksKONIyuWA8dgDNwu1w'
-);
+import { getQuery, initDatabase } from '../services/db';
 
 function Dashboard() {
   const [stats, setStats] = useState({
@@ -23,33 +16,37 @@ function Dashboard() {
   const [aiAnalysis, setAiAnalysis] = useState('');
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
+  const [dbReady, setDbReady] = useState(false);
 
   useEffect(() => {
-    loadAllData();
+    const setup = async () => {
+      await initDatabase();
+      setDbReady(true);
+      await loadAllData();
+    };
+    setup();
   }, []);
 
   const today = new Date().toISOString().slice(0, 10);
 
-  // ========== تحميل كل البيانات ==========
   const loadAllData = async () => {
     setLoading(true);
     await Promise.all([loadStats(), loadAlerts()]);
     setLoading(false);
   };
 
-  // ========== تحميل الإحصائيات ==========
   const loadStats = async () => {
     // 1. إجمالي الطلاب النشطين
-    const { count: totalStudents } = await supabase
-      .from('students')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'active');
+    const totalStudentsResult = await getQuery(
+      "SELECT COUNT(*) as count FROM students WHERE status = 'active'"
+    );
+    const totalStudents = totalStudentsResult?.[0]?.count || 0;
 
     // 2. جلب كل سجلات اليوم
-    const { data: todayRecords } = await supabase
-      .from('attendance')
-      .select('student_id, status')
-      .eq('date', today);
+    const todayRecords = await getQuery(
+      "SELECT student_id, status FROM attendance WHERE date = ?",
+      [today]
+    );
 
     // تجميع فريد (آخر حالة لكل طالب)
     const uniqueMap = {};
@@ -63,45 +60,44 @@ function Dashboard() {
     const lateToday = uniqueRecords.filter(a => a.status === 'late').length;
 
     // 3. إجمالي الجداول
-    const { count: totalLectures } = await supabase
-      .from('schedules')
-      .select('*', { count: 'exact', head: true });
+    const totalLecturesResult = await getQuery(
+      "SELECT COUNT(*) as count FROM schedules"
+    );
+    const totalLectures = totalLecturesResult?.[0]?.count || 0;
 
     // 4. إشعارات اليوم
-    const { count: notificationsSent } = await supabase
-      .from('notifications')
-      .select('*', { count: 'exact', head: true })
-      .gte('sent_at', `${today}T00:00:00`)
-      .lte('sent_at', `${today}T23:59:59`);
+    const notificationsResult = await getQuery(
+      "SELECT COUNT(*) as count FROM notifications WHERE sent_at >= ? AND sent_at <= ?",
+      [`${today}T00:00:00`, `${today}T23:59:59`]
+    );
+    const notificationsSent = notificationsResult?.[0]?.count || 0;
 
     setStats({
-      totalStudents: totalStudents || 0,
+      totalStudents,
       presentToday,
       absentToday,
       lateToday,
-      totalLectures: totalLectures || 0,
-      notificationsSent: notificationsSent || 0
+      totalLectures,
+      notificationsSent
     });
   };
 
-  // ========== بناء التنبيهات ==========
   const loadAlerts = async () => {
     const alertList = [];
 
     // 1. طلاب تجاوزوا 25% غياب
-    const { data: allAttendance } = await supabase
-      .from('attendance')
-      .select('student_id, status, students!inner(full_name, university_id)');
+    const allAttendance = await getQuery(
+      "SELECT a.student_id, a.status, s.full_name, s.university_id FROM attendance a INNER JOIN students s ON a.student_id = s.id"
+    );
 
-    if (allAttendance) {
-      // تجميع حسب الطالب
+    if (allAttendance && allAttendance.length > 0) {
       const studentAbsenceMap = {};
       allAttendance.forEach(a => {
         const sid = a.student_id;
         if (!studentAbsenceMap[sid]) {
           studentAbsenceMap[sid] = {
-            full_name: a.students?.full_name,
-            university_id: a.students?.university_id,
+            full_name: a.full_name,
+            university_id: a.university_id,
             total: 0,
             absent: 0
           };
@@ -123,17 +119,15 @@ function Dashboard() {
     }
 
     // 2. طلاب لم يحضروا اليوم
-    const { data: presentIds } = await supabase
-      .from('attendance')
-      .select('student_id')
-      .eq('date', today);
-
+    const presentIds = await getQuery(
+      "SELECT DISTINCT student_id FROM attendance WHERE date = ?",
+      [today]
+    );
     const presentIdSet = new Set((presentIds || []).map(a => a.student_id));
 
-    const { data: allStudents } = await supabase
-      .from('students')
-      .select('id, full_name, university_id')
-      .eq('status', 'active');
+    const allStudents = await getQuery(
+      "SELECT id, full_name, university_id FROM students WHERE status = 'active'"
+    );
 
     if (allStudents) {
       const noShow = allStudents.filter(s => !presentIdSet.has(s.id)).slice(0, 3);
@@ -147,10 +141,9 @@ function Dashboard() {
     }
 
     // 3. أجهزة غير متصلة
-    const { data: offlineDevices } = await supabase
-      .from('devices')
-      .select('name')
-      .eq('status', 'offline');
+    const offlineDevices = await getQuery(
+      "SELECT name FROM devices WHERE status = 'offline'"
+    );
 
     (offlineDevices || []).forEach(d => {
       alertList.push({
@@ -163,14 +156,36 @@ function Dashboard() {
     setAlerts(alertList);
   };
 
-  // ========== تحليل AI ==========
   const handleAIAnalysis = async () => {
     setAnalyzing(true);
     try {
-      const analysis = await analyzeDailyAttendance();
+      // تحليل محلي بسيط بدل استدعاء API خارجي
+      const presentPercent = stats.totalStudents > 0
+        ? Math.round((stats.presentToday / stats.totalStudents) * 100)
+        : 0;
+
+      let analysis = `📊 تقرير تحليل الحضور ليوم ${today}\n\n`;
+      analysis += `* إجمالي الطلاب المسجلين: ${stats.totalStudents} طالب\n`;
+      analysis += `* نسبة الحضور اليوم: ${presentPercent}%\n`;
+      analysis += `* عدد الحاضرين: ${stats.presentToday} طالب\n`;
+      analysis += `* عدد الغائبين: ${stats.absentToday} طالب\n`;
+      analysis += `* عدد المتأخرين: ${stats.lateToday} طالب\n\n`;
+
+      if (presentPercent >= 85) {
+        analysis += `✅ الوضع العام ممتاز، نسبة الحضور مرتفعة.\n`;
+      } else if (presentPercent >= 70) {
+        analysis += `⚠️ الوضع مقبول لكن يحتاج متابعة، نسبة الغياب في ارتفاع.\n`;
+      } else {
+        analysis += `🚨 تحذير: نسبة الحضور منخفضة جداً، يوصى باتخاذ إجراءات فورية.\n`;
+      }
+
+      if (stats.absentToday > stats.presentToday * 0.3) {
+        analysis += `- ملاحظة: عدد الغائبين اليوم مرتفع نسبياً، يرجى التحقق من الأسباب.\n`;
+      }
+
       setAiAnalysis(analysis);
     } catch (e) {
-      setAiAnalysis("فشل الاتصال بمحرك التحليل المحلي. يرجى التحقق من سلامة تشغيل الملفات النواتية.");
+      setAiAnalysis("فشل إجراء التحليل المحلي. يرجى المحاولة مرة أخرى.");
     }
     setAnalyzing(false);
   };
@@ -193,7 +208,7 @@ function Dashboard() {
     show: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 100, damping: 15 } }
   };
 
-  if (loading) {
+  if (loading || !dbReady) {
     return (
       <div className="dashboard-loading" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', gap: '20px' }}>
         <div className="splash-loader" style={{ width: '50px', height: '50px', border: '3px solid rgba(214,175,55,0.1)', borderTop: '3px solid var(--gold-main)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
@@ -353,7 +368,7 @@ function Dashboard() {
           <span style={{ color: 'var(--text-secondary)', marginLeft: '6px' }}>🤖 حالة المعالج المحلي:</span>
           <span style={{ color: 'var(--green-bright)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
             <span style={{ width: '7px', height: '7px', background: 'var(--green-bright)', borderRadius: '50%', display: 'inline-block', animation: 'pulse 1.5s infinite' }} /> 
-            مستقر بالكامل (Offline Local Node)
+            مستقر بالكامل (Local SQLite Node)
           </span>
         </div>
       </div>
