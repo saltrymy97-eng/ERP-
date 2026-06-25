@@ -1,4 +1,4 @@
-// src/App.js – نظام الحضور والغياب الإمبراطوري الحركي (أيقونات 3D حقيقية + SQLite محلية)
+// src/App.js – نظام الحضور والغياب الإمبراطوري الحركي (أيقونات 3D حقيقية + SQLite محلية + هيئة التدريس)
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { initDatabase } from './services/db';
@@ -8,6 +8,7 @@ import Students from './components/Students';
 import Attendance from './components/Attendance';
 import Reports from './components/Reports';
 import Settings from './components/Settings';
+import Teachers from './components/Teachers';
 import './App.css';
 
 // ========== مكون الأيقونة ثلاثية الأبعاد (Three.js) ==========
@@ -24,6 +25,7 @@ function Icon3D({ icon, color, glow, isActive }) {
       case '📊': return { geo: 'box', detail: [1, 0.6, 0.1], bars: 3 };
       case '🖐️': return { geo: 'sphere', detail: [0.5, 32, 32] };
       case '🎓': return { geo: 'torus', detail: [0.4, 0.15, 16, 32] };
+      case '👨‍🏫': return { geo: 'cone', detail: [0.4, 0.7, 32] };
       case '📄': return { geo: 'box', detail: [0.6, 0.8, 0.02] };
       case '🔔': return { geo: 'cone', detail: [0.3, 0.6, 32] };
       case '🖨️': return { geo: 'cylinder', detail: [0.35, 0.35, 0.5, 32] };
@@ -443,6 +445,19 @@ function App() {
       ]
     },
     {
+      id: 'teachers',
+      title: 'هيئة التدريس',
+      icon: '👨‍🏫',
+      color: '#f472b6',
+      glow: 'rgba(244, 114, 182, 0.4)',
+      desc: 'إدارة أعضاء هيئة التدريس والمحاضرين والكادر الأكاديمي',
+      subItems: [
+        { title: '👨‍🏫 قائمة المعلمين', screen: 'teachers' },
+        { title: '📋 إضافة معلم جديد', screen: 'teachers' },
+        { title: '📊 إحصائيات الكادر', screen: 'teachers' }
+      ]
+    },
+    {
       id: 'reports',
       title: 'مركز التقارير',
       icon: '📄',
@@ -647,6 +662,7 @@ function App() {
     const titles = {
       'dashboard': '📊 لوحة التحكم والمؤشرات الإحصائية العامة',
       'students': '👥 إدارة سجلات القبض البيومتري وشؤون الطلاب',
+      'teachers': '👨‍🏫 إدارة هيئة التدريس والكادر الأكاديمي',
       'attendance': '🖐️ منظومة الرصد الاستراتيجي والمطابقة الفورية',
       'reports': '📄 مركز استخراج الصكوك والبيانات التحليلية للغياب',
       'schedule': '📅 الجدول الدراسي وإدارة المحاضرات',
@@ -677,6 +693,7 @@ function App() {
       <main className="main-content" style={{ background: '#03140e' }}>
         {screen === 'dashboard' && <Dashboard />}
         {screen === 'students' && <Students />}
+        {screen === 'teachers' && <Teachers />}
         {screen === 'attendance' && <Attendance />}
         {screen === 'reports' && <Reports />}
         {screen === 'settings' && <Settings />}
