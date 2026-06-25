@@ -1,6 +1,6 @@
-/* App.css – التصميم الزجاجي الملكي الفاخر (SQLite محلية حقيقية) */
+/* App.css – التصميم الزجاجي الملكي الفاخر (أيقونات 3D حقيقية + SQLite محلية) */
 /* نظام ERP المطور - جامعة القرآن الكريم والعلوم الإسلامية */
-/* الإصدار 2.0 – قاعدة بيانات محلية كاملة */
+/* الإصدار 3.0 – Three.js 3D Icons */
 
 @import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Tajawal:wght@300;400;500;700;800;900&display=swap');
 
@@ -236,7 +236,7 @@ input, textarea, select {
 .login-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 .login-footer { margin-top: 30px; font-size: 0.8rem; color: var(--text-muted); }
 
-/* ===== الشاشة الرئيسية: نظام أيقونات 3D ===== */
+/* ===== الشاشة الرئيسية: نظام أيقونات 3D حقيقية ===== */
 .home-screen {
   min-height: 100vh;
   background: radial-gradient(circle at 50% 10%, var(--emerald-deep) 0%, var(--bg-dark) 100%);
@@ -309,12 +309,12 @@ input, textarea, select {
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--glass-border);
   border-radius: 28px;
-  padding: 35px 25px;
+  padding: 25px 20px 20px 20px;
   text-align: center;
   cursor: pointer;
   transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), background 0.4s, border-color 0.4s, box-shadow 0.4s;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   box-shadow: 0 15px 35px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.02);
 }
 
@@ -343,37 +343,70 @@ input, textarea, select {
   box-shadow: 0 20px 45px rgba(0,0,0,0.5), 0 0 30px rgba(212, 175, 55, 0.2);
 }
 
-.icon-3d { 
-  font-size: 4.2rem; 
-  margin-bottom: 20px;
-  display: inline-block;
-  filter: drop-shadow(0 10px 15px rgba(0,0,0,0.4));
-  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-.icon-card:hover .icon-3d {
-  transform: scale(1.18) rotate(5deg);
-  filter: drop-shadow(0 15px 20px rgba(0,0,0,0.5)) drop-shadow(0 0 15px var(--gold-glow));
+/* ===== حاوية الأيقونة 3D ===== */
+.icon-3d-container {
+  width: 100%;
+  height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+  position: relative;
+  overflow: hidden;
 }
 
+.icon-3d-canvas {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-3d-canvas canvas {
+  display: block;
+}
+
+/* الأنيميشن للـ 3D عند hover */
+.icon-card:hover .icon-3d-container {
+  filter: brightness(1.2);
+}
+
+.icon-card.active .icon-3d-container {
+  filter: brightness(1.3) saturate(1.2);
+}
+
+/* ===== النص والعنوان ===== */
 .icon-title { 
   font-family: 'Tajawal', sans-serif; 
   font-weight: 700;
-  font-size: 1.4rem; 
+  font-size: 1.3rem; 
   color: var(--white); 
   margin-bottom: 8px;
   text-shadow: 0 2px 4px rgba(0,0,0,0.4);
+  position: relative;
+  z-index: 2;
 }
 .icon-card:hover .icon-title { color: var(--gold-light); }
 
-.icon-desc { font-size: 0.85rem; color: var(--text-secondary); opacity: 0.6; padding: 0 5px; }
+.icon-desc { 
+  font-size: 0.82rem; 
+  color: var(--text-secondary); 
+  opacity: 0.6; 
+  padding: 0 5px; 
+  position: relative;
+  z-index: 2;
+}
 
 .dropdown-arrow { 
   display: block; 
-  margin-top: 15px; 
+  margin-top: 12px; 
   color: var(--gold-main); 
   font-size: 0.8rem;
   opacity: 0.5;
   transition: transform 0.3s;
+  position: relative;
+  z-index: 2;
 }
 .icon-card.active .dropdown-arrow { transform: rotate(180deg); opacity: 1; }
 
@@ -813,22 +846,36 @@ input, textarea, select {
   100% { transform: translateX(400%); }
 }
 
+/* ===== أيقونة 3D احتياطية عند فشل Three.js ===== */
+.icon-3d-fallback {
+  font-size: 4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 10px 15px rgba(0,0,0,0.4));
+  animation: floatUpDown 3s ease-in-out infinite;
+}
+
 /* ===== التوافق مع جميع الشاشات ===== */
 @media(max-width: 1200px) {
   .icons-grid { grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .icon-3d-container { height: 110px; }
 }
 
 @media(max-width: 992px) {
   .icons-grid { grid-template-columns: repeat(2, 1fr); gap: 20px; }
+  .icon-3d-container { height: 100px; }
 }
 
 @media(max-width: 768px) {
   .home-screen { padding: 20px 10px 200px 10px; }
   .home-header h1 { font-size: 2.1rem; }
   .icons-grid { grid-template-columns: repeat(2, 1fr); gap: 15px; } 
-  .icon-card { padding: 25px 15px; border-radius: 20px; }
-  .icon-3d { font-size: 3.3rem; margin-bottom: 12px; }
-  .icon-title { font-size: 1.2rem; }
+  .icon-card { padding: 20px 15px; border-radius: 20px; }
+  .icon-3d-container { height: 90px; }
+  .icon-title { font-size: 1.1rem; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
   .top-bar { padding: 15px 20px; }
   .top-bar h2 { font-size: 1.4rem; }
@@ -844,6 +891,7 @@ input, textarea, select {
 
 @media(max-width: 480px) {
   .icons-grid { grid-template-columns: 1fr; }
+  .icon-3d-container { height: 100px; }
   .stats-grid { grid-template-columns: 1fr; }
   .login-card { padding: 35px 20px; }
   .user-bar { flex-direction: row; gap: 10px; border-radius: 50px; padding: 10px 20px; }
