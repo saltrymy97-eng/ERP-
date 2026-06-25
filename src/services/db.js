@@ -1,6 +1,6 @@
 // src/services/db.js – SQLite حقيقية محلية احترافية
 // تدعم Electron و Termux والمتصفح بحفظ دائم في IndexedDB
-// الإصدار 3.0 – جميع الجداول موحدة + حقل الصورة
+// الإصدار 4.0 – جميع الجداول + المعلمين + ربط المدرس بالجداول
 
 let getQuery, runQuery, initDatabase, closeDatabase, exportDatabase, importDatabase;
 
@@ -122,7 +122,7 @@ if (isElectron) {
       
       dbReady = true;
       
-      // ========== إنشاء جميع الجداول ==========
+      // ========== إنشاء جميع الجداول (14 جدول) ==========
       
       // 1. المستخدمين
       db.run(`
@@ -196,7 +196,25 @@ if (isElectron) {
         )
       `);
 
-      // 7. الحضور والغياب
+      // 7. المعلمين (جديد)
+      db.run(`
+        CREATE TABLE IF NOT EXISTS teachers (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          teacher_id TEXT UNIQUE NOT NULL,
+          full_name TEXT NOT NULL,
+          email TEXT DEFAULT '',
+          phone TEXT DEFAULT '',
+          speciality TEXT DEFAULT '',
+          department_id INTEGER,
+          college_id INTEGER,
+          photo TEXT DEFAULT '',
+          qualifications TEXT DEFAULT '',
+          status TEXT DEFAULT 'active',
+          created_at TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+      `);
+
+      // 8. الحضور والغياب
       db.run(`
         CREATE TABLE IF NOT EXISTS attendance (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -213,7 +231,7 @@ if (isElectron) {
         )
       `);
 
-      // 8. الأجهزة
+      // 9. الأجهزة
       db.run(`
         CREATE TABLE IF NOT EXISTS devices (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -225,7 +243,7 @@ if (isElectron) {
         )
       `);
 
-      // 9. التقويم الأكاديمي
+      // 10. التقويم الأكاديمي
       db.run(`
         CREATE TABLE IF NOT EXISTS calendar (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -236,13 +254,14 @@ if (isElectron) {
         )
       `);
 
-      // 10. الجداول الدراسية
+      // 11. الجداول الدراسية (مع ربط المدرس)
       db.run(`
         CREATE TABLE IF NOT EXISTS schedules (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           day TEXT DEFAULT '',
           subject TEXT DEFAULT '',
           teacher TEXT DEFAULT '',
+          teacher_id INTEGER,
           time_from TEXT DEFAULT '',
           time_to TEXT DEFAULT '',
           room TEXT DEFAULT '',
@@ -251,7 +270,7 @@ if (isElectron) {
         )
       `);
 
-      // 11. الإشعارات
+      // 12. الإشعارات
       db.run(`
         CREATE TABLE IF NOT EXISTS notifications (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -264,7 +283,7 @@ if (isElectron) {
         )
       `);
 
-      // 12. تقييم الانضباط
+      // 13. تقييم الانضباط
       db.run(`
         CREATE TABLE IF NOT EXISTS discipline (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -277,7 +296,7 @@ if (isElectron) {
         )
       `);
 
-      // 13. الإعدادات
+      // 14. الإعدادات
       db.run(`
         CREATE TABLE IF NOT EXISTS settings (
           key TEXT PRIMARY KEY,
@@ -295,7 +314,7 @@ if (isElectron) {
       // حفظ الجداول المنشأة
       await saveToIDB(Array.from(db.export()));
       
-      console.log('✅ SQLite جاهزة (IndexedDB) - 13 جدول');
+      console.log('✅ SQLite جاهزة (IndexedDB) - 14 جدول');
       return true;
     } catch (e) {
       console.error('❌ فشل تهيئة قاعدة البيانات:', e);
