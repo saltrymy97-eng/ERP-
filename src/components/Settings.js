@@ -1,21 +1,20 @@
-// src/components/Settings.js – المركز السيادي واللوحة القيادية العليا للنظام
+// src/components/Settings.js – المركز السيادي واللوحة القيادية العليا للنظام (SQLite محلية حقيقية)
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getQuery, runQuery, exportDatabase, importDatabase } from '../services/db';
+import { getQuery, runQuery, initDatabase, exportDatabase, importDatabase } from '../services/db';
 import { getCurrentUser, changePassword, addUser, deleteUser, getAllUsers, isAdmin } from '../services/auth';
 
 function Settings() {
   const [tab, setTab] = useState('devices');
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('');
+  const [dbReady, setDbReady] = useState(false);
 
   const [devices, setDevices] = useState([]);
   const [deviceForm, setDeviceForm] = useState({ name: '', ip_address: '', port: 4370 });
   const [isTestingId, setIsTestingId] = useState(null);
 
   const [whatsappConfig, setWhatsappConfig] = useState({ api_key: '', phone_number_id: '', enabled: false });
-
-  // 🧠 حالة الذكاء الاصطناعي
   const [aiConfig, setAiConfig] = useState({ api_key: '', enabled: false });
 
   const [calendarEvents, setCalendarEvents] = useState([]);
@@ -28,14 +27,18 @@ function Settings() {
   const currentUser = getCurrentUser();
 
   useEffect(() => {
-    loadDevices();
-    loadCalendar();
-    if (isAdmin()) loadUsers();
-    const savedWA = localStorage.getItem('whatsapp_config');
-    if (savedWA) setWhatsappConfig(JSON.parse(savedWA));
-    // تحميل إعدادات AI المحفوظة
-    const savedAI = localStorage.getItem('ai_config');
-    if (savedAI) setAiConfig(JSON.parse(savedAI));
+    const setup = async () => {
+      await initDatabase();
+      setDbReady(true);
+      loadDevices();
+      loadCalendar();
+      if (isAdmin()) loadUsers();
+      const savedWA = localStorage.getItem('whatsapp_config');
+      if (savedWA) setWhatsappConfig(JSON.parse(savedWA));
+      const savedAI = localStorage.getItem('ai_config');
+      if (savedAI) setAiConfig(JSON.parse(savedAI));
+    };
+    setup();
   }, []);
 
   const showMessage = (msg, type = 'success') => {
@@ -44,64 +47,154 @@ function Settings() {
     setTimeout(() => setMessage(''), 3500);
   };
 
-  const loadDevices = () => { const data = getQuery("SELECT * FROM devices ORDER BY name"); setDevices(data); };
-  const addDevice = () => {
-    if (!deviceForm.name || !deviceForm.ip_address) { showMessage('❌ عذراً، يجب ملء معطيات اسم البوابة البيومترية وعنوان البروتوكول IP', 'error'); return; }
-    runQuery("INSERT INTO devices (name, ip_address, port, status) VALUES (?, ?, ?, 'offline')", [deviceForm.name, deviceForm.ip_address, deviceForm.port]);
-    setDeviceForm({ name: '', ip_address: '', port: 4370 }); loadDevices();
+  const loadDevices = async () => {
+    const data = await getQuery("SELECT * FROM devices ORDER BY name");
+    setDevices(data || []);
+  };
+
+  const addDevice = async () => {
+    if (!deviceForm.name || !deviceForm.ip_address) {
+      showMessage('❌ عذراً، يجب ملء معطيات اسم البوابة البيومترية وعنوان البروتوكول IP', 'error');
+      return;
+    }
+    await runQuery(
+      "INSERT INTO devices (name, ip_address, port, status) VALUES (?, ?, ?, 'offline')",
+      [deviceForm.name, deviceForm.ip_address, deviceForm.port]
+    );
+    setDeviceForm({ name: '', ip_address: '', port: 4370 });
+    await loadDevices();
     showMessage('✨ تم تسجيل بوابات مسح البصمة بنجاح');
   };
-  const deleteDevice = (id) => { if (window.confirm("⚠️ هل أنت متأكد من إلغاء قيد هذا الجهاز؟")) { runQuery("DELETE FROM devices WHERE id=?", [id]); loadDevices(); showMessage('🗑️ تم إلغاء قيد المنفذ البيومتري'); } };
+
+  const deleteDevice = async (id) => {
+    if (window.confirm("⚠️ هل أنت متأكد من إلغاء قيد هذا الجهاز؟")) {
+      await runQuery("DELETE FROM devices WHERE id = ?", [id]);
+      await loadDevices();
+      showMessage('🗑️ تم إلغاء قيد المنفذ البيومتري');
+    }
+  };
+
   const testConnection = async (device) => {
-    setIsTestingId(device.id); showMessage(`🔌 جاري فحص استجابة حزم النبضات الشبكية مع ${device.name}...`, 'info');
-    try { await new Promise(resolve => setTimeout(resolve, 1800)); runQuery("UPDATE devices SET status='online', last_sync=? WHERE id=?", [new Date().toISOString(), device.id]); loadDevices(); showMessage(`✅ تم إثبات الاستجابة الحية مع ${device.name}`); }
-    catch (error) { runQuery("UPDATE devices SET status='offline' WHERE id=?", [device.id]); loadDevices(); showMessage(`❌ فشل تأمين بروتوكول المصافحة مع ${device.name}`, 'error'); }
-    finally { setIsTestingId(null); }
+    setIsTestingId(device.id);
+    showMessage(`🔌 جاري فحص استجابة حزم النبضات الشبكية مع ${device.name}...`, 'info');
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1800));
+      await runQuery(
+        "UPDATE devices SET status = 'online', last_sync = ? WHERE id = ?",
+        [new Date().toISOString(), device.id]
+      );
+      await loadDevices();
+      showMessage(`✅ تم إثبات الاستجابة الحية مع ${device.name}`);
+    } catch (error) {
+      await runQuery("UPDATE devices SET status = 'offline' WHERE id = ?", [device.id]);
+      await loadDevices();
+      showMessage(`❌ فشل تأمين بروتوكول المصافحة مع ${device.name}`, 'error');
+    } finally {
+      setIsTestingId(null);
+    }
   };
 
-  const saveWhatsappConfig = () => { localStorage.setItem('whatsapp_config', JSON.stringify(whatsappConfig)); showMessage('✨ تم اعتماد مفاتيح خوادم WhatsApp Cloud API'); };
-
-  // 🧠 حفظ إعدادات AI
-  const saveAiConfig = () => { localStorage.setItem('ai_config', JSON.stringify(aiConfig)); showMessage('🧠 تم حفظ مفتاح الذكاء الاصطناعي بنجاح'); };
-
-  const loadCalendar = () => { const data = getQuery("SELECT * FROM calendar ORDER BY date_from"); setCalendarEvents(data); };
-  const addEvent = () => {
-    if (!eventForm.event || !eventForm.date_from || !eventForm.date_to) { showMessage('❌ يرجى تعيين المسمى الأكاديمي والمدى الزمني', 'error'); return; }
-    runQuery("INSERT INTO calendar (event, date_from, date_to, type) VALUES (?, ?, ?, ?)", [eventForm.event, eventForm.date_from, eventForm.date_to, eventForm.type]);
-    setEventForm({ event: '', date_from: '', date_to: '', type: 'event' }); loadCalendar(); showMessage('📅 تم دمج الفعالية في التقويم الأكاديمي');
+  const saveWhatsappConfig = () => {
+    localStorage.setItem('whatsapp_config', JSON.stringify(whatsappConfig));
+    showMessage('✨ تم اعتماد مفاتيح خوادم WhatsApp Cloud API');
   };
-  const deleteEvent = (id) => { runQuery("DELETE FROM calendar WHERE id=?", [id]); loadCalendar(); showMessage('🗑️ تم حذف الحدث'); };
 
-  const loadUsers = () => { setUsers(getAllUsers()); };
+  const saveAiConfig = () => {
+    localStorage.setItem('ai_config', JSON.stringify(aiConfig));
+    showMessage('🧠 تم حفظ مفتاح الذكاء الاصطناعي بنجاح');
+  };
+
+  const loadCalendar = async () => {
+    const data = await getQuery("SELECT * FROM calendar ORDER BY date_from");
+    setCalendarEvents(data || []);
+  };
+
+  const addEvent = async () => {
+    if (!eventForm.event || !eventForm.date_from || !eventForm.date_to) {
+      showMessage('❌ يرجى تعيين المسمى الأكاديمي والمدى الزمني', 'error');
+      return;
+    }
+    await runQuery(
+      "INSERT INTO calendar (event, date_from, date_to, type) VALUES (?, ?, ?, ?)",
+      [eventForm.event, eventForm.date_from, eventForm.date_to, eventForm.type]
+    );
+    setEventForm({ event: '', date_from: '', date_to: '', type: 'event' });
+    await loadCalendar();
+    showMessage('📅 تم دمج الفعالية في التقويم الأكاديمي');
+  };
+
+  const deleteEvent = async (id) => {
+    await runQuery("DELETE FROM calendar WHERE id = ?", [id]);
+    await loadCalendar();
+    showMessage('🗑️ تم حذف الحدث');
+  };
+
+  const loadUsers = () => {
+    setUsers(getAllUsers());
+  };
+
   const handleChangePassword = async () => {
-    if (!passwordForm.oldPassword || !passwordForm.newPassword) { showMessage('❌ يرجى إدخال شفرة الحماية الحالية', 'error'); return; }
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) { showMessage('❌ العبارتان غير متطابقتين', 'error'); return; }
+    if (!passwordForm.oldPassword || !passwordForm.newPassword) {
+      showMessage('❌ يرجى إدخال شفرة الحماية الحالية', 'error');
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      showMessage('❌ العبارتان غير متطابقتين', 'error');
+      return;
+    }
     const result = await changePassword(currentUser.username, passwordForm.oldPassword, passwordForm.newPassword);
     showMessage(result.message, result.success ? 'success' : 'error');
     if (result.success) setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
   };
+
   const handleAddUser = async () => {
-    if (!newUserForm.username || !newUserForm.password) { showMessage('❌ لا يمكن إنشاء هوية مستخدم فارغة', 'error'); return; }
+    if (!newUserForm.username || !newUserForm.password) {
+      showMessage('❌ لا يمكن إنشاء هوية مستخدم فارغة', 'error');
+      return;
+    }
     const result = await addUser(newUserForm.username, newUserForm.password, newUserForm.role);
     showMessage(result.message, result.success ? 'success' : 'error');
-    if (result.success) { setNewUserForm({ username: '', password: '', role: 'staff' }); loadUsers(); }
-  };
-  const handleDeleteUser = async (userId) => {
-    if (window.confirm("🛑 سحب الصلاحيات الإدارية؟")) { const result = await deleteUser(userId); showMessage(result.message, result.success ? 'success' : 'error'); if (result.success) loadUsers(); }
+    if (result.success) {
+      setNewUserForm({ username: '', password: '', role: 'staff' });
+      loadUsers();
+    }
   };
 
-  const handleBackup = () => { exportDatabase(); showMessage('📥 تم تصدير النسخة الاحتياطية بنجاح'); };
+  const handleDeleteUser = async (userId) => {
+    if (window.confirm("🛑 سحب الصلاحيات الإدارية؟")) {
+      const result = await deleteUser(userId);
+      showMessage(result.message, result.success ? 'success' : 'error');
+      if (result.success) loadUsers();
+    }
+  };
+
+  const handleBackup = () => {
+    exportDatabase();
+    showMessage('📥 تم تصدير النسخة الاحتياطية بنجاح');
+  };
+
   const handleRestore = async (e) => {
     const file = e.target.files[0];
-    if (file && window.confirm("⚠️ استعادة قاعدة بيانات خارجية ستستبدل المنظومة الحالية. هل تود المتابعة؟")) { await importDatabase(file); showMessage('✅ تم استعادة النظام'); setTimeout(() => window.location.reload(), 1500); }
+    if (file && window.confirm("⚠️ استعادة قاعدة بيانات خارجية ستستبدل المنظومة الحالية. هل تود المتابعة؟")) {
+      await importDatabase(file);
+      showMessage('✅ تم استعادة النظام');
+      setTimeout(() => window.location.reload(), 1500);
+    }
   };
 
-  // ========== 🧠 تبويب الذكاء الاصطناعي ==========
+  if (!dbReady) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', gap: '20px' }}>
+        <div style={{ width: '50px', height: '50px', border: '3px solid rgba(214,175,55,0.1)', borderTop: '3px solid var(--gold-main)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+        <p style={{ color: 'var(--gold-light)', fontWeight: 600 }}>⏳ جاري تهيئة قاعدة البيانات المحلية...</p>
+      </div>
+    );
+  }
+
   const renderAI = () => (
     <div className="settings-section">
       <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)', margin: '0 0 5px 0' }}>🧠 إعدادات المستشار الأكاديمي الذكي (Groq API)</h3>
-      <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginBottom: '20px' }}>أدخل مفتاح Groq API لتفعيل الذكاء الاصطناعي. المفتاح مجاني من <a href="https://console.groq.com" target="_blank" style={{ color: 'var(--gold-main)' }}>console.groq.com</a></p>
-
+      <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginBottom: '20px' }}>أدخل مفتاح Groq API لتفعيل الذكاء الاصطناعي. المفتاح مجاني من <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{ color: 'var(--gold-main)' }}>console.groq.com</a></p>
       <div className="form-card-lux" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.01), rgba(0,0,0,0.2))', border: '1px solid var(--glass-border)', padding: '25px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         <div className="form-group-lux" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           <label style={{ color: 'var(--gold-light)', fontSize: '0.9rem', fontWeight: 700 }}>🔑 مفتاح Groq API</label>
@@ -121,7 +214,6 @@ function Settings() {
     </div>
   );
 
-  // ========== باقي الواجهات ==========
   const renderDevices = () => (
     <div className="settings-section">
       <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)', margin: '0 0 5px 0' }}>🖐️ منظومة السيطرة وإدارة بوابات البصمة</h3>
