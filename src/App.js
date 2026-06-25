@@ -1,9 +1,8 @@
-// src/App.js – نظام الحضور والغياب الإمبراطوري الحركي (أيقونات مجسمة ثلاثية الأبعاد وقوائم سيادية معزولة)
+// src/App.js – نظام الحضور والغياب الإمبراطوري الحركي (SQLite محلية حقيقية)
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { initDatabase } from './services/db';
 import { login, logout, restoreSession } from './services/auth';
-import { loadMobileModel, startVoiceChat } from './services/ai';
 import Dashboard from './components/Dashboard';
 import Students from './components/Students';
 import Attendance from './components/Attendance';
@@ -15,39 +14,25 @@ function App() {
   const [screen, setScreen] = useState('home');
   const [openMenu, setOpenMenu] = useState(null);
   const [user, setUser] = useState(null);
-  const [aiReady, setAiReady] = useState(false);
-  const [aiProgress, setAiProgress] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
-  const [voiceActive, setVoiceActive] = useState(false);
-  const [voiceResult, setVoiceResult] = useState('');
-  
-  const [loading, setLoading] = useState(false); 
+  const [loading, setLoading] = useState(false);
+  const [dbReady, setDbReady] = useState(false);
 
   // ========== بدء التشغيل والتهيئة ==========
   useEffect(() => {
     let isMounted = true;
 
     async function startup() {
-      try { 
-        await initDatabase(); 
-      } catch(e) {
+      try {
+        await initDatabase();
+        if (isMounted) setDbReady(true);
+      } catch (e) {
         console.error("Database initialization failed:", e);
       }
-      
+
       restoreSession()
         .then(u => { if (isMounted && u) setUser(u); })
-        .catch(() => {});
-      
-      loadMobileModel((msg) => {
-        if (isMounted) setAiProgress(msg);
-      })
-        .then(() => { 
-          if (isMounted) { 
-            setAiReady(true); 
-            setAiProgress(''); 
-          } 
-        })
         .catch(() => {});
     }
 
@@ -71,25 +56,6 @@ function App() {
     }
   };
 
-  // ========== المحادثة الصوتية ==========
-  const handleVoiceChat = async () => {
-    setVoiceActive(true);
-    setVoiceResult('🎤 جاري الاستماع...');
-    
-    const result = await startVoiceChat();
-    
-    if (result.error) {
-      setVoiceResult(result.error);
-    } else if (result.question) {
-      setVoiceResult(`🗣️ أنت: "${result.question}"\n🤖: "${result.answer}"`);
-    }
-    
-    setTimeout(() => {
-      setVoiceActive(false);
-      setVoiceResult('');
-    }, 8000);
-  };
-
   // ========== تسجيل الخروج ==========
   const handleLogout = () => {
     logout();
@@ -100,104 +66,104 @@ function App() {
 
   // ========== مصفوفة الأيقونات ==========
   const mainIcons = [
-    { 
-      id: 'dashboard', 
-      title: 'لوحة التحكم', 
-      icon: '📊', 
-      color: '#D4AF37', 
+    {
+      id: 'dashboard',
+      title: 'لوحة التحكم',
+      icon: '📊',
+      color: '#D4AF37',
       glow: 'rgba(214, 175, 55, 0.4)',
-      desc: 'الإحصائيات المتقدمة والتحليلات البيومترية الحية', 
-      subItems: [] 
+      desc: 'الإحصائيات المتقدمة والتحليلات البيومترية الحية',
+      subItems: []
     },
-    { 
-      id: 'attendance', 
-      title: 'الحضور والغياب', 
-      icon: '🖐️', 
-      color: '#38bdf8', 
+    {
+      id: 'attendance',
+      title: 'الحضور والغياب',
+      icon: '🖐️',
+      color: '#38bdf8',
       glow: 'rgba(56, 189, 248, 0.4)',
-      desc: 'رصد حضور ومطابقة البصمة السحابية الفورية وتتبع الغياب', 
+      desc: 'رصد حضور ومطابقة البصمة السحابية الفورية وتتبع الغياب',
       subItems: [
-        { title: '⚡ تسجيل الحضور المباشر الآن', screen: 'attendance' }, 
-        { title: '📋 كشف الحضور والغياب لليوم', screen: 'attendance' }, 
+        { title: '⚡ تسجيل الحضور المباشر الآن', screen: 'attendance' },
+        { title: '📋 كشف الحضور والغياب لليوم', screen: 'attendance' },
         { title: '📊 السجل الشهري التراكمي للغياب', screen: 'attendance' }
       ]
     },
-    { 
-      id: 'students', 
-      title: 'الطلاب والكليات', 
-      icon: '🎓', 
-      color: '#34d399', 
+    {
+      id: 'students',
+      title: 'الطلاب والكليات',
+      icon: '🎓',
+      color: '#34d399',
       glow: 'rgba(52, 211, 153, 0.4)',
-      desc: 'إدارة الكليات، الأقسام، والتصنيفات الأكاديمية والطلاب', 
+      desc: 'إدارة الكليات، الأقسام، والتصنيفات الأكاديمية والطلاب',
       subItems: [
-        { title: '🏫 الكليات والأقسام الأكاديمية', screen: 'students' }, 
-        { title: '📜 التخصصات والخطط الدراسية', screen: 'students' }, 
+        { title: '🏫 الكليات والأقسام الأكاديمية', screen: 'students' },
+        { title: '📜 التخصصات والخطط الدراسية', screen: 'students' },
         { title: '👥 سجلات الطلاب والقبض البيومتري', screen: 'students' }
       ]
     },
-    { 
-      id: 'reports', 
-      title: 'مركز التقارير', 
-      icon: '📄', 
-      color: '#fb923c', 
+    {
+      id: 'reports',
+      title: 'مركز التقارير',
+      icon: '📄',
+      color: '#fb923c',
       glow: 'rgba(251, 146, 60, 0.4)',
-      desc: 'تصدير كشوفات وصكوك PDF و Excel ذكية بنقرة واحدة', 
+      desc: 'تصدير كشوفات وصكوك PDF و Excel ذكية بنقرة واحدة',
       subItems: [
-        { title: '📈 التقارير اليومية الإجمالية للكليات', screen: 'reports' }, 
-        { title: '📅 التقارير الدورية والشهرية للمواد', screen: 'reports' }, 
-        { title: '👤 ملف الغياب التفصيلي للطالب', screen: 'reports' }, 
+        { title: '📈 التقارير اليومية الإجمالية للكليات', screen: 'reports' },
+        { title: '📅 التقارير الدورية والشهرية للمواد', screen: 'reports' },
+        { title: '👤 ملف الغياب التفصيلي للطالب', screen: 'reports' },
         { title: '🏆 مؤشر انضباط الكليات والأقسام', screen: 'reports' }
       ]
     },
-    { 
-      id: 'notifications', 
-      title: 'نظام الإشعارات', 
-      icon: '🔔', 
-      color: '#f87171', 
+    {
+      id: 'notifications',
+      title: 'نظام الإشعارات',
+      icon: '🔔',
+      color: '#f87171',
       glow: 'rgba(248, 113, 113, 0.4)',
-      desc: 'بث رسائل WhatsApp Cloud API المؤتمتة لأولياء الأمور', 
-      subItems: [] 
+      desc: 'بث رسائل WhatsApp Cloud API المؤتمتة لأولياء الأمور',
+      subItems: []
     },
-    { 
-      id: 'devices', 
-      title: 'أجهزة البصمة', 
-      icon: '🖨️', 
-      color: '#c084fc', 
+    {
+      id: 'devices',
+      title: 'أجهزة البصمة',
+      icon: '🖨️',
+      color: '#c084fc',
       glow: 'rgba(192, 132, 252, 0.4)',
-      desc: 'ربط ومراقبة حيوية أجهزة الحضور الطرفية أوفلاين', 
-      subItems: [] 
+      desc: 'ربط ومراقبة حيوية أجهزة الحضور الطرفية أوفلاين',
+      subItems: []
     },
-    { 
-      id: 'calendar', 
-      title: 'التقويم الأكاديمي', 
-      icon: '📅', 
-      color: '#4ade80', 
+    {
+      id: 'calendar',
+      title: 'التقويم الأكاديمي',
+      icon: '📅',
+      color: '#4ade80',
       glow: 'rgba(74, 222, 128, 0.4)',
-      desc: 'جدولة الفصول الدراسية والخطط الزمنية للمستويات', 
-      subItems: [] 
+      desc: 'جدولة الفصول الدراسية والخطط الزمنية للمستويات',
+      subItems: []
     },
-    { 
-      id: 'settings', 
-      title: 'إعدادات النظام', 
-      icon: '⚙️', 
-      color: '#94a3b8', 
+    {
+      id: 'settings',
+      title: 'إعدادات النظام',
+      icon: '⚙️',
+      color: '#94a3b8',
       glow: 'rgba(148, 163, 184, 0.4)',
-      desc: 'لوحة السيادة العليا وإدارة صلاحيات الموظفين والنسخ الاحتياطي', 
+      desc: 'لوحة السيادة العليا وإدارة صلاحيات الموظفين والنسخ الاحتياطي',
       subItems: [
-        { title: '🔌 إعدادات ربط أجهزة البصمة', screen: 'settings' }, 
-        { title: '💬 تهيئة بوابة الـ WhatsApp API', screen: 'settings' }, 
-        { title: '👥 صلاحيات الموظفين والمستخدمين', screen: 'settings' }, 
+        { title: '🔌 إعدادات ربط أجهزة البصمة', screen: 'settings' },
+        { title: '💬 تهيئة بوابة الـ WhatsApp API', screen: 'settings' },
+        { title: '👥 صلاحيات الموظفين والمستخدمين', screen: 'settings' },
         { title: '💾 النسخ الاحتياطي لقواعد البيانات', screen: 'settings' }
       ]
     }
   ];
 
   const handleIconClick = (icon) => {
-    if (icon.subItems.length > 0) { 
-      setOpenMenu(openMenu === icon.id ? null : icon.id); 
-    } else { 
-      setScreen(icon.id); 
-      setOpenMenu(null); 
+    if (icon.subItems.length > 0) {
+      setOpenMenu(openMenu === icon.id ? null : icon.id);
+    } else {
+      setScreen(icon.id);
+      setOpenMenu(null);
     }
   };
 
@@ -206,7 +172,7 @@ function App() {
     return (
       <div className="splash-screen">
         <div className="splash-content">
-          <motion.div 
+          <motion.div
             className="splash-logo-3d"
             style={{ fontSize: '6rem', filter: 'drop-shadow(0 20px 40px rgba(214,175,55,0.4))' }}
             animate={{ scale: [1, 1.05, 1], y: [0, -10, 0] }}
@@ -225,13 +191,13 @@ function App() {
   if (!user) {
     return (
       <div className="login-screen">
-        <motion.div 
+        <motion.div
           className="login-card"
           initial={{ opacity: 0, y: 50, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ type: 'spring', stiffness: 100, damping: 15 }}
         >
-          <motion.div 
+          <motion.div
             className="login-logo-3d"
             style={{ fontSize: '5rem', filter: 'drop-shadow(0 15px 30px rgba(214,175,55,0.3))', marginBottom: '15px' }}
             animate={{ rotateY: [0, 360] }}
@@ -241,7 +207,7 @@ function App() {
           </motion.div>
           <h1 style={{ fontFamily: 'Amiri, serif', fontSize: '2.2rem', color: '#f3e5ab' }}>بوابة السيطرة المركزية</h1>
           <p style={{ color: 'rgba(255,255,255,0.6)' }}>يرجى إدخال شيفرة التصديق لتفويض الدخول للمنظومة</p>
-          
+
           <div className="login-input-group">
             <label style={{ color: '#d4af37', fontWeight: 600 }}>رمز المرور الأمني للمنصة</label>
             <input
@@ -253,10 +219,10 @@ function App() {
               autoFocus
             />
           </div>
-          
+
           {loginError && <p className="login-error">⚠️ {loginError}</p>}
-          
-          <motion.button 
+
+          <motion.button
             className="login-btn"
             onClick={handleLogin}
             whileHover={{ scale: 1.03, boxShadow: '0 0 25px rgba(214,175,55,0.4)' }}
@@ -265,7 +231,7 @@ function App() {
           >
             🔐 تصديق الدخول الآمن
           </motion.button>
-          
+
           <p className="login-footer">
             جامعة القرآن الكريم والعلوم الإسلامية<br />
             فرع غيل باوزير - حضرموت
@@ -285,99 +251,35 @@ function App() {
           <div className="bg-orb bg-orb-3"></div>
         </div>
 
-        <motion.header 
-          className="home-header" 
-          initial={{ opacity: 0, y: -30 }} 
+        <motion.header
+          className="home-header"
+          initial={{ opacity: 0, y: -30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, type: 'spring' }}
         >
-          <motion.div 
-            className="home-logo" 
+          <motion.div
+            className="home-logo"
             style={{ fontSize: '5rem', filter: 'drop-shadow(0 15px 30px rgba(214,175,55,0.3))' }}
-            whileHover={{ scale: 1.15, rotateY: 360 }} 
+            whileHover={{ scale: 1.15, rotateY: 360 }}
             transition={{ duration: 0.8 }}
           >
             🏛️
           </motion.div>
           <h1 style={{ fontFamily: 'Amiri, serif', fontSize: '2.6rem', color: '#f3e5ab', textShadow: '0 4px 15px rgba(0,0,0,0.6)' }}>نظام إدارة الحضور والغياب الإلكتروني</h1>
-          <p style={{ color: 'rgba(255,255,255,0.5)', letterSpacing: '0.5px' }}>بوابة التوجيه السريع الكوانتية لأنظمة الكليات والخدمات الذكية للجامعة</p>
+          <p style={{ color: 'rgba(255,255,255,0.5)', letterSpacing: '0.5px' }}>بوابة التوجيه السريع لأنظمة الكليات والخدمات الذكية للجامعة</p>
         </motion.header>
-
-        {/* 🧠 شريط تقدم تحميل AI */}
-        {aiProgress && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            style={{
-              textAlign: 'center',
-              marginBottom: '15px',
-              color: '#D4AF37',
-              fontSize: '0.9rem',
-              fontWeight: 500,
-              background: 'rgba(0,0,0,0.4)',
-              padding: '10px 20px',
-              borderRadius: '10px',
-              maxWidth: '400px',
-              margin: '0 auto 15px'
-            }}
-          >
-            🧠 {aiProgress}
-          </motion.div>
-        )}
-
-        {/* 🎤 زر المحادثة الصوتية */}
-        <div style={{ textAlign: 'center', marginBottom: '10px', position: 'relative', zIndex: 10 }}>
-          <motion.button
-            onClick={handleVoiceChat}
-            disabled={voiceActive || !aiReady}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            style={{
-              background: voiceActive ? 'rgba(239,68,68,0.2)' : aiReady ? 'rgba(212,175,55,0.1)' : 'rgba(255,255,255,0.05)',
-              border: `1px solid ${voiceActive ? '#EF4444' : aiReady ? '#D4AF37' : 'rgba(255,255,255,0.2)'}`,
-              color: voiceActive ? '#f87171' : aiReady ? '#D4AF37' : 'rgba(255,255,255,0.4)',
-              padding: '12px 30px',
-              borderRadius: '30px',
-              fontSize: '1rem',
-              fontWeight: 600,
-              cursor: aiReady ? 'pointer' : 'not-allowed',
-              fontFamily: 'Tajawal, sans-serif'
-            }}
-          >
-            {voiceActive ? '⏳ جاري المعالجة...' : aiReady ? '🎤 محادثة صوتية' : '🧠 جاري تحميل AI...'}
-          </motion.button>
-          {voiceResult && (
-            <motion.p
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              style={{
-                color: '#FCF6BA',
-                marginTop: '12px',
-                fontSize: '0.9rem',
-                background: 'rgba(0,0,0,0.4)',
-                padding: '12px 20px',
-                borderRadius: '12px',
-                maxWidth: '500px',
-                margin: '12px auto 0',
-                whiteSpace: 'pre-line'
-              }}
-            >
-              {voiceResult}
-            </motion.p>
-          )}
-        </div>
 
         <div className="icons-grid" style={{ padding: '30px 15px', position: 'relative' }}>
           {mainIcons.map((icon, index) => {
             const isMenuOpen = openMenu === icon.id;
             return (
-              <motion.div 
-                key={icon.id} 
-                className="icon-wrapper" 
-                initial={{ opacity: 0, y: 40 }} 
-                animate={{ opacity: 1, y: 0 }} 
+              <motion.div
+                key={icon.id}
+                className="icon-wrapper"
+                initial={{ opacity: 0, y: 40 }}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05, type: 'spring', stiffness: 110 }}
-                style={{ 
+                style={{
                   position: 'relative',
                   zIndex: isMenuOpen ? 9999 : 10,
                   transition: 'z-index 0.3s ease-in-out'
@@ -394,20 +296,20 @@ function App() {
                     boxShadow: isMenuOpen ? `0 15px 40px ${icon.glow}` : '0 10px 30px rgba(0,0,0,0.3)'
                   }}
                 >
-                  <motion.div 
+                  <motion.div
                     className="icon-3d"
-                    style={{ 
-                      fontSize: '4.5rem', 
+                    style={{
+                      fontSize: '4.5rem',
                       display: 'block',
                       margin: '0 auto 15px auto',
                       filter: `drop-shadow(0 15px 20px ${icon.glow})`
                     }}
-                    animate={{ 
+                    animate={{
                       y: isMenuOpen ? [0, -8, 0] : [0, -4, 0],
                       scale: isMenuOpen ? 1.12 : 1,
                       rotateY: isMenuOpen ? [0, 360] : 0
                     }}
-                    transition={{ 
+                    transition={{
                       y: { repeat: Infinity, duration: isMenuOpen ? 1.5 : 3, ease: 'easeInOut' },
                       rotateY: { duration: 1.5, ease: 'easeInOut' }
                     }}
@@ -418,10 +320,10 @@ function App() {
 
                   <h3 className="icon-title" style={{ color: isMenuOpen ? icon.color : '#ffffff', fontSize: '1.4rem', fontWeight: 700 }}>{icon.title}</h3>
                   <p className="icon-desc" style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.4)' }}>{icon.desc}</p>
-                  
+
                   {icon.subItems.length > 0 && (
-                    <motion.span 
-                      className="dropdown-arrow" 
+                    <motion.span
+                      className="dropdown-arrow"
                       style={{ display: 'inline-block', marginTop: '10px', color: icon.color }}
                       animate={{ rotate: isMenuOpen ? 180 : 0 }}
                     >
@@ -432,13 +334,13 @@ function App() {
 
                 <AnimatePresence>
                   {isMenuOpen && icon.subItems.length > 0 && (
-                    <motion.div 
-                      className="dropdown-panel" 
-                      initial={{ opacity: 0, scaleY: 0, y: -10 }} 
-                      animate={{ opacity: 1, scaleY: 1, y: 0 }} 
-                      exit={{ opacity: 0, scaleY: 0, y: -10 }} 
+                    <motion.div
+                      className="dropdown-panel"
+                      initial={{ opacity: 0, scaleY: 0, y: -10 }}
+                      animate={{ opacity: 1, scaleY: 1, y: 0 }}
+                      exit={{ opacity: 0, scaleY: 0, y: -10 }}
                       transition={{ duration: 0.3, ease: [0.25, 1, 0.5, 1] }}
-                      style={{ 
+                      style={{
                         transformOrigin: 'top center',
                         position: 'absolute',
                         top: '100%',
@@ -454,12 +356,12 @@ function App() {
                       }}
                     >
                       {icon.subItems.map((sub, subIndex) => (
-                        <motion.button 
-                          key={`${sub.title}-${subIndex}`} 
-                          className="dropdown-item" 
-                          onClick={() => { 
-                            setScreen(sub.screen); 
-                            setOpenMenu(null); 
+                        <motion.button
+                          key={`${sub.title}-${subIndex}`}
+                          className="dropdown-item"
+                          onClick={() => {
+                            setScreen(sub.screen);
+                            setOpenMenu(null);
                           }}
                           whileHover={{ x: -8, backgroundColor: 'rgba(255,255,255,0.03)', color: icon.color }}
                           style={{
@@ -491,10 +393,10 @@ function App() {
           })}
         </div>
 
-        <motion.div 
-          className="user-bar" 
-          initial={{ opacity: 0, y: 30 }} 
-          animate={{ opacity: 1, y: 0 }} 
+        <motion.div
+          className="user-bar"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
         >
           <div className="user-info-block">
@@ -511,15 +413,15 @@ function App() {
 
   // 4️⃣ إطار تصفح الواجهات الداخلية
   const getTitle = () => {
-    const titles = { 
-      'dashboard': '📊 لوحة التحكم والمؤشرات الإحصائية العامة', 
-      'students': '👥 إدارة سجلات القبض البيومتري وشؤون الطلاب', 
-      'attendance': '🖐️ منظومة الرصد الاستراتيجي والمطابقة الفورية لبصمة الإصبع', 
-      'reports': '📄 مركز استخراج الصكوك والبيانات التحليلية للغياب (PDF)', 
-      'notifications': '🔔 بوابة تكامل WhatsApp Cloud API للبث التلقائي', 
-      'devices': '🖨️ المراقبة الحيوية لربط أجهزة البصمة المحلية', 
-      'calendar': '📅 جدولة الفصول والخطط الزمنية للتقويم الأكاديمي', 
-      'settings': '⚙️ المركز السيادي لإدارة الصلاحيات والنسخ الاحتياطي للنظام' 
+    const titles = {
+      'dashboard': '📊 لوحة التحكم والمؤشرات الإحصائية العامة',
+      'students': '👥 إدارة سجلات القبض البيومتري وشؤون الطلاب',
+      'attendance': '🖐️ منظومة الرصد الاستراتيجي والمطابقة الفورية',
+      'reports': '📄 مركز استخراج الصكوك والبيانات التحليلية للغياب',
+      'notifications': '🔔 بوابة تكامل WhatsApp Cloud API للبث التلقائي',
+      'devices': '🖨️ المراقبة الحيوية لربط أجهزة البصمة المحلية',
+      'calendar': '📅 جدولة الفصول والخطط الزمنية للتقويم الأكاديمي',
+      'settings': '⚙️ المركز السيادي لإدارة الصلاحيات والنسخ الاحتياطي'
     };
     return titles[screen] || 'المنظومة الرقمية السيادية للجامعة';
   };
@@ -529,17 +431,17 @@ function App() {
       <header className="top-bar" style={{ background: '#041d14', borderBottom: '1px solid rgba(214,175,55,0.2)', boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
         <button className="back-btn" onClick={() => setScreen('home')} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(214,175,55,0.3)', color: '#f3e5ab' }}>🏠 البوابة الرئيسية</button>
         <h2 style={{ fontFamily: 'Amiri, serif', color: '#ffffff', fontSize: '1.5rem', fontWeight: 700 }}>{getTitle()}</h2>
-        
+
         <div className="header-status" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.05)', padding: '6px 16px', borderRadius: '50px' }}>
-          <span className={`status-dot ${aiReady ? 'online' : 'offline'}`} style={{ backgroundColor: aiReady ? '#34d399' : '#f87171', boxShadow: aiReady ? '0 0 10px #34d399' : '0 0 10px #f87171' }}></span>
+          <span className={`status-dot ${dbReady ? 'online' : 'offline'}`} style={{ backgroundColor: dbReady ? '#34d399' : '#f87171', boxShadow: dbReady ? '0 0 10px #34d399' : '0 0 10px #f87171' }}></span>
           <span style={{ fontSize: '0.85rem', color: '#cbd5e1', fontWeight: 600 }}>
-            {aiProgress ? `🧠 ${aiProgress}` : aiReady ? 'محرك الحسابات الذكي (AI) نشط أوفلاين' : 'معالجة العقل الاصطناعي قيد التهيأة'}
+            {dbReady ? 'قاعدة بيانات محلية نشطة (SQLite)' : 'جاري تهيئة قاعدة البيانات...'}
           </span>
         </div>
-        
+
         <button className="btn-logout-sm" onClick={handleLogout} title="تدمير الجلسة الآمنة" style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.2)' }}>🚪</button>
       </header>
-      
+
       <main className="main-content" style={{ background: '#03140e' }}>
         {screen === 'dashboard' && <Dashboard />}
         {screen === 'students' && <Students />}
