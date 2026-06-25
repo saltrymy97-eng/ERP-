@@ -1,4 +1,4 @@
-// src/components/Students.js – إدارة شؤون الطلاب والكليات (SQLite محلية + صورة الطالب)
+// src/components/Students.js – إدارة شؤون الطلاب والكليات (SQLite محلية + صورة الطالب + طباعة كشف حضور)
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery, initDatabase } from '../services/db';
@@ -170,6 +170,81 @@ function Students() {
     setShowForm(true);
   };
 
+  // ========== طباعة كشف حضور الطالب ==========
+  const printAttendanceReport = async (student) => {
+    const attendanceData = await getQuery(
+      "SELECT date, time_in, time_out, status FROM attendance WHERE student_id = ? ORDER BY date DESC LIMIT 60",
+      [student.id]
+    );
+
+    const totalDays = attendanceData?.length || 0;
+    const presentDays = attendanceData?.filter(a => a.status === 'present').length || 0;
+    const absentDays = attendanceData?.filter(a => a.status === 'absent').length || 0;
+    const lateDays = attendanceData?.filter(a => a.status === 'late').length || 0;
+    const rate = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
+
+    let rowsHtml = '';
+    if (attendanceData) {
+      attendanceData.forEach((a, i) => {
+        const statusText = a.status === 'present' ? 'حاضر' : a.status === 'late' ? 'متأخر' : 'غائب';
+        const statusColor = a.status === 'present' ? '#10b981' : a.status === 'late' ? '#f59e0b' : '#ef4444';
+        rowsHtml += `<tr>
+          <td>${i + 1}</td>
+          <td>${a.date}</td>
+          <td>${a.time_in || '—'}</td>
+          <td>${a.time_out || '—'}</td>
+          <td style="color:${statusColor};font-weight:700">${statusText}</td>
+        </tr>`;
+      });
+    }
+
+    const reportWindow = window.open('', 'كشف الحضور', 'width=750,height=700');
+    reportWindow.document.write(`
+      <html dir="rtl"><head><title>كشف حضور الطالب</title>
+      <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&family=Amiri:wght@700&display=swap" rel="stylesheet">
+      <style>
+        body{font-family:'Tajawal',sans-serif;padding:25px;color:#333;background:#fff;direction:rtl}
+        .header{text-align:center;border-bottom:3px solid #062b1e;padding-bottom:15px;margin-bottom:20px}
+        .header h1{font-family:'Amiri',serif;font-size:22px;color:#b89324;margin:0}
+        .header h3{font-size:14px;color:#555;margin:5px 0}
+        .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;background:#f8fafc;padding:15px;border-radius:10px;border:1px solid #e2e8f0}
+        .info-item{display:flex;justify-content:space-between;font-size:13px}
+        .info-item strong{color:#062b1e}
+        .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+        .stat-box{text-align:center;padding:12px;border-radius:8px;font-weight:700;font-size:13px}
+        table{width:100%;border-collapse:collapse;margin-top:15px;font-size:12px}
+        th{background:#062b1e;color:#d6af37;padding:10px;text-align:right;font-weight:700}
+        td{padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right}
+        tr:nth-child(even){background:#f8fafc}
+        .footer{margin-top:30px;text-align:center;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:15px}
+        @media print{body{padding:10px}}
+      </style></head><body>
+      <div class="header">
+        <h1>جامعة القرآن الكريم والعلوم الإسلامية</h1>
+        <h3>فرع غيل باوزير - حضرموت<br/>كشف متابعة الحضور والغياب</h3>
+      </div>
+      <div class="info-grid">
+        <div class="info-item"><strong>الاسم:</strong><span>${student.full_name}</span></div>
+        <div class="info-item"><strong>الرقم الجامعي:</strong><span>${student.university_id}</span></div>
+        <div class="info-item"><strong>الكلية:</strong><span>${student.college_name || '—'}</span></div>
+        <div class="info-item"><strong>التخصص:</strong><span>${student.major_name || '—'}</span></div>
+        <div class="info-item"><strong>المستوى:</strong><span>${student.level || '—'}</span></div>
+        <div class="info-item"><strong>الشعبة:</strong><span>${student.group_name || '—'}</span></div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-box" style="background:#ecfdf5;color:#10b981">✅ حضور: ${presentDays}</div>
+        <div class="stat-box" style="background:#fef2f2;color:#ef4444">❌ غياب: ${absentDays}</div>
+        <div class="stat-box" style="background:#fffbeb;color:#f59e0b">⚠️ تأخير: ${lateDays}</div>
+        <div class="stat-box" style="background:#eff6ff;color:#3b82f6">📊 نسبة: ${rate}%</div>
+      </div>
+      <table><thead><tr><th>#</th><th>التاريخ</th><th>دخول</th><th>خروج</th><th>الحالة</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+      ${totalDays === 0 ? '<p style="text-align:center;color:#94a3b8;margin-top:20px">لا توجد سجلات حضور</p>' : ''}
+      <div class="footer">صادر من نظام الحضور والغياب الإلكتروني - ${new Date().toLocaleDateString('ar-SA')}</div>
+      <script>window.onload=function(){window.print();setTimeout(function(){window.close()},500)}</script>
+      </body></html>`);
+    reportWindow.document.close();
+  };
+
   const printCard = (student) => {
     const cardWindow = window.open('', 'بطاقة الهوية الأكاديمية', 'width=480,height=700');
     cardWindow.document.write(`
@@ -232,8 +307,6 @@ function Students() {
           ))}
         </div>
 
-        {/* الكليات، الأقسام، التخصصات - محذوفة للإختصار، موجودة في النسخة الكاملة */}
-
         {/* 👥 الطلاب */}
         {tab === 'students' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -272,8 +345,9 @@ function Students() {
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>📜 التخصص:</span><span style={{ color: '#fff' }}>{s.major_name || '—'}</span></div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>📈 المستوى:</span><span style={{ color: '#38bdf8' }}>{s.level} ({s.group_name || 'أ'})</span></div>
                       </div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <motion.button onClick={() => printCard(s)} whileTap={{ scale: 0.95 }} style={{ flex: 1, background: 'rgba(214,175,55,0.08)', color: 'var(--gold-main)', border: '1px solid rgba(214,175,55,0.2)', padding: '8px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}>🖨️ بطاقة</motion.button>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <motion.button onClick={() => printCard(s)} whileTap={{ scale: 0.95 }} style={{ flex: 1, background: 'rgba(214,175,55,0.08)', color: 'var(--gold-main)', border: '1px solid rgba(214,175,55,0.2)', padding: '8px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem' }}>🖨️ بطاقة</motion.button>
+                        <motion.button onClick={() => printAttendanceReport(s)} whileTap={{ scale: 0.95 }} style={{ flex: 1, background: 'rgba(56,189,248,0.08)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.2)', padding: '8px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem' }}>📋 كشف حضور</motion.button>
                         <button className="btn-edit" onClick={() => handleEdit(s)}>✏️</button>
                         <button className="btn-delete" onClick={() => handleDelete(s.id)}>🗑️</button>
                       </div>
@@ -295,7 +369,12 @@ function Students() {
                       <td>{s.major_name}</td>
                       <td><span style={{ background: 'rgba(56,189,248,0.1)', color: '#38bdf8', padding: '3px 10px', borderRadius: '50px' }}>{s.level}</span></td>
                       <td style={{ fontWeight: 700, color: s.absence_rate >= 25 ? '#ef4444' : s.absence_rate > 12 ? '#f59e0b' : 'var(--green-bright)' }}>{s.absence_rate}%</td>
-                      <td><button className="btn-edit" onClick={() => handleEdit(s)}>✏️</button><button className="btn-delete" onClick={() => handleDelete(s.id)}>🗑️</button><button onClick={() => printCard(s)} style={{ color: 'var(--gold-main)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}>🖨️</button></td>
+                      <td>
+                        <button className="btn-edit" onClick={() => handleEdit(s)}>✏️</button>
+                        <button className="btn-delete" onClick={() => handleDelete(s.id)}>🗑️</button>
+                        <button onClick={() => printCard(s)} style={{ color: 'var(--gold-main)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}>🖨️</button>
+                        <button onClick={() => printAttendanceReport(s)} style={{ color: '#38bdf8', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem' }}>📋</button>
+                      </td>
                     </motion.tr>
                   ))}
                 </motion.tbody>
@@ -313,7 +392,6 @@ function Students() {
 
                 {tab === 'students' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    {/* صورة الطالب */}
                     <div style={{ textAlign: 'center', marginBottom: '10px' }}>
                       <div style={{ width: '100px', height: '100px', borderRadius: '50%', border: '2px solid var(--gold-main)', margin: '0 auto 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: 'rgba(0,0,0,0.3)', fontSize: '2.5rem' }}>
                         {formData.photo ? <img src={formData.photo} alt="معاينة" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '👤'}
