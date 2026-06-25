@@ -1,14 +1,8 @@
-// src/components/Reports.js – مركز التقارير الأكاديمية (Supabase Direct API)
+// src/components/Reports.js – مركز التقارير الأكاديمية (SQLite محلية حقيقية)
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { createClient } from '@supabase/supabase-js';
+import { getQuery, initDatabase } from '../services/db';
 import * as XLSX from 'xlsx';
-
-// ========== اتصال Supabase المباشر ==========
-const supabase = createClient(
-  'https://dboornlxohzwltylqceu.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRib29ybmx4b2h6d2x0eWxxY2V1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjI2MjA3MiwiZXhwIjoyMDk3ODM4MDcyfQ.lqqPioK_vWqJlfUnxDcmhBZqksKONIyuWA8dgDNwu1w'
-);
 
 function Reports() {
   const [reportType, setReportType] = useState('daily');
@@ -21,32 +15,33 @@ function Reports() {
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [quickStats, setQuickStats] = useState({ totalRecords: 0, efficiencyRate: 100, alertCount: 0 });
+  const [dbReady, setDbReady] = useState(false);
 
-  useEffect(() => { loadFilters(); }, []);
-  useEffect(() => { generateReport(); }, [reportType, selectedDate, selectedMonth, selectedStudent, selectedMajor]);
+  useEffect(() => {
+    const setup = async () => {
+      await initDatabase();
+      setDbReady(true);
+      await loadFilters();
+    };
+    setup();
+  }, []);
 
-  // ========== تحميل قوائم الفلاتر ==========
+  useEffect(() => {
+    if (dbReady) generateReport();
+  }, [reportType, selectedDate, selectedMonth, selectedStudent, selectedMajor, dbReady]);
+
   const loadFilters = async () => {
-    const { data: studentData } = await supabase
-      .from('students')
-      .select('id, full_name, university_id')
-      .eq('status', 'active')
-      .order('full_name');
+    const studentData = await getQuery(
+      "SELECT id, full_name, university_id FROM students WHERE status = 'active' ORDER BY full_name"
+    );
     setStudents(studentData || []);
 
-    const { data: majorData } = await supabase
-      .from('majors')
-      .select('id, name, departments!inner(name)')
-      .eq('status', 'active')
-      .order('name');
-    const mapped = (majorData || []).map(m => ({
-      ...m,
-      dept_name: m.departments?.name
-    }));
-    setMajors(mapped);
+    const majorData = await getQuery(
+      "SELECT m.id, m.name, d.name as dept_name FROM majors m LEFT JOIN departments d ON m.department_id = d.id WHERE m.status = 'active' ORDER BY m.name"
+    );
+    setMajors(majorData || []);
   };
 
-  // ========== توليد التقرير ==========
   const generateReport = async () => {
     setLoading(true);
     let data = [];
@@ -83,64 +78,69 @@ function Reports() {
     }
   };
 
-  // ========== تقرير يومي ==========
   const generateDailyReport = async () => {
-    const { data } = await supabase
-      .from('attendance')
-      .select('time_in, time_out, status, students!inner(university_id, full_name, majors(name))')
-      .eq('date', selectedDate)
-      .order('time_in', { ascending: false });
+    const data = await getQuery(
+      `SELECT a.time_in, a.time_out, a.status, s.university_id, s.full_name, m.name as major_name
+       FROM attendance a
+       INNER JOIN students s ON a.student_id = s.id
+       LEFT JOIN majors m ON s.major_id = m.id
+       WHERE a.date = ?
+       ORDER BY a.time_in DESC`,
+      [selectedDate]
+    );
 
     return (data || []).map(a => ({
-      university_id: a.students?.university_id,
-      full_name: a.students?.full_name,
-      major_name: a.students?.majors?.name,
+      university_id: a.university_id,
+      full_name: a.full_name,
+      major_name: a.major_name,
       time_in: a.time_in,
       time_out: a.time_out,
       status: a.status,
-      subject: a.subject || '—'
+      subject: '—'
     }));
   };
 
-  // ========== تقرير الغياب ==========
   const generateAbsentReport = async () => {
-    const { data } = await supabase
-      .from('attendance')
-      .select('date, students!inner(university_id, full_name, parent_phone, majors(name))')
-      .eq('status', 'absent')
-      .eq('date', selectedDate)
-      .order('full_name', { foreignTable: 'students' });
+    const data = await getQuery(
+      `SELECT a.date, s.university_id, s.full_name, s.parent_phone, m.name as major_name
+       FROM attendance a
+       INNER JOIN students s ON a.student_id = s.id
+       LEFT JOIN majors m ON s.major_id = m.id
+       WHERE a.status = 'absent' AND a.date = ?
+       ORDER BY s.full_name`,
+      [selectedDate]
+    );
 
     return (data || []).map(a => ({
-      university_id: a.students?.university_id,
-      full_name: a.students?.full_name,
-      major_name: a.students?.majors?.name,
-      parent_phone: a.students?.parent_phone,
+      university_id: a.university_id,
+      full_name: a.full_name,
+      major_name: a.major_name,
+      parent_phone: a.parent_phone,
       date: a.date
     }));
   };
 
-  // ========== تقرير شهري ==========
   const generateMonthlyReport = async () => {
     const startDate = `${selectedMonth}-01`;
     const endDate = `${selectedMonth}-31`;
 
-    const { data } = await supabase
-      .from('attendance')
-      .select('student_id, status, students!inner(university_id, full_name)')
-      .gte('date', startDate)
-      .lte('date', endDate);
+    const data = await getQuery(
+      `SELECT a.student_id, a.status, s.university_id, s.full_name
+       FROM attendance a
+       INNER JOIN students s ON a.student_id = s.id
+       WHERE a.date >= ? AND a.date <= ?`,
+      [startDate, endDate]
+    );
 
-    if (!data) return [];
+    if (!data || data.length === 0) return [];
 
-    // تجميع حسب الطالب
     const studentMap = {};
     data.forEach(a => {
       const sid = a.student_id;
       if (!studentMap[sid]) {
         studentMap[sid] = {
-          university_id: a.students?.university_id,
-          full_name: a.students?.full_name,
+          university_id: a.university_id,
+          full_name: a.full_name,
           present: 0, absent: 0, late: 0, total: 0
         };
       }
@@ -158,49 +158,50 @@ function Reports() {
       .sort((a, b) => a.rate - b.rate);
   };
 
-  // ========== تقرير طالب محدد ==========
   const generateStudentReport = async () => {
     if (!selectedStudent) return [];
 
-    const { data } = await supabase
-      .from('attendance')
-      .select('date, time_in, time_out, status')
-      .eq('student_id', selectedStudent)
-      .order('date', { ascending: false })
-      .limit(40);
+    const data = await getQuery(
+      `SELECT date, time_in, time_out, status
+       FROM attendance
+       WHERE student_id = ?
+       ORDER BY date DESC
+       LIMIT 40`,
+      [selectedStudent]
+    );
 
     return (data || []).map(a => ({
       date: a.date,
       time_in: a.time_in,
       time_out: a.time_out,
       status: a.status,
-      subject: a.subject || '—'
+      subject: '—'
     }));
   };
 
-  // ========== تقرير تخصص ==========
   const generateMajorReport = async () => {
     if (!selectedMajor) return [];
 
     const startDate = `${selectedMonth}-01`;
     const endDate = `${selectedMonth}-31`;
 
-    const { data } = await supabase
-      .from('attendance')
-      .select('student_id, status, students!inner(university_id, full_name)')
-      .eq('students.major_id', selectedMajor)
-      .gte('date', startDate)
-      .lte('date', endDate);
+    const data = await getQuery(
+      `SELECT a.student_id, a.status, s.university_id, s.full_name
+       FROM attendance a
+       INNER JOIN students s ON a.student_id = s.id
+       WHERE s.major_id = ? AND a.date >= ? AND a.date <= ?`,
+      [selectedMajor, startDate, endDate]
+    );
 
-    if (!data) return [];
+    if (!data || data.length === 0) return [];
 
     const studentMap = {};
     data.forEach(a => {
       const sid = a.student_id;
       if (!studentMap[sid]) {
         studentMap[sid] = {
-          university_id: a.students?.university_id,
-          full_name: a.students?.full_name,
+          university_id: a.university_id,
+          full_name: a.full_name,
           absences: 0, total: 0
         };
       }
@@ -211,16 +212,18 @@ function Reports() {
     return Object.values(studentMap).sort((a, b) => b.absences - a.absences);
   };
 
-  // ========== تقرير الانضباط ==========
   const generateDisciplineReport = async () => {
-    const { data } = await supabase
-      .from('discipline')
-      .select('attendance_score, punctuality_score, absence_score, discipline_score, total_score, students!inner(university_id, full_name)')
-      .order('total_score', { ascending: false });
+    const data = await getQuery(
+      `SELECT d.attendance_score, d.punctuality_score, d.absence_score, d.discipline_score, d.total_score,
+              s.university_id, s.full_name
+       FROM discipline d
+       INNER JOIN students s ON d.student_id = s.id
+       ORDER BY d.total_score DESC`
+    );
 
     return (data || []).map(d => ({
-      university_id: d.students?.university_id,
-      full_name: d.students?.full_name,
+      university_id: d.university_id,
+      full_name: d.full_name,
       attendance_score: d.attendance_score,
       punctuality_score: d.punctuality_score,
       absence_score: d.absence_score,
@@ -229,7 +232,6 @@ function Reports() {
     }));
   };
 
-  // ========== إحصائيات سريعة ==========
   const calculateQuickStats = (data) => {
     if (!data || data.length === 0) {
       setQuickStats({ totalRecords: 0, efficiencyRate: 100, alertCount: 0 });
@@ -250,7 +252,6 @@ function Reports() {
     });
   };
 
-  // ========== طباعة HTML ==========
   const handlePrintHTML = () => {
     if (!reportData || reportData.length === 0) return;
     const printWindow = window.open('', '_blank');
@@ -294,7 +295,6 @@ function Reports() {
     printWindow.document.close();
   };
 
-  // ========== تصدير Excel ==========
   const exportExcel = () => {
     if (!reportData || reportData.length === 0) return;
     const translatedData = reportData.map(row => {
@@ -310,7 +310,6 @@ function Reports() {
     XLSX.writeFile(wb, `بيانات_الاستعلام_الذكي_${reportType}.xlsx`);
   };
 
-  // ========== دوال مساعدة ==========
   const getReportTitle = () => {
     const titles = {
       daily: `كشف رصد الحضور الميداني الشامل ليوم: ${selectedDate}`,
@@ -344,11 +343,18 @@ function Reports() {
     return value;
   };
 
-  // ========== واجهة المستخدم ==========
+  if (!dbReady) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', gap: '20px' }}>
+        <div style={{ width: '50px', height: '50px', border: '3px solid rgba(214,175,55,0.1)', borderTop: '3px solid var(--gold-main)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+        <p style={{ color: 'var(--gold-light)', fontWeight: 600 }}>⏳ جاري تهيئة قاعدة البيانات المحلية...</p>
+      </div>
+    );
+  }
+
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="reports-module" style={{ padding: '5px 0' }}>
       
-      {/* 📊 بطاقات الإحصائيات السريعة */}
       <div className="report-metrics-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '25px' }}>
         {[
           { label: 'إجمالي السجلات المستعلم عنها', count: quickStats.totalRecords, suffix: ' سجل موثق', color: 'var(--gold-main)', icon: '📜' },
@@ -366,7 +372,6 @@ function Reports() {
         ))}
       </div>
 
-      {/* 🛠️ شريط الأدوات */}
       <div className="reports-toolbar" style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--glass-border)', padding: '15px 20px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', marginBottom: '30px' }}>
         <div className="report-selector" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flex: 1 }}>
           <select value={reportType} onChange={e => setReportType(e.target.value)}
@@ -411,23 +416,21 @@ function Reports() {
 
         <div className="report-actions" style={{ display: 'flex', gap: '10px' }}>
           <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }} onClick={handlePrintHTML} disabled={!reportData?.length}
-            className="btn-pdf" style={{ background: 'linear-gradient(135deg, #052318, #0b4630)', color: 'var(--gold-light)', border: '1px solid rgba(214, 175, 55, 0.4)', padding: '12px 20px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', opacity: reportData?.length ? 1 : 0.4 }}>
+            style={{ background: 'linear-gradient(135deg, #052318, #0b4630)', color: 'var(--gold-light)', border: '1px solid rgba(214, 175, 55, 0.4)', padding: '12px 20px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', opacity: reportData?.length ? 1 : 0.4 }}>
             📄 وثيقة واستخراج PDF
           </motion.button>
           <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }} onClick={exportExcel} disabled={!reportData?.length}
-            className="btn-excel" style={{ background: 'linear-gradient(135deg, var(--emerald-light), #047857)', color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', opacity: reportData?.length ? 1 : 0.4 }}>
+            style={{ background: 'linear-gradient(135deg, var(--emerald-light), #047857)', color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', opacity: reportData?.length ? 1 : 0.4 }}>
             📊 جدول بيانات Excel
           </motion.button>
         </div>
       </div>
 
-      {/* 📋 عنوان التقرير */}
       <div className="report-header" style={{ marginBottom: '20px', borderRight: '4px solid var(--gold-main)', paddingRight: '15px' }}>
         <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.7rem', color: 'var(--gold-light)', margin: 0 }}>{getReportTitle()}</h3>
         <p style={{ color: 'var(--text-secondary)', margin: '5px 0 0 0', fontSize: '0.88rem' }}>تم العثور على <strong style={{ color: '#fff' }}>{reportData?.length || 0}</strong> سجل مطابق.</p>
       </div>
 
-      {/* 📊 جدول البيانات */}
       {loading ? (
         <div className="report-loading" style={{ padding: '60px 0', textAlign: 'center', color: 'var(--gold-main)', fontSize: '1.1rem', fontWeight: 600, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
           <div style={{ width: '40px', height: '40px', border: '3px solid rgba(214,175,55,0.1)', borderTopColor: 'var(--gold-main)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
