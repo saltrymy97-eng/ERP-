@@ -1,4 +1,4 @@
-// services/fingerprint.js – ربط أجهزة بصمة ZKTeco
+// src/services/fingerprint.js – ربط أجهزة بصمة ZKTeco (SQLite محلية حقيقية)
 import { getQuery, runQuery } from './db';
 
 export async function connectDevice(device) {
@@ -10,16 +10,19 @@ export async function connectDevice(device) {
     });
 
     if (response.ok) {
-      runQuery("UPDATE devices SET status='online', last_sync=? WHERE id=?", [
-        new Date().toISOString(),
-        device.id
-      ]);
+      await runQuery(
+        "UPDATE devices SET status = 'online', last_sync = ? WHERE id = ?",
+        [new Date().toISOString(), device.id]
+      );
       return { success: true, message: 'تم الاتصال' };
     }
 
     return { success: false, message: 'فشل الاتصال' };
   } catch (error) {
-    runQuery("UPDATE devices SET status='offline' WHERE id=?", [device.id]);
+    await runQuery(
+      "UPDATE devices SET status = 'offline' WHERE id = ?",
+      [device.id]
+    );
     return { success: false, message: error.message };
   }
 }
@@ -43,27 +46,27 @@ export async function getAttendanceFromDevice(device) {
 }
 
 export async function syncAllDevices() {
-  const devices = getQuery("SELECT * FROM devices WHERE status='online'");
+  const devices = await getQuery("SELECT * FROM devices WHERE status = 'online'");
   let totalSynced = 0;
 
   for (const device of devices) {
     const result = await getAttendanceFromDevice(device);
     if (result.success) {
       for (const log of result.data) {
-        const student = getQuery(
+        const student = await getQuery(
           "SELECT id FROM students WHERE fingerprint_data = ?",
           [log.fingerprint_id]
         );
 
-        if (student.length > 0) {
+        if (student && student.length > 0) {
           const today = new Date().toISOString().slice(0, 10);
-          const exists = getQuery(
-            "SELECT id FROM attendance WHERE student_id=? AND date=?",
+          const exists = await getQuery(
+            "SELECT id FROM attendance WHERE student_id = ? AND date = ?",
             [student[0].id, today]
           );
 
-          if (exists.length === 0) {
-            runQuery(
+          if (!exists || exists.length === 0) {
+            await runQuery(
               "INSERT INTO attendance (student_id, date, time_in, status, method) VALUES (?, ?, ?, 'present', 'fingerprint')",
               [student[0].id, today, log.time]
             );
@@ -78,8 +81,8 @@ export async function syncAllDevices() {
 }
 
 export async function registerFingerprint(studentId, fingerprintData) {
-  runQuery(
-    "UPDATE students SET fingerprint_data=? WHERE id=?",
+  await runQuery(
+    "UPDATE students SET fingerprint_data = ? WHERE id = ?",
     [fingerprintData, studentId]
   );
   return { success: true, message: 'تم تسجيل البصمة' };
