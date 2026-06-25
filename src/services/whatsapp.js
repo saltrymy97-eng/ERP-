@@ -1,5 +1,5 @@
-// services/whatsapp.js – إشعارات واتساب
-import { getQuery } from './db';
+// src/services/whatsapp.js – إشعارات واتساب (SQLite محلية حقيقية)
+import { getQuery, runQuery } from './db';
 
 let whatsappConfig = null;
 
@@ -45,63 +45,67 @@ export async function sendWhatsApp(to, message) {
 }
 
 export async function notifyParent(studentId, type, extra = {}) {
-  const student = getQuery(
-    "SELECT * FROM students WHERE id=?",
+  const student = await getQuery(
+    "SELECT * FROM students WHERE id = ?",
     [studentId]
-  )[0];
+  );
 
-  if (!student || !student.parent_phone) {
+  if (!student || student.length === 0 || !student[0].parent_phone) {
     return { success: false, error: 'لا يوجد رقم ولي أمر' };
   }
 
+  const s = student[0];
   let message = '';
 
   switch (type) {
     case 'entry':
-      message = `السلام عليكم\nنحيطكم علماً بأن:\nالطالب: ${student.full_name}\nسجل دخوله إلى المركز الساعة ${extra.time || '—'}.\n\nجامعة القرآن الكريم والعلوم الإسلامية`;
+      message = `السلام عليكم\nنحيطكم علماً بأن:\nالطالب: ${s.full_name}\nسجل دخوله إلى المركز الساعة ${extra.time || '—'}.\n\nجامعة القرآن الكريم والعلوم الإسلامية`;
       break;
 
     case 'lecture':
-      message = `السلام عليكم\nابنكم ${student.full_name}\nدخل محاضرة: ${extra.subject || '—'}\nالوقت: ${extra.time || '—'}\n\nجامعة القرآن الكريم والعلوم الإسلامية`;
+      message = `السلام عليكم\nابنكم ${s.full_name}\nدخل محاضرة: ${extra.subject || '—'}\nالوقت: ${extra.time || '—'}\n\nجامعة القرآن الكريم والعلوم الإسلامية`;
       break;
 
     case 'absent':
-      message = `السلام عليكم\nنود إبلاغكم بأن الطالب:\n${student.full_name}\nتغيب عن محاضرة اليوم.\nيرجى المتابعة.\n\nجامعة القرآن الكريم والعلوم الإسلامية`;
+      message = `السلام عليكم\nنود إبلاغكم بأن الطالب:\n${s.full_name}\nتغيب عن محاضرة اليوم.\nيرجى المتابعة.\n\nجامعة القرآن الكريم والعلوم الإسلامية`;
       break;
 
     case 'exit':
-      message = `السلام عليكم\nتم تسجيل خروج الطالب:\n${student.full_name}\nالساعة: ${extra.time || '—'}\n\nجامعة القرآن الكريم والعلوم الإسلامية`;
+      message = `السلام عليكم\nتم تسجيل خروج الطالب:\n${s.full_name}\nالساعة: ${extra.time || '—'}\n\nجامعة القرآن الكريم والعلوم الإسلامية`;
       break;
 
     case 'warning':
-      message = `⚠️ تنبيه هام\nالطالب: ${student.full_name}\nنسبة الغياب: ${extra.rate || '0'}%\nيرجى المتابعة العاجلة.\n\nجامعة القرآن الكريم والعلوم الإسلامية`;
+      message = `⚠️ تنبيه هام\nالطالب: ${s.full_name}\nنسبة الغياب: ${extra.rate || '0'}%\nيرجى المتابعة العاجلة.\n\nجامعة القرآن الكريم والعلوم الإسلامية`;
       break;
 
     default:
-      message = `السلام عليكم\nالطالب: ${student.full_name}\n${extra.text || ''}\n\nجامعة القرآن الكريم والعلوم الإسلامية`;
+      message = `السلام عليكم\nالطالب: ${s.full_name}\n${extra.text || ''}\n\nجامعة القرآن الكريم والعلوم الإسلامية`;
   }
 
-  const result = await sendWhatsApp(student.parent_phone, message);
+  const result = await sendWhatsApp(s.parent_phone, message);
 
-  const { runQuery } = await import('./db');
-  runQuery(
-    "INSERT INTO notifications (student_id, parent_phone, message, type, status) VALUES (?, ?, ?, ?, ?)",
-    [studentId, student.parent_phone, message, type, result.success ? 'sent' : 'failed']
+  await runQuery(
+    "INSERT INTO notifications (student_id, parent_phone, message, type, status, sent_at) VALUES (?, ?, ?, ?, ?, ?)",
+    [studentId, s.parent_phone, message, type, result.success ? 'sent' : 'failed', new Date().toISOString()]
   );
 
   return result;
 }
 
-export async function notifyAllAbsent(scheduleId) {
-  const { getQuery } = await import('./db');
+export async function notifyAllAbsent() {
   const today = new Date().toISOString().slice(0, 10);
 
-  const absentStudents = getQuery(`
-    SELECT DISTINCT s.id, s.full_name, s.parent_phone
-    FROM students s
-    LEFT JOIN attendance a ON s.id = a.student_id AND a.date = ?
-    WHERE a.id IS NULL OR a.status = 'absent'
-  `, [today]);
+  const absentStudents = await getQuery(
+    `SELECT DISTINCT s.id, s.full_name, s.parent_phone
+     FROM students s
+     WHERE s.status = 'active' 
+     AND s.id NOT IN (
+       SELECT DISTINCT a.student_id 
+       FROM attendance a 
+       WHERE a.date = ? AND (a.status = 'present' OR a.status = 'late')
+     )`,
+    [today]
+  );
 
   let sent = 0;
   for (const student of absentStudents) {
