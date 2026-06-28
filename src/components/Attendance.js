@@ -1,4 +1,4 @@
-// src/components/Attendance.js – نظام رصد الحضور والانصراف (SQLite محلية + صورة الطالب + إرسال إشعار للغائبين)
+// src/components/Attendance.js – نظام رصد الحضور والانصراف (مصلح ومتوافق تماماً مع بنية SQLite 4.0)
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery, initDatabase } from '../services/db';
@@ -29,7 +29,6 @@ function Attendance() {
         await initDatabase();
         if (isMounted) {
           setDbReady(true);
-          // جلب البيانات بالتوالي لضمان استقرار المشهد
           const loadedStudents = await loadStudents();
           const loadedAttendance = await loadTodayAttendance();
           await loadStats(loadedAttendance);
@@ -45,39 +44,51 @@ function Attendance() {
     };
   }, []);
 
-  // تحديث التقرير الشهري تلقائياً عند تغيير الشهر أو التبويب
   useEffect(() => {
     if (tab === 'monthly' && dbReady) {
       loadMonthlyData();
     }
   }, [selectedMonth, tab, dbReady]);
 
-  // ========== تحميل جميع الطلاب (نشط أو احتياطي لضمان الظهور) ==========
+  // ========== تحميل الطلاب مع جلب أسماء الكليات والتخصصات بالربط الصحيح ==========
   const loadStudents = async () => {
-    // تم تعديل الاستعلام ليشمل الحالات النشطة وأيضاً القيم الفارغة تحسباً لعدم تعيين الحالة عند الإضافة المفاجئة
-    const data = await getQuery(
-      "SELECT id, university_id, full_name, phone, photo, major_name, department_name, college_name FROM students WHERE status = 'active' OR status IS NULL OR status = '' ORDER BY full_name"
-    );
+    // تم إصلاح الاستعلام بالربط مع جداول الكليات والأقسام والتخصصات لجلب أسمائها بدلاً من استدعائها الخاطئ مباشرة من جدول الطلاب
+    const data = await getQuery(`
+      SELECT s.id, s.university_id, s.full_name, s.phone, s.photo, s.status,
+             m.name AS major_name,
+             c.name AS college_name
+      FROM students s
+      LEFT JOIN majors m ON s.major_id = m.id
+      LEFT JOIN departments d ON m.department_id = d.id
+      LEFT JOIN colleges c ON d.college_id = c.id
+      WHERE s.status = 'active' OR s.status IS NULL OR s.status = ''
+      ORDER BY s.full_name
+    `);
     setStudents(data || []);
     return data || [];
   };
 
-  // ========== تحميل حضور اليوم ==========
+  // ========== تحميل حضور اليوم بالربط الصحيح ==========
   const loadTodayAttendance = async () => {
-    const data = await getQuery(
-      `SELECT a.id, a.student_id, a.date, a.time_in, a.time_out, a.status, a.method, a.late_minutes,
-              s.full_name, s.university_id, s.phone, s.photo, s.major_name, s.college_name
-       FROM attendance a
-       INNER JOIN students s ON a.student_id = s.id
-       WHERE a.date = ?
-       ORDER BY a.time_in DESC`,
+    const data = await getQuery(`
+      SELECT a.id, a.student_id, a.date, a.time_in, a.time_out, a.status, a.method, a.late_minutes,
+             s.full_name, s.university_id, s.phone, s.photo,
+             m.name AS major_name,
+             c.name AS college_name
+      FROM attendance a
+      INNER JOIN students s ON a.student_id = s.id
+      LEFT JOIN majors m ON s.major_id = m.id
+      LEFT JOIN departments d ON m.department_id = d.id
+      LEFT JOIN colleges c ON d.college_id = c.id
+      WHERE a.date = ?
+      ORDER BY a.time_in DESC`,
       [today]
     );
     setTodayAttendance(data || []);
     return data || [];
   };
 
-  // ========== إحصائيات اليوم (تم إصلاح الخروج المبكر ومضاعفة الأرقام) ==========
+  // ========== إحصائيات اليوم ==========
   const loadStats = async (currentAttendance = null) => {
     const records = currentAttendance || todayAttendance;
 
@@ -86,7 +97,6 @@ function Attendance() {
       return;
     }
 
-    // تصفية السجلات الفريدة لكل طالب لمنع تكرار الحساب
     const uniqueMap = {};
     records.forEach(a => { uniqueMap[a.student_id] = a; });
     const uniqueRecords = Object.values(uniqueMap);
@@ -95,11 +105,10 @@ function Attendance() {
     const absent = uniqueRecords.filter(a => a.status === 'absent').length;
     const late = uniqueRecords.filter(a => a.status === 'late').length;
 
-    // تم إصلاح المنطق: الحاضرين الكلي = الحاضرين بانتظام + المتأخرين
     setStats({ present: present + late, absent, late });
   };
 
-  // ========== تسجيل الحضور ومحاكاة البصمة البيومترية ==========
+  // ========== تسجيل الحضور ومحاكاة البصمة ==========
   const markAttendance = async (student, status = 'present') => {
     if (attendanceTimeoutRef.current) {
       clearTimeout(attendanceTimeoutRef.current);
@@ -126,8 +135,6 @@ function Attendance() {
     attendanceTimeoutRef.current = setTimeout(async () => {
       const now = new Date();
       const timeNow = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false });
-      
-      // معيار التأخير الصباحي (الـ 8:15 صباحاً)
       const lateThreshold = '08:15';
       const isLate = timeNow > lateThreshold && status === 'present';
       const currentStatus = isLate ? 'late' : status;
@@ -165,7 +172,7 @@ function Attendance() {
     }, 1000);
   };
 
-  // ========== تسجيل غياب يدوي عاجل ==========
+  // ========== تسجيل غياب يدوي ==========
   const markAbsent = async (student) => {
     if (scanningId === student.id && attendanceTimeoutRef.current) {
       clearTimeout(attendanceTimeoutRef.current);
@@ -202,7 +209,7 @@ function Attendance() {
     await loadStats(updatedAttendance);
   };
 
-  // ========== تسجيل انصراف الطالب للخارج ==========
+  // ========== تسجيل انصراف ==========
   const markExit = async (attendanceId) => {
     const now = new Date();
     const timeNow = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -215,7 +222,7 @@ function Attendance() {
     await loadTodayAttendance();
   };
 
-  // ========== إرسال إشعارات لجميع الغائبين عبر الـ API ==========
+  // ========== إرسال إشعارات للغائبين ==========
   const handleNotifyAbsent = async () => {
     setSendingNotification(true);
     setNotificationResult(null);
@@ -225,7 +232,7 @@ function Attendance() {
       if (result && result.success) {
         setNotificationResult({ type: 'success', message: `✅ تم بث وتوجيه الإشعارات بنجاح إلى أولياء الأمور للغائبين.` });
       } else {
-        setNotificationResult({ type: 'error', message: `❌ فشل البث: ${result?.error || 'بوابة الإرسال غير مستجيبة حالياً'}` });
+        setNotificationResult({ type: 'error', message: `❌ فشل البث: ${result?.error || 'بوابة الإرسال غير مستجيبة'}` });
       }
     } catch (e) {
       setNotificationResult({ type: 'error', message: '❌ فشل الاتصال التام بخدمة الـ WhatsApp API' });
@@ -235,17 +242,21 @@ function Attendance() {
     setTimeout(() => setNotificationResult(null), 5000);
   };
 
-  // ========== التقرير الشهري ومصفوفة الحرمان (تم إصلاح منطق العد الرياضي) ==========
+  // ========== التقرير الشهري ومصفوفة الحرمان ومواءمة الربط ==========
   const loadMonthlyData = async () => {
     const startDate = `${selectedMonth}-01`;
     const endDate = `${selectedMonth}-31`;
 
-    const data = await getQuery(
-      `SELECT a.student_id, a.date, a.status, s.full_name, s.university_id, s.college_name
-       FROM attendance a
-       INNER JOIN students s ON a.student_id = s.id
-       WHERE a.date >= ? AND a.date <= ?
-       ORDER BY s.full_name`,
+    const data = await getQuery(`
+      SELECT a.student_id, a.date, a.status, s.full_name, s.university_id,
+             c.name AS college_name
+      FROM attendance a
+      INNER JOIN students s ON a.student_id = s.id
+      LEFT JOIN majors m ON s.major_id = m.id
+      LEFT JOIN departments d ON m.department_id = d.id
+      LEFT JOIN colleges c ON d.college_id = c.id
+      WHERE a.date >= ? AND a.date <= ?
+      ORDER BY s.full_name`,
       [startDate, endDate]
     );
 
@@ -256,7 +267,6 @@ function Attendance() {
 
     const studentMap = {};
     
-    // استخدام خريطة لمنع تكرار حساب نفس حركة اليوم للطالب الفردي
     data.forEach(a => {
       const sid = a.student_id;
       const dayKey = `${sid}_${a.date}`;
@@ -274,7 +284,6 @@ function Attendance() {
         };
       }
       
-      // نضمن عدم احتساب اليوم نفسه مرتين للطالب
       if (!studentMap[sid].countedDays.has(dayKey)) {
         studentMap[sid].countedDays.add(dayKey);
         
@@ -296,7 +305,6 @@ function Attendance() {
     setMonthlyData(result);
   };
 
-  // ========== إعادة ضبط حضور طالب لفتح البوابة له مجدداً ==========
   const resetAttendance = async (studentId) => {
     await runQuery(
       "DELETE FROM attendance WHERE student_id = ? AND date = ?",
@@ -354,7 +362,7 @@ function Attendance() {
             ))}
           </div>
 
-          {/* 🟢 تبويب: الحضور المباشر ومحاكاة البصمة */}
+          {/* 🟢 تبويب: الحضور المباشر */}
           {tab === 'live' && (
             <div className="live-attendance">
               <div className="live-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '25px' }}>
@@ -435,7 +443,7 @@ function Attendance() {
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             <span style={{ color: '#fff', fontWeight: 700, fontSize: '1.05rem' }}>{student.full_name}</span>
                             <span style={{ color: '#f3e5ab', fontSize: '0.85rem', fontWeight: 600 }}>🔢 {student.university_id}</span>
-                            <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>🏛️ {student.college_name || 'غير محدد'} - {student.major_name}</span>
+                            <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>🏛️ {student.college_name || 'غير محدد'} - {student.major_name || 'بدون تخصص'}</span>
                           </div>
                         </div>
 
@@ -491,7 +499,7 @@ function Attendance() {
             </div>
           )}
 
-          {/* 📊 تبويب: بيان الحضور اليومي للمقاعد */}
+          {/* 📊 تبويب: بيان الحضور اليومي */}
           {tab === 'today' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="today-attendance">
               <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '30px' }}>
@@ -525,15 +533,6 @@ function Attendance() {
                 </motion.button>
               </div>
 
-              <AnimatePresence>
-                {notificationResult && (
-                  <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                    style={{ padding: '12px 20px', borderRadius: '12px', marginBottom: '20px', background: 'rgba(0,0,0,0.3)', border: `1px solid ${notificationResult.type === 'success' ? '#34d399' : '#ef4444'}`, color: notificationResult.type === 'success' ? '#34d399' : '#ef4444', fontWeight: 600, fontSize: '0.9rem' }}>
-                    {notificationResult.message}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
               <div className="data-table">
                 <table>
                   <thead>
@@ -553,7 +552,7 @@ function Attendance() {
                         <td style={{ color: '#f3e5ab', fontWeight: 700 }}>{a.university_id}</td>
                         <td style={{ color: '#fff', fontWeight: 600 }}>{a.full_name}</td>
                         <td style={{ color: 'rgba(255,255,255,0.5)' }}>{a.college_name || '—'}</td>
-                        <td>{a.major_name}</td>
+                        <td>{a.major_name || '—'}</td>
                         <td style={{ fontWeight: 700, color: '#e2e8f0' }}>⏱️ {a.time_in || '—'}</td>
                         <td style={{ fontWeight: 700, color: 'rgba(255,255,255,0.4)' }}>🚪 {a.time_out || '—'}</td>
                         <td>
@@ -578,7 +577,7 @@ function Attendance() {
                       </tr>
                     ))}
                     {todayAttendance.length === 0 && (
-                      <tr><td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: 'rgba(255,255,255,0.4)' }}>🚫 لم يتم تسجيل أي حركة حضور أو بصمة لليوم حتى الآن.</td></tr>
+                      <tr><td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: 'rgba(255,255,255,0.4)' }}>🚫 لم يتم تسجيل أي حركة حضور لليوم حتى الآن.</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -586,7 +585,7 @@ function Attendance() {
             </motion.div>
           )}
 
-          {/* 📊 تبويب: مصفوفة التقارير الشهرية ونسب الغياب */}
+          {/* 📊 تبويب: التقرير الشهري */}
           {tab === 'monthly' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="monthly-attendance">
               <div className="monthly-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
