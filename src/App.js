@@ -214,8 +214,8 @@ function Icon3D({ icon, color, glow, isActive }) {
   );
 }
 
-// ========== مكون الأيقونة الرئيسية ==========
-function IconCard({ icon, index, openMenu, onIconClick }) {
+// ========== مكون الأيقونة الرئيسية (تم إصلاح ربط الـ props هنا) ==========
+function IconCard({ icon, index, openMenu, onIconClick, setScreen, setOpenMenu }) {
   const isMenuOpen = openMenu === icon.id;
   const [isHovered, setIsHovered] = useState(false);
 
@@ -599,7 +599,7 @@ function App() {
     );
   }
 
-  // 3️⃣ سطح مكتب النظام الرئيسي
+  // 3️⃣ سطح مكتب النظام الرئيسي (تم تمرير الـ سيت سكرين والـ سيت اوبن منيو هنا)
   if (screen === 'home') {
     return (
       <div className="home-screen" style={{ overflowX: 'hidden' }}>
@@ -635,6 +635,8 @@ function App() {
               index={index}
               openMenu={openMenu}
               onIconClick={handleIconClick}
+              setScreen={setScreen}
+              setOpenMenu={setOpenMenu}
             />
           ))}
         </div>
