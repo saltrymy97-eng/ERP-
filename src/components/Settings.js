@@ -1,4 +1,4 @@
-// src/components/Settings.js – المركز السيادي واللوحة القيادية العليا للنظام (نسخة مؤمنة بالكامل)
+// src/components/Settings.js – المركز السيادي واللوحة القيادية العليا للنظام (نسخة مؤمنة ومحدثة بالكامل)
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery, initDatabase, exportDatabase, importDatabase } from '../services/db';
@@ -17,7 +17,7 @@ function Settings() {
 
   // إعدادات الواتساب والذكاء الاصطناعي
   const [whatsappConfig, setWhatsappConfig] = useState({ api_key: '', phone_number_id: '', enabled: false });
-  const [aiConfig, setAiConfig] = useState({ api_key: '', enabled: false, model: 'gpt-oss-20b' }); // ضبط النموذج الجديد هنا افتراضياً
+  const [aiConfig, setAiConfig] = useState({ api_key: '', enabled: false, model: 'gpt-oss-20b' }); 
 
   // التقويم الأكاديمي
   const [calendarEvents, setCalendarEvents] = useState([]);
@@ -47,11 +47,19 @@ function Settings() {
         const savedWA = localStorage.getItem('whatsapp_config');
         if (savedWA) setWhatsappConfig(JSON.parse(savedWA));
         
+        // جلب الإعدادات المؤمنة للذكاء الاصطناعي مع منع التحديث المتأخر للـ React
         const savedAI = localStorage.getItem('ai_config');
         if (savedAI) {
-          const parsedAI = JSON.parse(savedAI);
-          // إجبار النظام على استخدام النموذج الجديد في الخلفية
-          setAiConfig({ ...parsedAI, model: 'gpt-oss-20b' });
+          try {
+            const parsedAI = JSON.parse(savedAI);
+            setAiConfig({
+              api_key: parsedAI.api_key || '',
+              enabled: parsedAI.enabled ?? false,
+              model: 'gpt-oss-20b'
+            });
+          } catch (e) {
+            console.error("Error parsing AI config on load:", e);
+          }
         }
       } catch (err) {
         console.error("Initialization Error:", err);
@@ -88,7 +96,7 @@ function Settings() {
     finally { setIsTestingId(null); }
   };
 
-  // ========== إصلاح مشكلة الواتساب (منع الحفظ الوهمي للفراغات) ==========
+  // ========== إدارة إعدادات الواتساب ==========
   const saveWhatsappConfig = () => {
     if (!whatsappConfig.api_key.trim() || !whatsappConfig.phone_number_id.trim()) {
       showMessage('❌ لا يمكن الحفظ! يرجى ملء مفتاح الـ API ومعرّف الهاتف أولاً لمنع تعطل الإشعارات', 'error');
@@ -98,12 +106,22 @@ function Settings() {
     showMessage('✨ تم حفظ وتأمين إعدادات WhatsApp بنجاح'); 
   };
 
-  // ========== إصلاح وحدة الذكاء الاصطناعي وترقية النموذج لـ GPT OSS 20B ==========
+  // ========== دالة حفظ إعدادات المستشار الذكي (النسخة المعدلة والمؤمنة 100%) ==========
   const saveAiConfig = () => {
-    const updatedConfig = { ...aiConfig, model: 'gpt-oss-20b' }; // تأكيد الحفظ على النموذج الجديد الحصري
+    if (!aiConfig.api_key || !aiConfig.api_key.trim()) {
+      showMessage('❌ لا يمكن الحفظ! يرجى كتابة مفتاح الـ API الخاص بـ Groq أولاً', 'error');
+      return;
+    }
+
+    const updatedConfig = { 
+      api_key: aiConfig.api_key.trim(), 
+      enabled: aiConfig.enabled, 
+      model: 'gpt-oss-20b' 
+    }; 
+
     localStorage.setItem('ai_config', JSON.stringify(updatedConfig)); 
     setAiConfig(updatedConfig);
-    showMessage('🧠 تم ترقية وحفظ إعدادات المستشار الذكي بنجاح'); 
+    showMessage('🧠 تم ترقية وحفظ وتأمين إعدادات المستشار الذكي بنجاح'); 
   };
 
   // ========== إدارة التقويم ==========
@@ -115,7 +133,7 @@ function Settings() {
   };
   const deleteEvent = async (id) => { await runQuery("DELETE FROM calendar WHERE id = ?", [id]); await loadCalendar(); showMessage('🗑️ تم حذف الفعالية'); };
 
-  // ========== إصلاح حقول الجداول الدراسية (تأمين الكتابة واختيار اليوم) ==========
+  // ========== إدارة الجداول الدراسية ==========
   const loadSchedules = async () => { const data = await getQuery("SELECT * FROM schedules ORDER BY day, time_from"); setSchedules(data || []); };
   const addSchedule = async () => {
     if (!scheduleForm.day || !scheduleForm.subject || !scheduleForm.time_from || !scheduleForm.time_to) { showMessage('❌ يرجى اختيار اليوم وإكمال حقول الجدول الأساسية المفتوحة للكتابة', 'error'); return; }
@@ -130,10 +148,10 @@ function Settings() {
   const loadUsers = () => { 
     try {
       const fetchedUsers = getAllUsers(); 
-      setUsers(fetchedUsers || []); // حماية المصفوفة من قيم الـ undefined والـ null
+      setUsers(fetchedUsers || []); 
     } catch (err) {
       console.error("Fatal Error inside loadUsers():", err);
-      setUsers([]); // إرجاع مصفوفة فارغة لتجنب الانهيار التام للرندرة
+      setUsers([]); 
     }
   };
 
@@ -229,7 +247,6 @@ function Settings() {
     </div>
   );
 
-  // ========== العرض المصلح للجدول الدراسي والمدخلات المفتوحة ==========
   const renderSchedules = () => (
     <div className="settings-section">
       <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)', margin: '0 0 5px 0' }}>📚 إدارة الساعات والجدول الدراسي الموحد</h3>
@@ -314,7 +331,7 @@ function Settings() {
       <div className="tabs" style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.02)', padding: '8px', borderRadius: '16px', border: '1px solid var(--glass-border)', marginBottom: '30px', overflowX: 'auto' }}>
         {[
           { id: 'devices', label: '🖐️ البصمة' },
-          { id: 'schedules', label: '📚 الجداول الدراسي' },
+          { id: 'schedules', label: '📚 الجدول الدراسي' },
           { id: 'whatsapp', label: '💬 الواتساب' },
           { id: 'ai', label: '🧠 المستشار الذكي' },
           { id: 'calendar', label: '📅 التقويم' },
