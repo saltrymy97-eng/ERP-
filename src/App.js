@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { initDatabase } from './services/db';
 import { login, logout, restoreSession } from './services/auth';
+import { startVoiceChat, stopVoiceRecognition } from './services/ai'; // 🔥 استيراد محرك الصوت والذكاء الاصطناعي الحقيقي
 import Dashboard from './components/Dashboard';
 import Students from './components/Students';
 import Attendance from './components/Attendance';
@@ -23,26 +24,50 @@ function CrystalOrbIcon({ icon, orbClass }) {
   );
 }
 
-// ========== مكون زر المحادثة الصوتية الفاخر بالذكاء الاصطناعي ==========
+// ========== مكون زر المحادثة الصوتية الفاخر بالذكاء الاصطناعي الحقيقي المتصل بـ Groq ==========
 function AIVoiceWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [aiState, setAiState] = useState('idle'); // idle, listening, processing
   const [transcript, setTranscript] = useState('');
 
-  // محاكاة استجابة الذكاء الاصطناعي الصوتي
-  const startVoiceSession = () => {
-    if (aiState !== 'idle') return;
+  // 🔥 طوق النجاة: تنظيف وإيقاف المايكروفون والنطق الآلي فوراً لو أغلق المستخدم النافذة فجأة
+  useEffect(() => {
+    return () => {
+      stopVoiceRecognition();
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+    };
+  }, [isOpen]);
+
+  // 🔥 تشغيل جلسة المحادثة الصوتية التوليدية الحقيقية المربوطة بـ Groq والنطق البشري
+  const handleVoiceSession = async () => {
+    if (aiState === 'listening') {
+      stopVoiceRecognition();
+      setAiState('idle');
+      setTranscript('⏹️ تم إيقاف الاستماع بطلب منك.');
+      return;
+    }
+
     setAiState('listening');
-    setTranscript('جاري الاستماع لصوتك الملكي...');
-    
-    setTimeout(() => {
-      setAiState('processing');
-      setTranscript('جاري تحليل الأمر وتحديث السجلات بيومترياً...');
-      setTimeout(() => {
-        setAiState('idle');
-        setTranscript('تمت معالجة الطلب الصوتي بنجاح سيادي مطلق!');
-      }, 2500);
-    }, 3000);
+    setTranscript('🎙️ أنا أستمع إليك الآن... تحدث بوضوح وسؤالك سيُرسل للمستشار مباشرة.');
+
+    const result = await startVoiceChat((isThinking) => {
+      if (isThinking) {
+        setAiState('processing');
+        setTranscript('🔮 جاري معالجة صوتك وتوليد التحليل الأكاديمي التوليدي من Groq...');
+      }
+    });
+
+    // معالجة الرد الصوتي والنصي القادم من الملف السيادي للذكاء الاصطناعي
+    if (result.error) {
+      setAiState('idle');
+      setTranscript(result.error);
+    } else if (result.question && result.answer) {
+      setAiState('idle');
+      setTranscript(`🗣️ أنت: "${result.question}"\n\n🤖 المستشار: "${result.answer}"`);
+    } else {
+      setAiState('idle');
+      setTranscript('🔮 انقر مجدداً على الجرم الصوتي للتحدث مع المستشار.');
+    }
   };
 
   return (
@@ -55,7 +80,7 @@ function AIVoiceWidget() {
             animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: 50, x: -20 }}
             style={{
-              width: '320px',
+              width: '330px',
               background: 'rgba(2, 11, 7, 0.98)',
               backdropFilter: 'blur(30px)',
               border: '1px solid var(--gold-main)',
@@ -68,48 +93,61 @@ function AIVoiceWidget() {
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-              <h4 style={{ fontFamily: 'Amiri, serif', color: 'var(--gold-light)', fontSize: '1.2rem', margin: 0 }}>المساعد الصوتي الذكي (سيادة AI)</h4>
+              <h4 style={{ fontFamily: 'Amiri, serif', color: 'var(--gold-light)', fontSize: '1.2rem', margin: 0 }}>المستشار الأكاديمي الصوتي الحقيقي</h4>
               <button 
-                onClick={() => setIsOpen(false)} 
+                onClick={() => {
+                  setIsOpen(false);
+                  if (window.speechSynthesis) window.speechSynthesis.cancel();
+                }} 
                 style={{ background: 'transparent', border: 'none', color: '#ff4d4d', cursor: 'pointer', fontSize: '1.1rem' }}
               >✕</button>
             </div>
 
-            {/* الجرم الصوتي النابض المتفاعل */}
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '20px 0' }}>
+            {/* الجرم الصوتي النابض المتفاعل مع حالة المحرك الحقيقي */}
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '15px 0' }}>
               <motion.div
-                onClick={startVoiceSession}
+                onClick={handleVoiceSession}
                 animate={{
                   scale: aiState === 'listening' ? [1, 1.2, 1] : aiState === 'processing' ? [1, 1.08, 1] : 1,
                   boxShadow: aiState === 'listening' 
-                    ? '0 0 35px var(--blue-crystal)' 
-                    : aiState === 'processing' ? '0 0 35px var(--purple-crystal)' : '0 0 20px rgba(212,175,55,0.3)'
+                    ? '0 0 35px #00ff88' 
+                    : aiState === 'processing' ? '0 0 35px var(--gold-main)' : '0 0 20px rgba(212,175,55,0.3)'
                 }}
                 transition={{ repeat: Infinity, duration: aiState === 'listening' ? 1.2 : 2 }}
                 style={{
-                  width: '80px',
-                  height: '80px',
+                  width: '85px',
+                  height: '85px',
                   borderRadius: '50%',
                   background: aiState === 'listening' 
-                    ? 'radial-gradient(circle, var(--blue-crystal) 0%, #004455 100%)'
+                    ? 'radial-gradient(circle, #047857 0%, #062b1e 100%)'
                     : aiState === 'processing'
-                    ? 'radial-gradient(circle, var(--purple-crystal) 0%, #440055 100%)'
+                    ? 'radial-gradient(circle, #b89324 0%, #041d14 100%)'
                     : 'radial-gradient(circle, var(--gold-light) 0%, var(--gold-dark) 100%)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor: 'pointer',
-                  fontSize: '2.2rem'
+                  fontSize: '2.4rem'
                 }}
               >
-                {aiState === 'listening' ? '🎙️' : aiState === 'processing' ? '🔮' : '✨'}
+                {aiState === 'listening' ? '🛑' : aiState === 'processing' ? '🔮' : '🎙️'}
               </motion.div>
             </div>
 
-            {/* موجات الحالة النصية */}
-            <p style={{ fontSize: '0.9rem', color: '#cbd5e1', textAlign: 'center', minHeight: '40px', margin: '10px 0 0 0', lineHeight: '1.5' }}>
-              {transcript || 'انقر على الجرم المضيء لبدء التوجيه الصوتي الفوري...'}
-            </p>
+            {/* نصوص الرد والتحليل الصوتي الحي الصادر من Groq */}
+            <div style={{ 
+              fontSize: '0.9rem', 
+              color: '#cbd5e1', 
+              maxHeight: '160px', 
+              overflowY: 'auto', 
+              padding: '5px', 
+              whiteSpace: 'pre-line',
+              lineHeight: '1.6',
+              borderTop: '1px solid rgba(255,255,255,0.05)',
+              marginTop: '10px'
+            }}>
+              {transcript || 'انقر على المايكروفون، وسيتحدث معك المستشار الأكاديمي للجامعة فوراً بصوته ويبحث في قاعدة البيانات...'}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -144,7 +182,6 @@ function AIVoiceWidget() {
 function IconCard({ icon, index, openMenu, onIconClick, setScreen, setOpenMenu }) {
   const isMenuOpen = openMenu === icon.id;
 
-  // تحديد كلاس الجرم اللوني لمنع التشابه البصري للكروت
   const getOrbClass = (id) => {
     switch (id) {
       case 'dashboard': return 'student-orb';
@@ -184,7 +221,6 @@ function IconCard({ icon, index, openMenu, onIconClick, setScreen, setOpenMenu }
           </motion.span>
         )}
 
-        {/* لوحة القوائم المنسدلة الذكية المصلحة والمحمية من التداخل */}
         <AnimatePresence>
           {isMenuOpen && icon.subItems.length > 0 && (
             <motion.div
@@ -192,7 +228,7 @@ function IconCard({ icon, index, openMenu, onIconClick, setScreen, setOpenMenu }
               initial={{ opacity: 0, scaleY: 0 }}
               animate={{ opacity: 1, scaleY: 1 }}
               exit={{ opacity: 0, scaleY: 0 }}
-              onClick={(e) => e.stopPropagation()} /* حماية ضد الإغلاق الخاطئ عند النقر الداخلي */
+              onClick={(e) => e.stopPropagation()}
             >
               {icon.subItems.map((sub, subIndex) => (
                 <button
@@ -225,7 +261,6 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [dbReady, setDbReady] = useState(false);
 
-  // التهيئة وتأمين قاعدة البيانات
   useEffect(() => {
     let isMounted = true;
     async function startup() {
@@ -265,7 +300,6 @@ function App() {
     setPassword('');
   };
 
-  // مصفوفة البيانات والأيقونات الكريستالية الفاخرة المحدثة
   const mainIcons = [
     {
       id: 'dashboard',
@@ -395,7 +429,7 @@ function App() {
           ))}
         </div>
 
-        {/* زر الذكاء الاصطناعي الصوتي المدمج */}
+        {/* زر الذكاء الاصطناعي الصوتي المدمج الحقيقي */}
         <AIVoiceWidget />
 
         <div className="user-bar">
