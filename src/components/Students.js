@@ -307,6 +307,89 @@ function Students() {
           ))}
         </div>
 
+        {/* 🏛️ هيكلة الكليات */}
+        {tab === 'colleges' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+              <div><h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.7rem', color: 'var(--gold-light)', margin: 0 }}>🏛️ إدارة هيكلة الكليات</h3></div>
+              <motion.button onClick={() => { resetForm(); setShowForm(true); }} whileHover={{ scale: 1.03 }} style={{ background: 'linear-gradient(135deg, var(--emerald-light), var(--green-bright))', color: '#fff', border: 'none', padding: '11px 20px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer' }}>➕ إضافة كلية</motion.button>
+            </div>
+            <div className="data-table"><table>
+              <thead><tr><th>#</th><th>رقم الكلية</th><th>اسم الكلية</th><th>إجراءات</th></tr></thead>
+              <tbody>
+                {colleges.map((c, i) => (
+                  <tr key={c.id}>
+                    <td><strong>{i + 1}</strong></td>
+                    <td style={{ color: 'var(--gold-light)', fontWeight: 700 }}>#{c.id}</td>
+                    <td style={{ color: '#fff', fontWeight: 600 }}>{c.name}</td>
+                    <td>
+                      <button className="btn-edit" onClick={() => handleEdit(c)}>✏️</button>
+                      <button className="btn-delete" onClick={() => handleDelete(c.id)}>🗑️</button>
+                    </td>
+                  </tr>
+                ))}
+                {colleges.length === 0 && <tr><td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>لا توجد كليات مضافة حالياً</td></tr>}
+              </tbody>
+            </table></div>
+          </motion.div>
+        )}
+
+        {/* 📂 الأقسام الأكاديمية */}
+        {tab === 'departments' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+              <div><h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.7rem', color: 'var(--gold-light)', margin: 0 }}>📂 إدارة الأقسام الأكاديمية</h3></div>
+              <motion.button onClick={() => { resetForm(); loadColleges(); setShowForm(true); }} whileHover={{ scale: 1.03 }} style={{ background: 'linear-gradient(135deg, var(--emerald-light), var(--green-bright))', color: '#fff', border: 'none', padding: '11px 20px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer' }}>➕ إضافة قسم</motion.button>
+            </div>
+            <div className="data-table"><table>
+              <thead><tr><th>#</th><th>القسم</th><th>الكلية التابع لها</th><th>إجراءات</th></tr></thead>
+              <tbody>
+                {departments.map((d, i) => (
+                  <tr key={d.id}>
+                    <td><strong>{i + 1}</strong></td>
+                    <td style={{ color: '#fff', fontWeight: 600 }}>{d.name}</td>
+                    <td style={{ color: 'var(--gold-light)' }}>{d.college_name || '—'}</td>
+                    <td>
+                      <button className="btn-edit" onClick={() => handleEdit(d)}>✏️</button>
+                      <button className="btn-delete" onClick={() => handleDelete(d.id)}>🗑️</button>
+                    </td>
+                  </tr>
+                ))}
+                {departments.length === 0 && <tr><td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>لا توجد أقسام أكاديمية مضافة</td></tr>}
+              </tbody>
+            </table></div>
+          </motion.div>
+        )}
+
+        {/* 🎓 مسارات التخصصات */}
+        {tab === 'majors' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+              <div><h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.7rem', color: 'var(--gold-light)', margin: 0 }}>📜 مسارات التخصصات والرسوم</h3></div>
+              <motion.button onClick={() => { resetForm(); loadDepartments(); setShowForm(true); }} whileHover={{ scale: 1.03 }} style={{ background: 'linear-gradient(135deg, var(--emerald-light), var(--green-bright))', color: '#fff', border: 'none', padding: '11px 20px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer' }}>➕ إضافة تخصص</motion.button>
+            </div>
+            <div className="data-table"><table>
+              <thead><tr><th>#</th><th>التخصص</th><th>القسم الأكاديمي</th><th>المدة الدراسية</th><th>الرسوم المقررة</th><th>إجراءات</th></tr></thead>
+              <tbody>
+                {majors.map((m, i) => (
+                  <tr key={m.id}>
+                    <td><strong>{i + 1}</strong></td>
+                    <td style={{ color: '#fff', fontWeight: 600 }}>{m.name}</td>
+                    <td style={{ color: 'var(--text-secondary)' }}>{m.department_name}</td>
+                    <td style={{ color: '#38bdf8' }}>{m.duration || '4 سنوات'}</td>
+                    <td style={{ color: 'var(--gold-light)', fontWeight: 700 }}>{m.fees || '0'}</td>
+                    <td>
+                      <button className="btn-edit" onClick={() => handleEdit(m)}>✏️</button>
+                      <button className="btn-delete" onClick={() => handleDelete(m.id)}>🗑️</button>
+                    </td>
+                  </tr>
+                ))}
+                {majors.length === 0 && <tr><td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>لا توجد تخصصات مضافة حالياً</td></tr>}
+              </tbody>
+            </table></div>
+          </motion.div>
+        )}
+
         {/* 👥 الطلاب */}
         {tab === 'students' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -341,7 +424,7 @@ function Students() {
                         <div><span style={{ color: '#fff', fontWeight: 800 }}>{s.full_name}</span><br /><span style={{ color: 'var(--gold-light)', fontWeight: 700, fontSize: '0.85rem' }}>ID: {s.university_id}</span></div>
                       </div>
                       <div style={{ background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '12px', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>🏛️ الكلية:</span><span style={{ color: 'var(--gold-light)' }}>{s.college_name || '—'}</span></div>
+                        <div style={{ display: 'flex', justifycontent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>🏛️ الكلية:</span><span style={{ color: 'var(--gold-light)' }}>{s.college_name || '—'}</span></div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>📜 التخصص:</span><span style={{ color: '#fff' }}>{s.major_name || '—'}</span></div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>📈 المستوى:</span><span style={{ color: '#38bdf8' }}>{s.level} ({s.group_name || 'أ'})</span></div>
                       </div>
@@ -383,13 +466,67 @@ function Students() {
           </motion.div>
         )}
 
-        {/* نافذة النموذج */}
+        {/* نافذة النموذج (Modal Form) المتكاملة */}
         <AnimatePresence>
           {showForm && (
             <div className="modal-overlay">
               <motion.div initial={{ opacity: 0, scale: 0.93 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} style={{ background: 'linear-gradient(135deg, rgba(5,34,24,0.98), rgba(10,58,41,0.98))', border: '1px solid var(--gold-main)', padding: '30px', borderRadius: '24px', width: '100%', maxWidth: tab === 'students' ? '720px' : '460px', maxHeight: '90vh', overflowY: 'auto' }}>
                 <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-main)', marginBottom: '22px' }}>{editId ? '📝 تحرير السجل' : '➕ قيد سجل جديد'}</h3>
 
+                {/* فورم الكليات */}
+                {tab === 'colleges' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <div>
+                      <label style={{ color: 'var(--gold-light)', display: 'block', marginBottom: '8px', fontWeight: 700 }}>🏛️ اسم الكلية الأكاديمية</label>
+                      <input type="text" className="glass-input" placeholder="مثال: كلية الهندسة ونظم المعلومات" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px', borderRadius: '12px', color: '#fff' }} />
+                    </div>
+                  </div>
+                )}
+
+                {/* فورم الأقسام */}
+                {tab === 'departments' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <div>
+                      <label style={{ color: 'var(--gold-light)', display: 'block', marginBottom: '8px', fontWeight: 700 }}>📂 اسم القسم الأكاديمي</label>
+                      <input type="text" className="glass-input" placeholder="مثال: قسم تقنية المعلومات" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px', borderRadius: '12px', color: '#fff', marginBottom: '15px' }} />
+                      
+                      <label style={{ color: 'var(--gold-light)', display: 'block', marginBottom: '8px', fontWeight: 700 }}>🏛️ التبعية للكلية</label>
+                      <select className="glass-input" value={formData.college_id} onChange={e => setFormData({ ...formData, college_id: e.target.value })} style={{ width: '100%', background: '#052218', border: '1px solid var(--glass-border)', padding: '12px', borderRadius: '12px', color: '#fff' }}>
+                        <option value="">-- اختر الكلية المستضيفة --</option>
+                        {colleges.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {/* فورم التخصصات */}
+                {tab === 'majors' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <div>
+                      <label style={{ color: 'var(--gold-light)', display: 'block', marginBottom: '8px', fontWeight: 700 }}>📜 اسم مسار التخصص</label>
+                      <input type="text" className="glass-input" placeholder="مثال: برمجيات ومواقع" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px', borderRadius: '12px', color: '#fff', marginBottom: '15px' }} />
+                      
+                      <label style={{ color: 'var(--gold-light)', display: 'block', marginBottom: '8px', fontWeight: 700 }}>📂 القسم الأكاديمي التابع له</label>
+                      <select className="glass-input" value={formData.department_id} onChange={e => setFormData({ ...formData, department_id: e.target.value })} style={{ width: '100%', background: '#052218', border: '1px solid var(--glass-border)', padding: '12px', borderRadius: '12px', color: '#fff', marginBottom: '15px' }}>
+                        <option value="">-- حدد القسم الأكاديمي --</option>
+                        {departments.map(d => <option key={d.id} value={d.id}>{d.name} ({d.college_name})</option>)}
+                      </select>
+
+                      <div style={{ display: 'flex', gap: '15px' }}>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ color: 'var(--gold-light)', display: 'block', marginBottom: '8px', fontWeight: 700 }}>⏳ مدة الدراسة</label>
+                          <input type="text" className="glass-input" value={formData.duration} onChange={e => setFormData({ ...formData, duration: e.target.value })} style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px', borderRadius: '12px', color: '#fff' }} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ color: 'var(--gold-light)', display: 'block', marginBottom: '8px', fontWeight: 700 }}>💰 الرسوم الدراسية سنويًا</label>
+                          <input type="number" className="glass-input" placeholder="0.00" value={formData.fees} onChange={e => setFormData({ ...formData, fees: e.target.value })} style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '12px', borderRadius: '12px', color: '#fff' }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* فورم الطلاب الرئيسي */}
                 {tab === 'students' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     <div style={{ textAlign: 'center', marginBottom: '10px' }}>
@@ -398,32 +535,32 @@ function Students() {
                       </div>
                       <input ref={photoInputRef} type="file" accept="image/*" onChange={handlePhotoChange} style={{ display: 'none' }} />
                       <button type="button" onClick={() => photoInputRef.current?.click()} style={{ background: 'rgba(214,175,55,0.1)', color: 'var(--gold-main)', border: '1px solid var(--gold-main)', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>
-                        📷 {formData.photo ? 'تغيير الصورة' : 'رفع صورة'}
+                        📷 {formData.photo ? 'تغيير الصورة' : 'رفع صورة بيومترية'}
                       </button>
                       {formData.photo && <button type="button" onClick={() => setFormData({ ...formData, photo: '' })} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem', marginTop: '5px' }}>🗑️ حذف الصورة</button>}
                     </div>
 
                     <div style={{ display: 'flex', gap: '15px' }}>
-                      <div style={{ flex: 1 }}><label>🔢 الرقم الجامعي</label><input type="text" className="glass-input" value={formData.university_id} onChange={e => setFormData({ ...formData, university_id: e.target.value })} /></div>
-                      <div style={{ flex: 2 }}><label>👤 الاسم الرباعي</label><input type="text" className="glass-input" value={formData.full_name} onChange={e => setFormData({ ...formData, full_name: e.target.value })} /></div>
+                      <div style={{ flex: 1 }}><label style={{ color: 'var(--gold-light)', display: 'block', marginBottom: '5px' }}>🔢 الرقم الجامعي</label><input type="text" className="glass-input" value={formData.university_id} onChange={e => setFormData({ ...formData, university_id: e.target.value })} style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '10px', borderRadius: '10px', color: '#fff' }} /></div>
+                      <div style={{ flex: 2 }}><label style={{ color: 'var(--gold-light)', display: 'block', marginBottom: '5px' }}>👤 الاسم الرباعي للطالب</label><input type="text" className="glass-input" value={formData.full_name} onChange={e => setFormData({ ...formData, full_name: e.target.value })} style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '10px', borderRadius: '10px', color: '#fff' }} /></div>
                     </div>
                     <div style={{ display: 'flex', gap: '15px' }}>
-                      <div style={{ flex: 1 }}><label>📱 هاتف</label><input type="text" className="glass-input" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} /></div>
-                      <div style={{ flex: 1 }}><label>💬 ولي الأمر</label><input type="text" className="glass-input" value={formData.parent_phone} onChange={e => setFormData({ ...formData, parent_phone: e.target.value })} /></div>
+                      <div style={{ flex: 1 }}><label style={{ color: 'var(--gold-light)', display: 'block', marginBottom: '5px' }}>📱 هاتف الطالب</label><input type="text" className="glass-input" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '10px', borderRadius: '10px', color: '#fff' }} /></div>
+                      <div style={{ flex: 1 }}><label style={{ color: 'var(--gold-light)', display: 'block', marginBottom: '5px' }}>💬 هاتف ولي الأمر</label><input type="text" className="glass-input" value={formData.parent_phone} onChange={e => setFormData({ ...formData, parent_phone: e.target.value })} style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '10px', borderRadius: '10px', color: '#fff' }} /></div>
                     </div>
                     <div style={{ display: 'flex', gap: '15px' }}>
-                      <div style={{ flex: 1 }}><label>🪪 الهوية</label><input type="text" className="glass-input" value={formData.national_id} onChange={e => setFormData({ ...formData, national_id: e.target.value })} /></div>
-                      <div style={{ flex: 1 }}><label>📜 التخصص</label><select className="glass-input" value={formData.major_id} onChange={e => setFormData({ ...formData, major_id: e.target.value })}><option value="">-- حدد --</option>{majors.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></div>
+                      <div style={{ flex: 1 }}><label style={{ color: 'var(--gold-light)', display: 'block', marginBottom: '5px' }}>🪪 الهوية الشخصية/الجواز</label><input type="text" className="glass-input" value={formData.national_id} onChange={e => setFormData({ ...formData, national_id: e.target.value })} style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '10px', borderRadius: '10px', color: '#fff' }} /></div>
+                      <div style={{ flex: 1 }}><label style={{ color: 'var(--gold-light)', display: 'block', marginBottom: '5px' }}>📜 التخصص الأكاديمي</label><select className="glass-input" value={formData.major_id} onChange={e => setFormData({ ...formData, major_id: e.target.value })} style={{ width: '100%', background: '#052218', border: '1px solid var(--glass-border)', padding: '10px', borderRadius: '10px', color: '#fff' }}><option value="">-- حدد المسار الدراسي --</option>{majors.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></div>
                     </div>
                     <div style={{ display: 'flex', gap: '15px' }}>
-                      <div style={{ flex: 1 }}><label>📈 المستوى</label><input type="text" className="glass-input" value={formData.level} onChange={e => setFormData({ ...formData, level: e.target.value })} /></div>
-                      <div style={{ flex: 1 }}><label>🏫 الشعبة</label><input type="text" className="glass-input" value={formData.group_name} onChange={e => setFormData({ ...formData, group_name: e.target.value })} /></div>
+                      <div style={{ flex: 1 }}><label style={{ color: 'var(--gold-light)', display: 'block', marginBottom: '5px' }}>📈 المستوى الدراسي</label><input type="text" className="glass-input" placeholder="مثال: المستوى الأول" value={formData.level} onChange={e => setFormData({ ...formData, level: e.target.value })} style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '10px', borderRadius: '10px', color: '#fff' }} /></div>
+                      <div style={{ flex: 1 }}><label style={{ color: 'var(--gold-light)', display: 'block', marginBottom: '5px' }}>🏫 الشعبة / المجموعة</label><input type="text" placeholder="مثال: أ" value={formData.group_name} onChange={e => setFormData({ ...formData, group_name: e.target.value })} style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '10px', borderRadius: '10px', color: '#fff' }} /></div>
                     </div>
                   </div>
                 )}
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '30px' }}>
-                  <motion.button onClick={handleSave} whileHover={{ scale: 1.02 }} style={{ background: 'linear-gradient(135deg, var(--gold-main), #b89324)', color: '#052218', border: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>💾 حفظ</motion.button>
+                  <motion.button onClick={handleSave} whileHover={{ scale: 1.02 }} style={{ background: 'linear-gradient(135deg, var(--gold-main), #b89324)', color: '#052218', border: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>💾 حفظ البيانات</motion.button>
                   <button onClick={resetForm} style={{ background: 'rgba(255,255,255,0.04)', color: 'var(--text-secondary)', border: '1px solid rgba(255,255,255,0.08)', padding: '12px 20px', borderRadius: '12px', cursor: 'pointer' }}>إلغاء</button>
                 </div>
               </motion.div>
