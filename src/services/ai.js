@@ -1,4 +1,4 @@
-// src/services/ai.js – المستشار الأكاديمي الذكي | Llama 3.2 1B | Groq API
+// src/services/ai.js – المستشار الأكاديمي الذكي | gpt-oss-20b | Groq API
 import { getQuery } from './db';
 
 // ========== حالة النظام ==========
@@ -8,7 +8,7 @@ let successfulRequests = 0;
 let recognition = null;
 
 // ========== إعدادات Groq ==========
-const GROQ_MODEL = 'llama-3.2-1b-preview';
+const GROQ_MODEL = 'gpt-oss-20b';
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 // ========== دالة جلب المفتاح من إعدادات النظام ==========
@@ -71,7 +71,7 @@ export async function loadMobileModel(onProgress) {
 
   isLoaded = true;
   if (onProgress) onProgress('✅ المستشار الأكاديمي جاهز');
-  console.log('✅ المستشار الأكاديمي الذكي جاهز ومفعّل (Llama 3.2 1B)');
+  console.log('✅ المستشار الأكاديمي الذكي جاهز ومفعّل (gpt-oss-20b)');
   return true;
 }
 
@@ -449,7 +449,7 @@ export async function unloadModel() { isLoaded = false; }
 export function getModelInfo() {
   const currentKey = getApiKey();
   return {
-    الاسم: 'Llama 3.2 1B Preview',
+    الاسم: 'gpt-oss-20b',
     المزود: 'Groq API',
     النوع: 'سحابي – يحتاج إنترنت',
     السرعة: '⚡ فوري',
