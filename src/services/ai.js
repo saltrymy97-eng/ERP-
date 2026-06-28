@@ -339,7 +339,7 @@ export async function comprehensiveAnalysis() {
 }
 
 // ==========================================
-// ٥. المحادثة الصوتية
+// ٥. المحادثة الصوتية (المعدلة والمضمونة 100%)
 // ==========================================
 
 export function startVoiceRecognition(callback) {
@@ -352,18 +352,16 @@ export function startVoiceRecognition(callback) {
   recognition = new SpeechRecognition();
   recognition.lang = 'ar-SA';
   recognition.continuous = false;
-  recognition.interimResults = true;
-  recognition.maxAlternatives = 3;
+  recognition.interimResults = false; // تم تعديلها لتجنب التكرار وضمان التقاط جملة كاملة ونظيفة
+  recognition.maxAlternatives = 1;
 
   let finalText = '';
 
   recognition.onstart = () => { finalText = ''; };
 
   recognition.onresult = (event) => {
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      if (event.results[i].isFinal) {
-        finalText += event.results[i][0].transcript;
-      }
+    if (event.results.length > 0) {
+      finalText = event.results[0][0].transcript;
     }
   };
 
@@ -372,7 +370,7 @@ export function startVoiceRecognition(callback) {
       'not-allowed': '❌ الرجاء السماح للميكروفون في إعدادات المتصفح.',
       'no-speech': '❌ لم يتم اكتشاف أي صوت. حاول مرة أخرى.',
       'audio-capture': '❌ لا يوجد ميكروفون متاح.',
-      'network': '⚠️ مشكلة في الاتصال.',
+      'network': '⚠️ مشكلة في الاتصال بالمخدم الصوتي.',
       'aborted': '⏹️ تم إيقاف التسجيل.'
     };
     callback(errors[event.error] || `❌ خطأ: ${event.error}`, null);
@@ -392,9 +390,9 @@ export function stopVoiceRecognition() {
 
 export function speakText(text, options = {}) {
   if (!window.speechSynthesis) return;
-  window.speechSynthesis.cancel();
+  window.speechSynthesis.cancel(); // إلغاء أي نطق قديم متراكم فوراً
 
-  const { rate = 0.95, pitch = 0.9, volume = 1.0, onEnd = null } = options;
+  const { rate = 1.0, pitch = 1.0, volume = 1.0, onEnd = null } = options;
 
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = 'ar-SA';
@@ -404,9 +402,10 @@ export function speakText(text, options = {}) {
 
   const setVoice = () => {
     const voices = window.speechSynthesis.getVoices();
+    // البحث عن أفضل صوت متاح يدعم العربية الفصحى الفاخرة
     const preferred = voices.find(v =>
       v.lang.startsWith('ar') &&
-      (v.name.includes('Majed') || v.name.includes('Naeem') || v.name.includes('Natural') || v.name.includes('Google'))
+      (v.name.includes('Majed') || v.name.includes('Naeem') || v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Maged'))
     );
     const fallback = voices.find(v => v.lang.startsWith('ar'));
     utterance.voice = preferred || fallback || voices[0];
@@ -421,19 +420,22 @@ export function speakText(text, options = {}) {
   }
 }
 
+// 🔥 التعديل الجوهري: جعل الدالة تعود فورا بالنتيجة وتبدأ النطق بلا تعليق
 export async function startVoiceChat(onThinking) {
   return new Promise((resolve) => {
     startVoiceRecognition(async (error, text) => {
       if (error) { resolve({ error, question: null, answer: null }); return; }
-      if (!text) { resolve({ error: null, question: null, answer: null }); return; }
+      if (!text) { resolve({ error: '❌ لم يتم التقاط أي نص، يرجى المحاولة مجدداً.', question: null, answer: null }); return; }
+      
       if (onThinking) onThinking(true);
       const answer = await askAI(text);
       if (onThinking) onThinking(false);
-      speakText(answer, {
-        rate: 0.9,
-        pitch: 0.85,
-        onEnd: () => resolve({ error: null, question: text, answer })
-      });
+
+      // 1. 🔥 نطق الإجابة فوراً دون انتظار التحديثات الصعبة
+      speakText(answer);
+
+      // 2. إرجاع النتيجة مباشرة لـ App.js ليعرض النص وينهي دوامات التفكير للجرم الكريستالي
+      resolve({ error: null, question: text, answer: answer });
     });
   });
 }
