@@ -1,23 +1,14 @@
-/* App.css – نظام الأجرام الكريستالية الحركية الفاخرة (3D Liquid Crystal Orbs) */
-/* نظام ERP المطور - جامعة القرآن الكريم والعلوم الإسلامية */
-/* الإصدار 4.0 – إعادة بناء برمجية وبصرية كاملة للأيقونات والتأثيرات التفاعلية */
-
 @import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Tajawal:wght@300;400;500;700;800;900&display=swap');
 
 :root {
-  /* تدرجات الأخضر الزمردي الملكي للجامعة */
   --emerald-dark: #02110c;
   --emerald-deep: #041f15;
   --emerald-main: #063324;
   --emerald-light: #0b5239;
-  
-  /* تدرجات الذهب النفيس والمضيء */
   --gold-dark: #996f0f;
   --gold-main: #D4AF37;
   --gold-light: #fbeea7;
   --gold-glow: rgba(212, 175, 55, 0.45);
-  
-  /* الألوان الكريستالية المشبعة جداً للأيقونات الجديدة */
   --bg-dark: #010705;
   --white: #ffffff;
   --red-crystal: #ff3366;
@@ -25,20 +16,15 @@
   --green-crystal: #00ff88;
   --orange-crystal: #ff7700;
   --purple-crystal: #d300ff;
-  
-  /* الزجاج الفاخر عالي النقاء */
   --glass-bg: rgba(255, 255, 255, 0.01);
   --glass-bg-hover: rgba(255, 255, 255, 0.04);
   --glass-border: rgba(212, 175, 55, 0.12);
   --glass-border-hover: rgba(212, 175, 55, 0.6);
-  
-  /* النصوص */
   --text-primary: #f8fafc;
   --text-secondary: #cbd5e1;
   --text-muted: #475569;
 }
 
-/* ===== الإعدادات العامة للمشروع ===== */
 * { 
   margin: 0; 
   padding: 0; 
@@ -62,7 +48,51 @@ input, textarea, select {
   font-family: 'Tajawal', sans-serif;
 }
 
-/* ===== شاشة التحميل الملكية ===== */
+.glass-input, 
+input[type="text"], 
+input[type="time"], 
+select {
+  background: rgba(4, 25, 18, 0.88) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(212, 175, 55, 0.5) !important;
+  border-radius: 12px !important;
+  padding: 14px 16px !important;
+  font-size: 1.05rem !important;
+  font-weight: 700 !important;
+  outline: none !important;
+  position: relative !important;
+  z-index: 100 !important;
+  box-shadow: inset 0 2px 5px rgba(0,0,0,0.6) !important;
+  transition: all 0.3s ease !important;
+}
+
+.glass-input:focus, 
+input[type="time"]:focus, 
+input[type="text"]:focus,
+select:focus {
+  background: rgba(2, 14, 10, 0.98) !important;
+  border-color: var(--gold-main) !important;
+  box-shadow: 0 0 15px rgba(212, 175, 55, 0.6), inset 0 2px 4px rgba(0,0,0,0.7) !important;
+}
+
+input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.8) sepia(1) saturate(5) hue-rotate(15deg) brightness(1.3) !important;
+  cursor: pointer !important;
+  padding: 4px !important;
+  position: relative !important;
+  z-index: 101 !important;
+}
+
+input[type="time"]::-webkit-datetime-edit-fields-wrapper { color: #ffffff !important; }
+input[type="time"]::-webkit-datetime-edit-text { color: var(--gold-main) !important; padding: 0 3px; font-weight: 900; }
+input[type="time"]::-webkit-datetime-edit-hour-field,
+input[type="time"]::-webkit-datetime-edit-minute-field,
+input[type="time"]::-webkit-datetime-edit-ampm-field {
+  color: #ffffff !important;
+  background: transparent !important;
+  font-weight: 700 !important;
+}
+
 .splash-screen {
   display: flex; align-items: center; justify-content: center; min-height: 100vh;
   background: radial-gradient(circle at center, var(--emerald-light) 0%, var(--emerald-dark) 100%);
@@ -85,7 +115,6 @@ input, textarea, select {
   margin: 45px auto 0 auto; animation: spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
-/* ===== شاشة تسجيل الدخول الفاخرة ===== */
 .login-screen {
   display: flex; align-items: center; justify-content: center; min-height: 100vh;
   background: linear-gradient(135deg, var(--emerald-dark) 0%, #010503 100%); padding: 20px;
@@ -119,10 +148,11 @@ input, textarea, select {
   box-shadow: 0 15px 40px rgba(212, 175, 55, 0.5);
 }
 
-/* ===== الشاشة الرئيسية وهندسة الأيقونات الكريستالية الحركية الجديدة ===== */
 .home-screen {
-  min-height: 100vh; background: radial-gradient(circle at 50% 15%, var(--emerald-deep) 0%, var(--bg-dark) 100%);
-  padding: 50px 20px 200px 20px; position: relative;
+  min-height: 100vh; 
+  background: radial-gradient(circle at 50% 15%, var(--emerald-deep) 0%, var(--bg-dark) 100%);
+  padding: 50px 145px 100px 45px;
+  position: relative;
 }
 .home-bg { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 0; pointer-events: none; }
 .bg-orb { position: absolute; border-radius: 50%; filter: blur(150px); opacity: 0.14; animation: orbFloat 25s infinite ease-in-out; }
@@ -143,14 +173,12 @@ input, textarea, select {
   filter: drop-shadow(0 4px 15px rgba(0,0,0,0.7));
 }
 
-/* شبكة الكروت الاحترافية المصممة للجرام الكريستالية */
 .icons-grid {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 35px;
   max-width: 1350px; margin: 0 auto; position: relative; z-index: 5;
 }
 .icon-wrapper { position: relative; perspective: 2000px; display: flex; flex-direction: column; }
 
-/* بطاقة الكريستال المشبعة الغامرة */
 .icon-card {
   width: 100%; background: var(--glass-bg);
   backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
@@ -162,7 +190,6 @@ input, textarea, select {
   z-index: 10;
 }
 
-/* رفع فوري لترتيب الكرت عند التفاعل لمنع أي تداخل نهائياً مع القوائم */
 .icon-wrapper:hover, .icon-wrapper:focus-within { z-index: 9999; }
 
 .icon-card:hover { 
@@ -178,18 +205,16 @@ input, textarea, select {
   z-index: 100;
 }
 
-/* 🪐 الأيقونة الكريستالية السائلة ثلاثية الأبعاد الجديدة بالكامل (3D Floating Crystal Orb) */
 .icon-3d-container {
   width: 115px; height: 115px; margin: 0 auto 25px auto;
   position: relative; display: flex; align-items: center; justify-content: center;
   overflow: visible; z-index: 3;
 }
 
-/* الجرم السائل المتوهج والمتحرك داخلياً */
 .icon-3d-liquid {
   width: 100%; height: 100%;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.02) 100%);
-  border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%; /* هندسة الشكل السائل الاحترافي */
+  border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%;
   border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: inset 0 4px 10px rgba(255, 255, 255, 0.2), 
               inset -4px -10px 20px rgba(0, 0, 0, 0.6),
@@ -200,27 +225,23 @@ input, textarea, select {
   position: relative; overflow: hidden;
 }
 
-/* ليزر البريق الخاطف داخل الجرم الكريستالي */
 .icon-3d-liquid::before {
   content: ''; position: absolute; top: -100%; left: -100%; width: 300%; height: 300%;
   background: linear-gradient(45deg, transparent 45%, rgba(255, 255, 255, 0.4) 50%, transparent 55%);
   transform: rotate(-30deg); animation: laserRun 3.5s cubic-bezier(0.3, 1, 0.2, 1) infinite;
 }
 
-/* هالة النيون الملونة الديناميكية الخلفية (Neon Aura Glow) - مخصصة لكل أيقونة حسب نوعها */
 .icon-3d-aura {
   position: absolute; inset: 5px; border-radius: 50%; filter: blur(22px);
   opacity: 0.35; transition: all 0.6s ease; z-index: -1;
-  background: var(--gold-main); /* افتراضي ويتم التحكم به برمجياً في الـ JS أو الكلاسات الفرعية */
+  background: var(--gold-main);
 }
 
-/* ربط الألوان الحية الصارخة بكل موديول لمنع تشابه الكروت */
 .student-orb .icon-3d-aura { background: var(--blue-crystal); }
 .attendance-orb .icon-3d-aura { background: var(--green-crystal); }
 .report-orb .icon-3d-aura { background: var(--purple-crystal); }
 .settings-orb .icon-3d-aura { background: var(--orange-crystal); }
 
-/* الـ Canvas الداخلي للأيقونة ثلاثية الأبعاد الفاخرة */
 .icon-3d-canvas, .icon-3d-fallback {
   font-size: 3.8rem; display: flex; align-items: center; justify-content: center;
   transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -228,29 +249,23 @@ input, textarea, select {
   z-index: 5;
 }
 
-/* 🔥 طاقة الحركة والدوران الفيزيائي الاحترافي عند التحويم (Hover Effects) */
 .icon-card:hover .icon-3d-liquid {
   transform: scale(1.15) rotate(10deg);
-  border-radius: 50% 50% 50% 50%; /* يتحول إلى كريستالة كروية مثالية ومشدودة عند اللمس */
+  border-radius: 50% 50% 50% 50%;
   border-color: rgba(255,255,255,0.4);
   box-shadow: inset 0 4px 15px rgba(255, 255, 255, 0.3), 
               inset -2px -5px 15px rgba(0, 0, 0, 0.4),
               0 25px 45px rgba(0, 0, 0, 0.7);
 }
-.icon-card:hover .icon-3d-aura {
-  opacity: 0.85; transform: scale(1.3); filter: blur(28px);
-}
+.icon-card:hover .icon-3d-aura { opacity: 0.85; transform: scale(1.3); filter: blur(28px); }
 .icon-card:hover .icon-3d-canvas, .icon-card:hover .icon-3d-fallback {
-  transform: scale(1.12) rotate(-10deg) translateZ(20px); /* دفع الأيقونة للأمام في الفضاء البصري */
+  transform: scale(1.12) rotate(-10deg) translateZ(20px);
   filter: brightness(1.4) drop-shadow(0 15px 25px rgba(0,0,0,0.8));
 }
 
-.icon-card.active .icon-3d-liquid {
-  transform: scale(1.08) rotate(-5deg); border-radius: 48%;
-}
+.icon-card.active .icon-3d-liquid { transform: scale(1.08) rotate(-5deg); border-radius: 48%; }
 .icon-card.active .icon-3d-aura { opacity: 0.9; filter: blur(30px); }
 
-/* 👑 تخصيص كامل واستثنائي لكرت الإعدادات لمنع التكرار نهائياً */
 .icon-card.settings-card {
   border-color: rgba(214, 175, 55, 0.35);
   background: linear-gradient(135deg, rgba(2, 17, 12, 0.6) 0%, rgba(214, 175, 55, 0.05) 100%);
@@ -264,7 +279,6 @@ input, textarea, select {
   box-shadow: 0 45px 85px rgba(0,0,0,0.7), 0 0 50px rgba(214, 175, 55, 0.4);
 }
 
-/* ===== العناوين والنصوص الملكية ===== */
 .icon-title { 
   font-family: 'Tajawal', sans-serif; font-weight: 900; font-size: 1.4rem; color: var(--white); 
   margin-bottom: 8px; text-shadow: 0 3px 6px rgba(0,0,0,0.6);
@@ -272,15 +286,21 @@ input, textarea, select {
 .icon-card:hover .icon-title { color: var(--gold-light); }
 .icon-desc { font-size: 0.88rem; color: var(--text-secondary); opacity: 0.7; padding: 0 5px; }
 
-/* 🔮 لوحة القوائم المنسدلة الذكية الفاخرة - تدمير مشاكل التداخل نهائياً */
 .dropdown-panel {
-  background: rgba(1, 8, 5, 0.98); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
-  border: 1px solid var(--gold-main); border-radius: 24px;
-  position: absolute; top: 108%; left: 0; right: 0;
-  z-index: 9999999 !important; /* قيمة قاهرة لضمان ظهورها فوق كل شيء */
-  box-shadow: 0 50px 100px rgba(0,0,0,0.98), 0 0 60px rgba(212, 175, 55, 0.35);
-  overflow: hidden; padding: 12px;
-  animation: slideDownMenu 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  background: rgba(1, 8, 5, 0.99) !important; 
+  backdrop-filter: blur(40px) !important; 
+  -webkit-backdrop-filter: blur(40px) !important;
+  border: 1px solid var(--gold-main) !important; 
+  border-radius: 24px !important;
+  position: absolute !important; 
+  top: 108% !important; 
+  left: 0 !important; 
+  right: 0 !important;
+  z-index: 9999999 !important;
+  box-shadow: 0 50px 100px rgba(0,0,0,0.98), 0 0 60px rgba(212, 175, 55, 0.45) !important;
+  overflow: hidden !important; 
+  padding: 12px !important;
+  animation: slideDownMenu 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
 }
 
 @keyframes slideDownMenu {
@@ -301,40 +321,55 @@ input, textarea, select {
   border-right-color: var(--gold-main); padding-right: 28px;
 }
 
-/* 👑 شريط المستخدم الجانبي الأيسر الفاخر - مأمن ومزاح لليسار لمنع التداخل نهائياً مع القوائم */
 .user-bar {
   display: flex; 
-  flex-direction: column; 
-  justify-content: space-between; 
+  flex-direction: column;
+  justify-content: flex-start; 
   align-items: center; 
   gap: 25px;
-  width: 260px; 
-  height: calc(100vh - 50px); 
-  padding: 35px 20px;
-  background: rgba(3, 20, 14, 0.96); backdrop-filter: blur(35px); -webkit-backdrop-filter: blur(35px);
-  border: 1px solid rgba(212, 175, 55, 0.35); border-radius: 28px;
+  width: 100px; 
+  height: calc(100vh - 60px);
+  padding: 35px 15px;
+  background: rgba(3, 20, 14, 0.96); 
+  backdrop-filter: blur(35px); 
+  -webkit-backdrop-filter: blur(35px);
+  border: 1px solid rgba(212, 175, 55, 0.35); 
+  border-radius: 30px;
   position: fixed; 
-  top: 25px; 
-  left: 25px; 
+  top: 30px; 
+  left: 30px;
+  right: auto;
+  transform: none;
   z-index: 500; 
-  box-shadow: 0 35px 80px rgba(0,0,0,0.95);
+  box-shadow: -15px 20px 60px rgba(0,0,0,0.9);
+  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.user-bar:hover {
+  width: 240px;
+  padding: 35px 20px;
 }
 
 .user-role-badge {
   background: rgba(212, 175, 55, 0.18); color: var(--gold-light);
-  border: 1px solid rgba(212, 175, 55, 0.3); padding: 7px 18px; border-radius: 50px; font-weight: 700;
-  text-align: center; width: 100%;
+  border: 1px solid rgba(212, 175, 55, 0.3); padding: 10px 14px; border-radius: 14px; 
+  font-weight: 700; font-size: 0.85rem; width: 100%; text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 .btn-logout {
   background: rgba(255, 77, 77, 0.12); color: #ffa1a1;
-  border: 1px solid rgba(255, 77, 77, 0.3); padding: 11px 26px; 
-  border-radius: 50px; cursor: pointer; font-weight: 700; transition: all 0.3s;
-  width: 100%; text-align: center;
+  border: 1px solid rgba(255, 77, 77, 0.3); padding: 12px 14px; 
+  border-radius: 14px; cursor: pointer; font-weight: 700; width: 100%;
+  transition: all 0.3s; text-align: center; white-space: nowrap;
 }
-.btn-logout:hover { background: #ff3366; color: var(--white); box-shadow: 0 0 25px rgba(255, 77, 77, 0.5); transform: translateY(-2px); }
+.btn-logout:hover { 
+  background: var(--red-crystal);
+  color: var(--white); 
+  box-shadow: 0 0 25px rgba(255, 77, 77, 0.5); 
+  transform: translateY(-2px); 
+}
 
-/* ===== الواجهات الداخلية والمكونات الهندسية المصلحة ===== */
 .top-bar {
   display: flex; align-items: center; gap: 20px; padding: 22px 35px;
   background: rgba(2, 14, 10, 0.8); backdrop-filter: blur(25px);
@@ -351,104 +386,41 @@ input, textarea, select {
 .data-table td { padding: 16px 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.02); color: var(--text-secondary); }
 .data-table tr:hover { background: rgba(212, 175, 55, 0.04); }
 
-/* ===== تأمين وإصلاح حقول الوقت والإدخال لتصبح مفتوحة وقابلة للكتابة والنقر 100% ===== */
-.glass-input, 
-input[type="text"], 
-input[type="time"], 
-select {
-    background: rgba(1, 8, 5, 0.75) !important;
-    color: var(--white) !important;
-    border: 1px solid rgba(212, 175, 55, 0.3) !important;
-    border-radius: 14px !important;
-    padding: 12px 16px !important;
-    font-size: 1rem !important;
-    outline: none !important;
-    position: relative !important;
-    z-index: 150 !important; /* طفو إجباري فوق أي عناصر شفافة مجاورة */
-    pointer-events: auto !important; /* إجبار الحقل على استقبال ضغطات الماوس والكتابة */
-    cursor: text;
-}
-
-/* تفتيح حقول الإدخال والوقت عند التركيز والكتابة */
-.glass-input:focus, 
-input[type="time"]:focus, 
-input[type="text"]:focus,
-select:focus {
-    background: rgba(1, 8, 5, 0.95) !important;
-    border-color: var(--gold-main) !important;
-    box-shadow: 0 0 15px rgba(212, 175, 55, 0.35) !important;
-}
-
-/* إجبار المتصفحات (Chrome, Edge, Safari) على إظهار نصوص وأيقونات حقول الوقت باللون الأبيض والذهبي */
-input[type="time"]::-webkit-calendar-picker-indicator {
-    filter: invert(1) sepia(1) saturate(5) hue-rotate(15deg); /* قلب لون أيقونة الساعة الافتراضية إلى الذهبي المضيء */
-    cursor: pointer;
-    padding: 4px;
-}
-input[type="time"]::-webkit-datetime-edit-fields-wrapper {
-    color: var(--white) !important;
-}
-input[type="time"]::-webkit-datetime-edit-text,
-input[type="time"]::-webkit-datetime-edit-hour-field,
-input[type="time"]::-webkit-datetime-edit-minute-field,
-input[type="time"]::-webkit-datetime-edit-ampm-field {
-    color: var(--white) !important;
-    background: transparent !important;
-}
-
-/* ===== الأنيميشن الفيزيائي الفاخر الحركي ===== */
 @keyframes liquidMorph {
   0% { border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%; }
   100% { border-radius: 70% 30% 52% 48% / 60% 40% 60% 40%; }
 }
-
-@keyframes laserRun {
-  0% { left: -150%; }
-  100% { left: 150%; }
-}
-
-@keyframes floatUpDown {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-15px); }
-}
-
+@keyframes laserRun { 0% { left: -150%; } 100% { left: 150%; } }
+@keyframes floatUpDown { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
 @keyframes spin { to { transform: rotate(360deg); } }
-
 @keyframes goldShine {
   0%, 100% { filter: drop-shadow(0 0 25px var(--gold-glow)); }
   50% { filter: drop-shadow(0 0 50px rgba(255, 238, 167, 0.7)) drop-shadow(0 0 15px var(--gold-main)); }
 }
 
-/* ===== التوافق مع الشاشات المتعددة وعمل الإزاحات الهندسية ===== */
-@media(min-width: 993px) {
-  .home-screen {
-    padding-left: 310px !important; /* إزاحة محتويات الصفحة لليمين لتوفير مساحة كاملة للشريط الأيسر */
-  }
+@media(max-width: 1200px) { 
+  .home-screen { padding: 40px 120px 100px 30px; }
+  .icons-grid { grid-template-columns: repeat(3, 1fr); gap: 25px; } 
 }
-
-@media(max-width: 1200px) { .icons-grid { grid-template-columns: repeat(3, 1fr); gap: 25px; } }
 @media(max-width: 992px) { .icons-grid { grid-template-columns: repeat(2, 1fr); gap: 20px; } }
 @media(max-width: 768px) {
-  .home-screen { padding: 20px 10px 220px 10px; }
+  .user-bar {
+    flex-direction: row; 
+    width: calc(100% - 30px); 
+    height: auto; 
+    bottom: 15px; 
+    top: auto; 
+    left: 15px; 
+    right: 15px;
+    padding: 12px 20px; 
+    border-radius: 100px;
+  }
+  .user-bar:hover { width: calc(100% - 30px); padding: 12px 20px; }
+  .user-role-badge, .btn-logout { width: auto; padding: 8px 16px; }
+  .home-screen { padding: 20px 15px 120px 15px; }
   .home-header h1 { font-size: 2.3rem; }
   .icons-grid { grid-template-columns: repeat(2, 1fr); gap: 15px; } 
   .icon-card { padding: 25px 16px; border-radius: 26px; }
   .icon-3d-container { width: 95px; height: 95px; }
-  
-  /* إعادة الشريط إلى الأسفل بشكل أفقي متناسق مع الشاشات الصغيرة والهواتف فقط */
-  .user-bar { 
-    width: calc(100% - 30px); 
-    height: auto;
-    position: fixed;
-    bottom: 15px; 
-    left: 50%;
-    transform: translateX(-50%);
-    top: auto;
-    flex-direction: row;
-    justify-content: space-between;
-    padding: 12px 20px; 
-    border-radius: 100px;
-  }
-  .user-role-badge, .btn-logout { width: auto; }
 }
 @media(max-width: 480px) { .icons-grid { grid-template-columns: 1fr; } }
