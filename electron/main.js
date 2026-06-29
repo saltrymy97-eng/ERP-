@@ -1,5 +1,5 @@
 // electron/main.js – تطبيق Electron مع SQLite حقيقية محلية احترافية
-// الإصدار 4.5 – إصلاح مسار الـ Preload للتحزيم النهائي المستقر (Pure Electron)
+// الإصدار 5.0 – الحل الاحترافي الديناميكي لحل مشكلة الشاشة السوداء في الـ EXE
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const Database = require('better-sqlite3');
@@ -248,17 +248,18 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      // 🛠️ التعديل الذهبي هنا: مسار مطلق مباشر يضمن العثور على preload.js داخل الـ asar دائماً
       preload: path.join(__dirname, 'preload.js')
     }
   });
 
-  const isDev = process.env.NODE_ENV === 'development';
-  if (isDev) {
+  // 🚀 التعديل الاحترافي لضمان أعلى دقة للمسارات في وضع الـ EXE والتطوير 🚀
+  if (app.isPackaged) {
+    // يشتغل بدقة وبمسار محمي نسبي داخل أرشيف الـ app.asar للـ EXE
+    mainWindow.loadFile(path.join(__dirname, '../build/index.html'));
+  } else {
+    // يشتغل أثناء التطوير السريع للمشروع
     mainWindow.loadURL('http://localhost:3000');
     mainWindow.webContents.openDevTools();
-  } else {
-    mainWindow.loadFile(path.join(__dirname, '../build/index.html'));
   }
 
   mainWindow.setMenuBarVisibility(false);
