@@ -1,6 +1,7 @@
 {
   "name": "alquran-attendance-system",
   "version": "3.0.0",
+  "homepage": ".",
   "description": "نظام متابعة حضور وغياب الطلاب - جامعة القرآن الكريم والعلوم الإسلامية - SQLite محلية + أيقونات 3D",
   "main": "electron/main.js",
   "scripts": {
