@@ -53,7 +53,7 @@ input[type="text"], textarea, select {
 }
 
 /* ========================================================= */
-/* ✨ الإصلاح الذكي والسريع: إجبار حقول التاريخ والوقت على النمط الرقمي المستقيم ✨ */
+/* ✨ الحل الجذري: إخفاء الحروف المقطعة تماماً وتحويلها لنمط رقمي ✨ */
 /* ========================================================= */
 .glass-input, 
 input[type="text"], 
@@ -74,7 +74,7 @@ select {
   transition: all 0.3s ease !important;
 }
 
-/* إجبار حقول التاريخ والوقت داخلياً على قراءة الأرقام والرموز فقط لإنهاء مشكلة تقطيع النص */
+/* إجبار حقول التاريخ والوقت على الترتيب الرقمي المستقيم من اليسار لليمين */
 input[type="date"], 
 input[type="time"] {
   direction: ltr !important; 
@@ -91,37 +91,32 @@ select:focus {
   box-shadow: 0 0 15px rgba(212, 175, 55, 0.6), inset 0 2px 4px rgba(0,0,0,0.7) !important;
 }
 
-/* إخفاء الكلمات العربية الملقنة تلقائياً من المتصفح وجعل الحقل يستقبل أرقام وشرطات فقط */
-input[type="date"]::-webkit-datetime-edit-fields-wrapper,
-input[type="time"]::-webkit-datetime-edit-fields-wrapper {
-  display: inline-block !important;
-  direction: ltr !important;
-}
-
-input[type="date"]::-webkit-datetime-edit,
-input[type="time"]::-webkit-datetime-edit {
-  color: #ffffff !important;
-  display: inline-flex !important;
-  direction: ltr !important;
-}
-
-/* تلوين فواصل التاريخ والوقت (/) باللون الذهبي المتناسق لتسهيل القراءة الرقمية */
+/* 🔴 السحر هنا: إخفاء الكلمات التوضيحية المقطعة ("ةنس/رهش/موي") نهائياً 🔴 */
 input[type="date"]::-webkit-datetime-edit-text,
 input[type="time"]::-webkit-datetime-edit-text {
   color: var(--gold-main) !important;
   font-weight: 900;
-  padding: 0 6px;
+  padding: 0 4px;
 }
 
-input[type="date"]::-webkit-datetime-edit-hour-field,
-input[type="date"]::-webkit-datetime-edit-minute-field,
-input[type="date"]::-webkit-datetime-edit-ampm-field,
+/* تحويل الفراغات بداخل الحقل إلى شكل رمزي نظيف ينبض باللون الذهبي عند خلوه من البيانات */
+input[type="date"]::-webkit-datetime-edit-month-field,
+input[type="date"]::-webkit-datetime-edit-day-field,
+input[type="date"]::-webkit-datetime-edit-year-field,
 input[type="time"]::-webkit-datetime-edit-hour-field,
 input[type="time"]::-webkit-datetime-edit-minute-field,
 input[type="time"]::-webkit-datetime-edit-ampm-field {
-  color: #ffffff !important;
-  background: transparent !important;
+  color: rgba(212, 175, 55, 0.4) !important; /* لون ذهبي خافت يشبه الـ placeholder الرسمي وبدون حروف */
   font-weight: 700 !important;
+}
+
+/* ضبط استقامة محاذاة الحقول رقمياً لتشابه بقية عناصر النظام الفاخرة */
+input[type="date"]::-webkit-datetime-edit,
+input[type="time"]::-webkit-datetime-edit {
+  display: inline-flex !important;
+  justify-content: center !important;
+  width: 100% !important;
+  color: #ffffff !important;
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator,
