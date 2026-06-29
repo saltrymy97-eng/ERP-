@@ -43,13 +43,17 @@ body {
 }
 
 input, textarea, select { 
-  direction: rtl !important; 
-  text-align: right !important; 
   font-family: 'Tajawal', sans-serif;
 }
 
+/* حقول النص العادية والخيارات تظل لغة عربية من اليمين */
+input[type="text"], textarea, select {
+  direction: rtl !important; 
+  text-align: right !important; 
+}
+
 /* ========================================================= */
-/* ✨ تنسيق حقول الإدخال وإصلاح مشكلة الحروف المقطعة يدوياً ✨ */
+/* ✨ الإصلاح الذكي والسريع: إجبار حقول التاريخ والوقت على النمط الرقمي المستقيم ✨ */
 /* ========================================================= */
 .glass-input, 
 input[type="text"], 
@@ -68,11 +72,13 @@ select {
   z-index: 100 !important;
   box-shadow: inset 0 2px 5px rgba(0,0,0,0.6) !important;
   transition: all 0.3s ease !important;
+}
 
-  /* الخاصية السحرية لإجبار المتصفح على ربط الحروف العربية ومنع تقطيعها */
-  direction: rtl !important;
-  text-align: right !important;
-  unicode-bidi: plaintext !important; 
+/* إجبار حقول التاريخ والوقت داخلياً على قراءة الأرقام والرموز فقط لإنهاء مشكلة تقطيع النص */
+input[type="date"], 
+input[type="time"] {
+  direction: ltr !important; 
+  text-align: center !important;
 }
 
 .glass-input:focus, 
@@ -85,19 +91,26 @@ select:focus {
   box-shadow: 0 0 15px rgba(212, 175, 55, 0.6), inset 0 2px 4px rgba(0,0,0,0.7) !important;
 }
 
-/* ضبط ظهور النصوص الداخلية الافتراضية بوضوح وبشكل متصل */
+/* إخفاء الكلمات العربية الملقنة تلقائياً من المتصفح وجعل الحقل يستقبل أرقام وشرطات فقط */
+input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+input[type="time"]::-webkit-datetime-edit-fields-wrapper {
+  display: inline-block !important;
+  direction: ltr !important;
+}
+
 input[type="date"]::-webkit-datetime-edit,
 input[type="time"]::-webkit-datetime-edit {
   color: #ffffff !important;
-  direction: rtl !important;
+  display: inline-flex !important;
+  direction: ltr !important;
 }
 
-/* تلوين فواصل التاريخ والوقت (/) باللون الذهبي المتناسق مع الواجهة */
+/* تلوين فواصل التاريخ والوقت (/) باللون الذهبي المتناسق لتسهيل القراءة الرقمية */
 input[type="date"]::-webkit-datetime-edit-text,
 input[type="time"]::-webkit-datetime-edit-text {
   color: var(--gold-main) !important;
   font-weight: 900;
-  padding: 0 4px;
+  padding: 0 6px;
 }
 
 input[type="date"]::-webkit-datetime-edit-hour-field,
