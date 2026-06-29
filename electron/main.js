@@ -1,5 +1,5 @@
 // electron/main.js – تطبيق Electron مع SQLite حقيقية محلية احترافية
-// الإصدار 4.0 – جميع الجداول + المعلمين + ربط المدرس بالجداول
+// الإصدار 4.5 – إصلاح مسار الـ Preload للتحزيم النهائي المستقر (Pure Electron)
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const Database = require('better-sqlite3');
@@ -20,7 +20,7 @@ try {
   app.quit();
 }
 
-// ========== إنشاء جميع الجداول (14 جدول - متوافقة مع db.js) ==========
+// ========== إنشاء جميع الجداول (14 جدول) ==========
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -183,13 +183,10 @@ console.log('✅ جميع الجداول جاهزة (14 جدول)');
 ipcMain.handle('getQuery', (event, sql, params = []) => {
   try {
     const stmt = db.prepare(sql);
-    // تم حذف النقاط الثلاث لتمرير المصفوفة بشكل صحيح
     const rows = stmt.all(params);
     return rows || [];
   } catch (e) {
     console.error('❌ خطأ في الاستعلام:', e.message);
-    console.error('SQL:', sql);
-    console.error('Params:', params);
     return [];
   }
 });
@@ -198,7 +195,6 @@ ipcMain.handle('getQuery', (event, sql, params = []) => {
 ipcMain.handle('runQuery', (event, sql, params = []) => {
   try {
     const stmt = db.prepare(sql);
-    // تم حذف النقاط الثلاث لتمرير المصفوفة بشكل صحيح
     const result = stmt.run(params);
     return { 
       success: true, 
@@ -207,8 +203,6 @@ ipcMain.handle('runQuery', (event, sql, params = []) => {
     };
   } catch (e) {
     console.error('❌ خطأ في التنفيذ:', e.message);
-    console.error('SQL:', sql);
-    console.error('Params:', params);
     return null;
   }
 });
@@ -254,8 +248,8 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      // تم تعديل المسار هنا ليكون احترافياً ومتوافقاً مع الـ package.json
-      preload: path.join(app.getAppPath(), 'electron', 'preload.js')
+      // 🛠️ التعديل الذهبي هنا: مسار مطلق مباشر يضمن العثور على preload.js داخل الـ asar دائماً
+      preload: path.join(__dirname, 'preload.js')
     }
   });
 
