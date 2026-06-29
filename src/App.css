@@ -120,14 +120,14 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 }
 
 /* ========================================================= */
-/* 📅 تبويب التقويم فقط: تحويل حقل التاريخ إلى إدخال يدوي نقي وحر 📅 */
+/* 📅 تبويب التقويم فقط: إجبار حقل التاريخ على الإدخال اليدوي الصرف 📅 */
 /* ========================================================= */
 input[type="date"] {
-  direction: rtl !important; /* الكتابة من اليمين لليسام مثل حقل الأستاذ */
+  direction: rtl !important; /* الكتابة اليدوية العربية من اليمين لليسار */
   text-align: right !important;
 }
 
-/* محو الهيكل الداخلي للمتصفح تماماً لإبادة الحروف المقطعة (ةنس/رهش/موي) من الوجود */
+/* 1. إخفاء البنية الداخلية الافتراضية بالكامل لمنع ظهور الكلمات المقطعة */
 input[type="date"]::-webkit-datetime-edit,
 input[type="date"]::-webkit-datetime-edit-fields-wrapper,
 input[type="date"]::-webkit-datetime-edit-text,
@@ -136,17 +136,17 @@ input[type="date"]::-webkit-datetime-edit-day-field,
 input[type="date"]::-webkit-datetime-edit-year-field {
   appearance: none !important;
   -webkit-appearance: none !important;
-  display: none !important; /* إخفاء كلي وعزل تام */
+  display: none !important; 
 }
 
-/* جعل أيقونة التقويم تظهر في زاوية الحقل بشكل أنيق كدلالة رمزية فقط */
+/* 2. 🔒 قفل ومنع فتح نافذة النتيجة (Calendar Picker) عند الضغط 🔒 */
 input[type="date"]::-webkit-calendar-picker-indicator {
-  opacity: 0.5 !important;
-  filter: invert(0.8) sepia(1) saturate(5) hue-rotate(15deg) brightness(1.3) !important;
-  cursor: pointer !important;
   position: absolute !important;
-  left: 12px !important; /* وضعها على اليسار لكي لا تتداخل مع الكتابة اليدوية العربية */
-  z-index: 101 !important;
+  left: 12px !important;
+  opacity: 0.4 !important;
+  filter: invert(0.8) sepia(1) saturate(5) hue-rotate(15deg) brightness(1.3) !important;
+  /* تفجير التفاعل الافتراضي: منع المتصفح من فتح النتيجة نهائياً عند الضغط */
+  pointer-events: none !important; 
 }
 /* ========================================================= */
 
