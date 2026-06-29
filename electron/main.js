@@ -183,7 +183,8 @@ console.log('✅ جميع الجداول جاهزة (14 جدول)');
 ipcMain.handle('getQuery', (event, sql, params = []) => {
   try {
     const stmt = db.prepare(sql);
-    const rows = stmt.all(...params);
+    // تم حذف النقاط الثلاث لتمرير المصفوفة بشكل صحيح
+    const rows = stmt.all(params);
     return rows || [];
   } catch (e) {
     console.error('❌ خطأ في الاستعلام:', e.message);
@@ -197,7 +198,8 @@ ipcMain.handle('getQuery', (event, sql, params = []) => {
 ipcMain.handle('runQuery', (event, sql, params = []) => {
   try {
     const stmt = db.prepare(sql);
-    const result = stmt.run(...params);
+    // تم حذف النقاط الثلاث لتمرير المصفوفة بشكل صحيح
+    const result = stmt.run(params);
     return { 
       success: true, 
       lastID: result.lastInsertRowid, 
@@ -252,7 +254,8 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
+      // تم تعديل المسار هنا ليكون احترافياً ومتوافقاً مع الـ package.json
+      preload: path.join(app.getAppPath(), 'electron', 'preload.js')
     }
   });
 
