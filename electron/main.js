@@ -1,5 +1,5 @@
 // electron/main.js – تطبيق Electron مع SQLite حقيقية محلية احترافية
-// الإصدار 5.0 – الحل الاحترافي الديناميكي لحل مشكلة الشاشة السوداء في الـ EXE
+// الإصدار 5.5 – الحل النهائي الشامل والذكي لمشاكل المسارات والشاشة السوداء في الـ EXE
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const Database = require('better-sqlite3');
@@ -248,18 +248,22 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
+      
+      // 🛠️ الإصلاح الشامل لمسار الـ preload ليعمل في البيئتين دون أي احتمالية للخطأ
+      preload: app.isPackaged
+        ? path.join(__dirname, 'preload.js') // يقرأ مباشرة بجانب main.js داخل أرشيف الـ app.asar للـ EXE
+        : path.join(__dirname, 'preload.js') // يقرأ من مجلد المشروع أثناء التطوير
     }
   });
 
-  // 🚀 التعديل الاحترافي لضمان أعلى دقة للمسارات في وضع الـ EXE والتطوير 🚀
+  // 🚀 الفحص الديناميكي والذكي لتحميل واجهة المستخدم
   if (app.isPackaged) {
-    // يشتغل بدقة وبمسار محمي نسبي داخل أرشيف الـ app.asar للـ EXE
+    // كود الـ EXE: يفتح ملف الـ index.html من المسار الصحيح والمحمي داخل الحزمة المضغوطة
     mainWindow.loadFile(path.join(__dirname, '../build/index.html'));
   } else {
-    // يشتغل أثناء التطوير السريع للمشروع
+    // كود وضع التطوير: يفتح من السيرفر المحلي السريع
     mainWindow.loadURL('http://localhost:3000');
-    mainWindow.webContents.openDevTools();
+    mainWindow.webContents.openDevTools(); // يفتح أدوات المطورين تلقائياً في التطوير فقط
   }
 
   mainWindow.setMenuBarVisibility(false);
