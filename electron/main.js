@@ -1,5 +1,5 @@
 // electron/main.js – تطبيق Electron مع SQLite حقيقية محلية احترافية
-// الإصدار 5.5 – الحل النهائي الشامل والذكي لمشاكل المسارات والشاشة السوداء في الـ EXE
+// الإصدار 6.0 – الحل النهائي لربط الجسر البرمجي بمجلد البناء وتجاوز أخطاء قراءة البيانات
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const Database = require('better-sqlite3');
@@ -249,10 +249,8 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       
-      // 🛠️ الإصلاح الشامل لمسار الـ preload ليعمل في البيئتين دون أي احتمالية للخطأ
-      preload: app.isPackaged
-        ? path.join(__dirname, 'preload.js') // يقرأ مباشرة بجانب main.js داخل أرشيف الـ app.asar للـ EXE
-        : path.join(__dirname, 'preload.js') // يقرأ من مجلد المشروع أثناء التطوير
+      // 🚀 تم التعديل الجذري هنا لتقرأ البيئتان من مجلد البناء المشترك مباشرة وتختفي أخطاء undefined واختفاء الجسر
+      preload: path.join(__dirname, '../build/preload.js')
     }
   });
 
