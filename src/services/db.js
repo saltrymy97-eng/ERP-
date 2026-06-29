@@ -35,8 +35,13 @@ if (isElectron) {
   };
 
   importDatabase = async (file) => {
-    const buffer = await file.arrayBuffer();
-    await window.electronAPI.importDB(new Uint8Array(buffer));
+    // 🛠️ التعديل الدقيق: تحويل الملف إلى نص Base64 ليتم نقله بشكل آمن عبر الجسر إلى الخلفية
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = async () => {
+      const base64Data = reader.result.split(',')[1];
+      await window.electronAPI.importDB(base64Data);
+    };
   };
 
 } else {
@@ -177,7 +182,7 @@ if (isElectron) {
         )
       `);
 
-      // 6. الطلاب (مع حقل الصورة)
+      // 6. الطلاب
       db.run(`
         CREATE TABLE IF NOT EXISTS students (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -196,7 +201,7 @@ if (isElectron) {
         )
       `);
 
-      // 7. المعلمين (جديد)
+      // 7. المعلمين
       db.run(`
         CREATE TABLE IF NOT EXISTS teachers (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -254,7 +259,7 @@ if (isElectron) {
         )
       `);
 
-      // 11. الجداول الدراسية (مع ربط المدرس)
+      // 11. الجداول الدراسية
       db.run(`
         CREATE TABLE IF NOT EXISTS schedules (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -331,7 +336,8 @@ if (isElectron) {
     }
     try {
       const stmt = db.prepare(sql);
-      stmt.bind(params);
+      // 🛠️ التعديل الدقيق: في بيئة الويب نمرر المصفوفة مباشرة للـ bind
+      stmt.bind(Array.isArray(params) ? params : [params]);
       const rows = [];
       while (stmt.step()) rows.push(stmt.getAsObject());
       stmt.free();
@@ -348,7 +354,7 @@ if (isElectron) {
       return null;
     }
     try {
-      db.run(sql, params);
+      db.run(sql, Array.isArray(params) ? params : [params]);
       
       const data = db.export();
       await saveToIDB(Array.from(data));
