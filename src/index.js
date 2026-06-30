@@ -17,17 +17,14 @@ const APP_CONFIG = {
   database: 'SQLite محلية حقيقية',
 };
 
-// ========== تسجيل Service Worker ==========
+// ========== إيقاف وإلغاء تسجيل Service Worker لتفادي مشاكل الأجهزة المحلية ==========
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker
-      .register('/sw.js')
-      .then((registration) => {
-        console.log('✅ Service Worker مسجل بنجاح:', registration.scope);
-      })
-      .catch((error) => {
-        console.log('⚠️ Service Worker غير متاح:', error.message);
-      });
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    for (let registration of registrations) {
+      registration.unregister();
+    }
+  }).catch((error) => {
+    console.log('⚠️ خطأ أثناء إلغاء الـ Service Worker:', error.message);
   });
 }
 
