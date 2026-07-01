@@ -53,15 +53,23 @@ export async function sendWhatsApp(to, message) {
   }
 }
 
-// ========== دالة توجيه الإشعارات الفردية وتوثيقها محلياً ==========
-export async function notifyParent(studentId, type, extra = {}) {
+// ========== دالة توجيه الإشعارات الفردية وتوثيقها محلياً (المعدلة والمترابطة) ==========
+export async function notifyParent(studentId, type = 'absent', extra = {}) {
   const student = await getQuery("SELECT * FROM students WHERE id = ?", [studentId]);
 
-  if (!student || student.length === 0 || !student[0].parent_phone) {
-    return { success: false, error: 'لا يوجد رقم هاتف مسجل لولي الأمر' };
+  if (!student || student.length === 0) {
+    return { success: false, error: 'لم يتم العثور على الطالب في قاعدة البيانات' };
   }
 
   const s = student[0];
+  
+  // 💡 الحل العبقري للترابط: سحب رقم ولي الأمر، وإذا كان فارغاً يسحب رقم هاتف الطالب المتاح لضمان عدم توقف الفحص
+  const targetPhone = s.parent_phone || s.phone;
+
+  if (!targetPhone) {
+    return { success: false, error: 'لا يوجد رقم هاتف مسجل للطالب أو لولي أمره' };
+  }
+
   let message = '';
 
   // صياغة الرسائل منسقة بشكل جذاب (استخدام النجوم * للخط العريض)
@@ -107,13 +115,13 @@ export async function notifyParent(studentId, type, extra = {}) {
       message = `السلام عليكم ورحمة الله وبركاته،\nالطالب: *${s.full_name}*\n${extra.text || ''}\n\n*جامعة القرآن الكريم والعلوم الإسلامية*`;
   }
 
-  // تنفيذ فتح نافذة الواتساب فوراً
-  const result = await sendWhatsApp(s.parent_phone, message);
+  // تنفيذ فتح نافذة الواتساب فوراً بالرقم النشط والمتاح تلقائياً
+  const result = await sendWhatsApp(targetPhone, message);
 
   // توثيق العملية في قاعدة البيانات المحلية لإصدار التقارير حتى مع النظام المحلي!
   await runQuery(
     "INSERT INTO notifications (student_id, parent_phone, message, type, status, sent_at) VALUES (?, ?, ?, ?, ?, ?)",
-    [studentId, s.parent_phone, message, type, result.success ? 'sent' : 'failed', new Date().toISOString()]
+    [studentId, targetPhone, message, type, result.success ? 'sent' : 'failed', new Date().toISOString()]
   );
 
   return result;
@@ -123,9 +131,9 @@ export async function notifyParent(studentId, type, extra = {}) {
 export async function notifyAllAbsent() {
   const today = new Date().toISOString().slice(0, 10);
 
-  // جلب كافة الطلاب النشطين الذين لم يسجلوا حضوراً اليوم
+  // جلب كافة الطلاب النشطين الذين لم يسجلوا حضوراً اليوم مع جلب حقول الهواتف المتاحة
   const absentStudents = await getQuery(
-    `SELECT DISTINCT s.id, s.full_name, s.parent_phone
+    `SELECT DISTINCT s.id, s.full_name, s.parent_phone, s.phone
      FROM students s
      WHERE s.status = 'active' 
      AND s.id NOT IN (
@@ -138,8 +146,9 @@ export async function notifyAllAbsent() {
 
   let sent = 0;
   for (const student of absentStudents) {
-    if (!student.parent_phone) continue;
-    // استدعاء الفتح المحلي المتتالي
+    const activePhone = student.parent_phone || student.phone;
+    if (!activePhone) continue;
+    // استدعاء الففتح المحلي المتتالي
     const result = await notifyParent(student.id, 'absent');
     if (result.success) sent++;
   }
@@ -153,7 +162,7 @@ export async function notifyAbsenceStages() {
   if (config.enabled === false) return { success: false, error: 'الواتساب غير مفعل' };
 
   const attendance = await getQuery(
-    "SELECT a.student_id, a.status, s.full_name, s.parent_phone FROM attendance a INNER JOIN students s ON a.student_id = s.id WHERE s.status = 'active' AND s.parent_phone != ''"
+    "SELECT a.student_id, a.status, s.full_name, s.parent_phone, s.phone FROM attendance a INNER JOIN students s ON a.student_id = s.id WHERE s.status = 'active'"
   );
 
   if (!attendance || attendance.length === 0) return { success: false, error: 'لا توجد حركات حضور مسجلة لحساب النسب' };
@@ -161,7 +170,10 @@ export async function notifyAbsenceStages() {
   const studentMap = {};
   attendance.forEach(a => {
     const sid = a.student_id;
-    if (!studentMap[sid]) studentMap[sid] = { full_name: a.full_name, parent_phone: a.parent_phone, total: 0, absent: 0 };
+    const activePhone = a.parent_phone || a.phone;
+    if (!activePhone) return;
+
+    if (!studentMap[sid]) studentMap[sid] = { full_name: a.full_name, parent_phone: activePhone, total: 0, absent: 0 };
     studentMap[sid].total++;
     if (a.status === 'absent') studentMap[sid].absent++;
   });
@@ -204,9 +216,9 @@ export async function notifyAbsentFromLecture(scheduleId) {
 
   const today = new Date().toISOString().slice(0, 10);
   const absentStudents = await getQuery(
-    `SELECT DISTINCT s.id, s.full_name, s.parent_phone
+    `SELECT DISTINCT s.id, s.full_name, s.parent_phone, s.phone
      FROM students s
-     WHERE s.status = 'active' AND s.parent_phone != ''
+     WHERE s.status = 'active'
      AND s.id NOT IN (
        SELECT DISTINCT a.student_id FROM attendance a WHERE a.date = ?
      )`,
@@ -215,6 +227,9 @@ export async function notifyAbsentFromLecture(scheduleId) {
 
   let sent = 0;
   for (const student of absentStudents) {
+    const activePhone = student.parent_phone || student.phone;
+    if (!activePhone) continue;
+
     const result = await notifyParent(student.id, 'lecture', { subject: schedule[0].subject, time: schedule[0].time_from });
     if (result.success) sent++;
   }
