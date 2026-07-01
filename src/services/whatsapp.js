@@ -1,54 +1,54 @@
-// src/services/whatsapp.js – نظام بث إشعارات واتساب السيادي (نسخة مصلحة ومؤمنة بالكامل 2026)
+// src/services/whatsapp.js – نظام بث إشعارات واتساب السيادي (نسخة الربط المحلي الذكي والمجاني 2026)
 import { getQuery, runQuery } from './db';
 
 let whatsappConfig = null;
 
-// ========== تحميل وتأمين إعدادات الربط السحابي ==========
+// ========== تحميل وتأمين إعدادات الربط ==========
 function loadConfig() {
   if (!whatsappConfig) {
     const saved = localStorage.getItem('whatsapp_config');
-    whatsappConfig = saved ? JSON.parse(saved) : { enabled: false };
+    // نعتبره مفعلاً تلقائياً للربط المحلي، أو نعتمد على قيمة الحفظ لسهولة التحكم
+    whatsappConfig = saved ? JSON.parse(saved) : { enabled: true };
   }
   return whatsappConfig;
 }
 
-// ========== الدالة الأساسية للإرسال عبر سحابة ميتآ (Meta API) ==========
+// ========== الدالة الأساسية المعدلة: الإرسال عبر البروتوكول المحلي العبقري ==========
 export async function sendWhatsApp(to, message) {
   const config = loadConfig();
   
-  if (!config.enabled || !config.api_key || !config.phone_number_id) {
-    console.warn('⚠️ نظام إشعارات واتساب غير نشط أو الإعدادات غير مكتملة');
+  // حماية برمجية: التحقق من التفعيل (يمكن للمستخدم إطفائه من الإعدادات)
+  if (config.enabled === false) {
+    console.warn('⚠️ نظام إشعارات واتساب غير نشط من شاشة الإعدادات');
     return { success: false, error: 'غير مفعل' };
   }
 
   try {
-    const response = await fetch(
-      `https://graph.facebook.com/v18.0/${config.phone_number_id}/messages`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${config.api_key}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: to,
-          type: 'text',
-          text: { body: message }
-        })
-      }
-    );
+    // 1. تنظيف رقم الهاتف ليصبح أرقاماً فقط متوافقة مع روابط ميتآ الدولية
+    const cleanPhone = to.replace(/\D/g, ''); 
 
-    const data = await response.json();
-    
-    if (data.error) {
-      console.error('❌ خطأ من خادم Meta API:', data.error.message);
-      return { success: false, error: data.error.message };
+    if (!cleanPhone) {
+      return { success: false, error: 'رقم الهاتف غير صالح' };
     }
 
-    return { success: true, data };
+    // 2. تشفير نص الرسالة المنسقة لتضمين المسافات والرموز والخط العريض
+    const encodedMessage = encodeURIComponent(message);
+
+    // 3. توليد رابط البروتوكول المباشر (Deep Linking)
+    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+
+    // 4. إصدار أمر بيئة Electron لفتح تطبيق الواتساب أو المتصفح الخارجي فوراً
+    if (window.require) {
+      const { shell } = window.require('electron');
+      shell.openExternal(whatsappUrl);
+    } else {
+      window.open(whatsappUrl, '_blank');
+    }
+
+    // نُعيد نجاح لإتمام عملية التوثيق في قاعدة البيانات والعدادات بشاشة الحضور
+    return { success: true };
   } catch (error) {
-    console.error('💥 فشل الاتصال الشبكي ببوابة WhatsApp:', error.message);
+    console.error('💥 فشل فتح واجهة تطبيق WhatsApp المحلية:', error.message);
     return { success: false, error: error.message };
   }
 }
@@ -64,53 +64,53 @@ export async function notifyParent(studentId, type, extra = {}) {
   const s = student[0];
   let message = '';
 
-  // صياغة الرسائل بناءً على نوع الحركة البيومترية أو الأكاديمية
+  // صياغة الرسائل منسقة بشكل جذاب (استخدام النجوم * للخط العريض)
   switch (type) {
     case 'entry':
-      message = `السلام عليكم\nنحيطكم علماً بأن:\nالطالب: ${s.full_name}\nسجل دخوله إلى المركز الساعة ${extra.time || '—'}.\n\nجامعة القرآن الكريم والعلوم الإسلامية`;
+      message = `السلام عليكم ورحمة الله وبركاته،\nنحيطكم علماً بأن الطالب: *${s.full_name}*\nسجل دخوله إلى المركز الساعة: [ ${extra.time || '—'} ].\n\n*جامعة القرآن الكريم والعلوم الإسلامية*`;
       break;
 
     case 'lecture':
-      message = `السلام عليكم\nابنكم ${s.full_name}\nدخل محاضرة: ${extra.subject || '—'}\nالوقت: ${extra.time || '—'}\n\nجامعة القرآن الكريم والعلوم الإسلامية`;
+      message = `السلام عليكم ورحمة الله وبركاته،\nابنكم: *${s.full_name}*\nدخل محاضرة: *${extra.subject || '—'}*\nالوقت: [ ${extra.time || '—'} ]\n\n*جامعة القرآن الكريم والعلوم الإسلامية*`;
       break;
 
     case 'absent':
-      message = `السلام عليكم\nنود إبلاغكم بأن الطالب:\n${s.full_name}\nتغيب عن محاضرة اليوم.\nيرجى المتابعة والالتزام لمنع الحرمان.\n\nجامعة القرآن الكريم والعلوم الإسلامية`;
+      message = `السلام عليكم ورحمة الله وبركاته،\nنود إبلاغكم بأن الطالب: *${s.full_name}*\nقد تم تسجيله *غائباً* عن محاضرة اليوم.\nيرجى المتابعة والالتزام لمنع الحرمان.\n\n*جامعة القرآن الكريم والعلوم الإسلامية*`;
       break;
 
     case 'exit':
-      message = `السلام عليكم\nتم تسجيل خروج الطالب:\n${s.full_name}\nالساعة: ${extra.time || '—'}\n\nجامعة القرآن الكريم والعلوم الإسلامية`;
+      message = `السلام عليكم ورحمة الله وبركاته،\nتم تسجيل خروج الطالب: *${s.full_name}*\nالساعة: [ ${extra.time || '—'} ]\n\n*جامعة القرآن الكريم والعلوم الإسلامية*`;
       break;
 
     case 'warning':
-      message = `⚠️ تنبيه هام\nالطالب: ${s.full_name}\nنسبة الغياب الإجمالية: ${extra.rate || '0'}%\nيرجى المتابعة العاجلة مع الإدارة الأكاديمية.\n\nجامعة القرآن الكريم والعلوم الإسلامية`;
+      message = `⚠️ *تنبيه هام جداً*\nالطالب: *${s.full_name}*\nنسبة الغياب الإجمالية وصلت إلى: *${extra.rate || '0'}%*\nيرجى المتابعة العاجلة مع الإدارة الأكاديمية.\n\n*جامعة القرآن الكريم والعلوم الإسلامية*`;
       break;
 
     // ========== قوالب مراحل الغياب المتدرج المعتمدة ==========
     case 'stage_10':
-      message = `🟢 تنبيه أول\nالطالب: ${s.full_name}\nنسبة الغياب: ${extra.rate || '0'}%\nتجاوز نسبة 10% غياب.\nيرجى المتابعة الفورية.\n\nجامعة القرآن الكريم والعلوم الإسلامية`;
+      message = `🟢 *تنبيه أول (تجاوز 10%)*\nالطالب: *${s.full_name}*\nنسبة الغياب الحالية: *${extra.rate || '0'}%*\nيرجى حث الطالب على الالتزام الفوري.\n\n*جامعة القرآن الكريم والعلوم الإسلامية*`;
       break;
 
     case 'stage_20':
-      message = `🟡 تنبيه ثانٍ\nالطالب: ${s.full_name}\nنسبة الغياب: ${extra.rate || '0'}%\nتجاوز نسبة 20% غياب.\nيجب الحضور لمقابلة المرشد الأكاديمي لتفادي الحرمان.\n\nجامعة القرآن الكريم والعلوم الإسلامية`;
+      message = `🟡 *تنبيه ثانٍ (تجاوز 20%)*\nالطالب: *${s.full_name}*\nنسبة الغياب الحالية: *${extra.rate || '0'}%*\nيجب الحضور لمقابلة المرشد الأكاديمي لتفادي الحرمان الرسمي.\n\n*جامعة القرآن الكريم والعلوم الإسلامية*`;
       break;
 
     case 'stage_25':
-      message = `🔴 إنذار أكاديمي نهائي\nالطالب: ${s.full_name}\nنسبة الغياب: ${extra.rate || '0'}%\nتجاوز نسبة 25% غياب.\nتم إصدار إنذار أكاديمي رسمي وربطه بملف الطالب.\n\nجامعة القرآن الكريم والعلوم الإسلامية`;
+      message = `🔴 *إنذار أكاديمي نهائي (تجاوز 25%)*\nالطالب: *${s.full_name}*\nنسبة الغياب الحالية: *${extra.rate || '0'}%*\nتم إصدار إنذار أكاديمي رسمي وربطه بملف الطالب بصفة قطعية.\n\n*جامعة القرآن الكريم والعلوم الإسلامية*`;
       break;
 
     case 'stage_30':
-      message = `🚨 حرمان من الاختبار\nالطالب: ${s.full_name}\nنسبة الغياب: ${extra.rate || '0'}%\nتجاوز نسبة 30% غياب.\nتم الحرمان من الاختبارات النهائية بشكل رسمي.\nيرجى مراجعة العمادة فوراً.\n\nجامعة القرآن الكريم والعلوم الإسلامية`;
+      message = `🚨 *حرمان رسمي من الاختبار (30%)*\nالطالب: *${s.full_name}*\nنسبة الغياب الحالية: *${extra.rate || '0'}%*\nبسبب تجاوز الحد المسموح، تم حرمان الطالب من دخول الاختبارات النهائية.\n\n*جامعة القرآن الكريم والعلوم الإسلامية*`;
       break;
 
     default:
-      message = `السلام عليكم\nالطالب: ${s.full_name}\n${extra.text || ''}\n\nجامعة القرآن الكريم والعلوم الإسلامية`;
+      message = `السلام عليكم ورحمة الله وبركاته،\nالطالب: *${s.full_name}*\n${extra.text || ''}\n\n*جامعة القرآن الكريم والعلوم الإسلامية*`;
   }
 
-  // تنفيذ الإرسال الفعلي
+  // تنفيذ فتح نافذة الواتساب فوراً
   const result = await sendWhatsApp(s.parent_phone, message);
 
-  // توثيق العملية في قاعدة البيانات المحلية لإصدار تقارير الإرسال لاحقاً
+  // توثيق العملية في قاعدة البيانات المحلية لإصدار التقارير حتى مع النظام المحلي!
   await runQuery(
     "INSERT INTO notifications (student_id, parent_phone, message, type, status, sent_at) VALUES (?, ?, ?, ?, ?, ?)",
     [studentId, s.parent_phone, message, type, result.success ? 'sent' : 'failed', new Date().toISOString()]
@@ -119,11 +119,11 @@ export async function notifyParent(studentId, type, extra = {}) {
   return result;
 }
 
-// ========== دالة بث الحضور الجماعي (معدلة ومصلحة لتطابق واجهة Attendance.js) ==========
+// ========== دالة بث الحضور الجماعي المتوافقة بالكامل مع واجهتك ==========
 export async function notifyAllAbsent() {
   const today = new Date().toISOString().slice(0, 10);
 
-  // استعلام متقدم لجلب كافة الطلاب النشطين الذين لم يسجلوا أي حضور أو تأخير اليوم
+  // جلب كافة الطلاب النشطين الذين لم يسجلوا حضوراً اليوم
   const absentStudents = await getQuery(
     `SELECT DISTINCT s.id, s.full_name, s.parent_phone
      FROM students s
@@ -139,18 +139,18 @@ export async function notifyAllAbsent() {
   let sent = 0;
   for (const student of absentStudents) {
     if (!student.parent_phone) continue;
+    // استدعاء الفتح المحلي المتتالي
     const result = await notifyParent(student.id, 'absent');
     if (result.success) sent++;
   }
 
-  // التعديل الجوهري: إرسال الـ success: true لتفعيل واجهة الـ React بنجاح كامل
   return { success: true, total: absentStudents.length, sent };
 }
 
-// ========== المعالجة الذكية والمؤتمتة لنسب الحرمان التصاعدية ==========
+// ========== المعالجة المؤتمتة لنسب الحرمان التصاعدية ==========
 export async function notifyAbsenceStages() {
   const config = loadConfig();
-  if (!config.enabled) return { success: false, error: 'الواتساب غير مفعل' };
+  if (config.enabled === false) return { success: false, error: 'الواتساب غير مفعل' };
 
   const attendance = await getQuery(
     "SELECT a.student_id, a.status, s.full_name, s.parent_phone FROM attendance a INNER JOIN students s ON a.student_id = s.id WHERE s.status = 'active' AND s.parent_phone != ''"
@@ -158,7 +158,6 @@ export async function notifyAbsenceStages() {
 
   if (!attendance || attendance.length === 0) return { success: false, error: 'لا توجد حركات حضور مسجلة لحساب النسب' };
 
-  // تجميع وتقييم حركات الحضور والغياب لكل طالب
   const studentMap = {};
   attendance.forEach(a => {
     const sid = a.student_id;
@@ -180,7 +179,6 @@ export async function notifyAbsenceStages() {
     else if (rate >= 10) stageType = 'stage_10';
 
     if (stageType) {
-      // فحص أمني لمنع تكرار إرسال نفس المرحلة للطالب منعاً لإزعاجه
       const alreadySent = await getQuery(
         "SELECT id FROM notifications WHERE student_id = ? AND type = ? ORDER BY sent_at DESC LIMIT 1",
         [sid, stageType]
