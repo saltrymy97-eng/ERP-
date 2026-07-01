@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { initDatabase } from './services/db';
 import { login, logout, restoreSession } from './services/auth';
-import { startVoiceChat, stopVoiceRecognition } from './services/ai'; // 🔥 استيراد محرك الصوت والذكاء الاصطناعي الحقيقي
+import { askAI, speakText, startRecordingLocal, stopRecordingLocal } from './services/ai';
 import Dashboard from './components/Dashboard';
 import Students from './components/Students';
 import Attendance from './components/Attendance';
@@ -12,7 +12,7 @@ import Settings from './components/Settings';
 import Teachers from './components/Teachers';
 import './App.css';
 
-// ========== مكون الأيقونة الكريستالية السائلة الحركية الفاخرة (بديل مكعبات الأطفال) ==========
+// ========== مكون الأيقونة الكريستالية السائلة الحركية الفاخرة ==========
 function CrystalOrbIcon({ icon, orbClass }) {
   return (
     <div className={`icon-3d-container ${orbClass}`}>
@@ -27,21 +27,19 @@ function CrystalOrbIcon({ icon, orbClass }) {
 // ========== مكون زر المحادثة الصوتية الفاخر بالذكاء الاصطناعي الحقيقي المتصل بـ Groq ==========
 function AIVoiceWidget() {
   const [isOpen, setIsOpen] = useState(false);
-  const [aiState, setAiState] = useState('idle'); // idle, listening, processing
+  const [aiState, setAiState] = useState('idle');
   const [transcript, setTranscript] = useState('');
 
-  // 🔥 طوق النجاة: تنظيف وإيقاف المايكروفون والنطق الآلي فوراً لو أغلق المستخدم النافذة فجأة
   useEffect(() => {
     return () => {
-      stopVoiceRecognition();
+      stopRecordingLocal();
       if (window.speechSynthesis) window.speechSynthesis.cancel();
     };
   }, [isOpen]);
 
-  // 🔥 تشغيل جلسة المحادثة الصوتية التوليدية الحقيقية المربوطة بـ Groq والنطق البشري
   const handleVoiceSession = async () => {
     if (aiState === 'listening') {
-      stopVoiceRecognition();
+      stopRecordingLocal();
       setAiState('idle');
       setTranscript('⏹️ تم إيقاف الاستماع بطلب منك.');
       return;
@@ -50,29 +48,41 @@ function AIVoiceWidget() {
     setAiState('listening');
     setTranscript('🎙️ أنا أستمع إليك الآن... تحدث بوضوح وسؤالك سيُرسل للمستشار مباشرة.');
 
-    const result = await startVoiceChat((isThinking) => {
-      if (isThinking) {
+    startRecordingLocal(
+      async (detectedText) => {
+        if (!detectedText || detectedText.trim() === '') {
+          setAiState('idle');
+          setTranscript('⚠️ لم يتم التقاط بصمة صوتية واضحة. يرجى المحاولة مرة أخرى.');
+          return;
+        }
+
         setAiState('processing');
         setTranscript('🔮 جاري معالجة صوتك وتوليد التحليل الأكاديمي التوليدي من Groq...');
-      }
-    });
 
-    // معالجة الرد الصوتي والنصي القادم من الملف السيادي للذكاء الاصطناعي
-    if (result.error) {
-      setAiState('idle');
-      setTranscript(result.error);
-    } else if (result.question && result.answer) {
-      setAiState('idle');
-      setTranscript(`🗣️ أنت: "${result.question}"\n\n🤖 المستشار: "${result.answer}"`);
-    } else {
-      setAiState('idle');
-      setTranscript('🔮 انقر مجدداً على الجرم الصوتي للتحدث مع المستشار.');
-    }
+        try {
+          const answer = await askAI(detectedText);
+          setAiState('idle');
+          setTranscript(`🗣️ أنت: "${detectedText}"\n\n🤖 المستشار: "${answer}"`);
+          
+          speakText(answer, {
+            onEnd: () => {
+              setTranscript(prev => prev + '\n\n✅ انتهى النطق الصوتي.');
+            }
+          });
+        } catch (error) {
+          setAiState('idle');
+          setTranscript('❌ واجهت خوادم التفكير عارضاً تقنياً أثناء المعالجة');
+        }
+      },
+      (errorMessage) => {
+        setAiState('idle');
+        setTranscript(errorMessage);
+      }
+    );
   };
 
   return (
     <div style={{ position: 'fixed', bottom: '30px', left: '30px', zIndex: 999999 }}>
-      {/* نافذة المحادثة الصوتية الزجاجية الفاخرة */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -103,7 +113,6 @@ function AIVoiceWidget() {
               >✕</button>
             </div>
 
-            {/* الجرم الصوتي النابض المتفاعل مع حالة المحرك الحقيقي */}
             <div style={{ display: 'flex', justifyContent: 'center', padding: '15px 0' }}>
               <motion.div
                 onClick={handleVoiceSession}
@@ -134,7 +143,6 @@ function AIVoiceWidget() {
               </motion.div>
             </div>
 
-            {/* نصوص الرد والتحليل الصوتي الحي الصادر من Groq */}
             <div style={{ 
               fontSize: '0.9rem', 
               color: '#cbd5e1', 
@@ -152,7 +160,6 @@ function AIVoiceWidget() {
         )}
       </AnimatePresence>
 
-      {/* الزر الرئيسي العائم والمبهر للذكاء الاصطناعي */}
       <motion.button
         onClick={() => setIsOpen(!isOpen)}
         whileHover={{ scale: 1.1, rotate: 5 }}
@@ -429,7 +436,6 @@ function App() {
           ))}
         </div>
 
-        {/* زر الذكاء الاصطناعي الصوتي المدمج الحقيقي */}
         <AIVoiceWidget />
 
         <div className="user-bar">
@@ -475,7 +481,6 @@ function App() {
         {screen === 'settings' && <Settings />}
       </main>
       
-      {/* إتاحة المساعد الصوتي أيضاً في الشاشات الداخلية لسهولة الاستخدام */}
       <AIVoiceWidget />
     </div>
   );
