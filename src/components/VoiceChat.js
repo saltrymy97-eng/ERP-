@@ -1,8 +1,8 @@
-// src/components/VoiceChat.js – بوابة التفاعل الصوتي الذكي والتحليل النطقي المطور بنظام Whisper السريع
+// src/components/VoiceChat.js – بوابة التفاعل الصوتي الذكي والتحليل الفوري المطور بنظام الالتقاط الحي
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-// استدعاء محركات تسجيل الـ Blob المضمونة محلياً بعد تحديثها
-import { askAI, speakText, startRecordingLocal, stopRecordingLocal } from '../services/ai';
+// استدعاء الدوال المتوافقة مع المحرك الفوري المحدث
+import { askAI, speakText, startVoiceChat, stopVoiceRecognition } from '../services/ai';
 
 function VoiceChat({ onClose }) {
   const [listening, setListening] = useState(false);
@@ -15,10 +15,10 @@ function VoiceChat({ onClose }) {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conversation, status]);
 
-  // تنظيف كامل عند إغلاق النافذة لضمان تحرير الميكروفون في نظام الويندوز فوراً
+  // تنظيف كامل عند إغلاق النافذة لضمان تحرير الميكروفون فوراً
   useEffect(() => {
     return () => {
-      stopRecordingLocal();
+      stopVoiceRecognition();
       if (window.speechSynthesis) {
         window.speechSynthesis.cancel();
       }
@@ -34,31 +34,23 @@ function VoiceChat({ onClose }) {
     setCurrentStage('listening');
     setStatus('🎤 نظام المستشار الذكي يستمع إليك الآن... تحدث مباشرة');
 
-    // تشغيل محرك التسجيل المحلي وبث الـ Blob إلى خادم Whisper السريع
-    startRecordingLocal(
+    // تشغيل محرك الالتقاط الفوري (النص يخرج مباشرة من صوتك محلياً)
+    startVoiceChat(
       async (detectedText) => {
-        // فحص إذا كان النص المترجم فارغاً
-        if (!detectedText || detectedText.trim() === '') {
-          setStatus('⚠️ لم يتم التقاط بصمة صوتية واضحة. أعد التحدث بوضوح.');
-          setCurrentStage('idle');
-          setListening(false);
-          return;
-        }
-
-        // إضافة النص المترجم القادم من Whisper إلى المحادثة فوراً
+        // إضافة النص الملتقط فوراً إلى شاشة المحادثة أمامك
         setConversation(prev => [...prev, { role: 'user', text: detectedText }]);
         setCurrentStage('thinking');
         setStatus('🧠 جاري استنباط الرد الأكاديمي الاستراتيجي الفوري...');
 
         try {
-          // استدعاء نموذج المستشار الأكاديمي Qwen27B المحدث لمنع الهلوسة والبطء
+          // إرسال النص الصافي المكتوب إلى المستشار الأكاديمي
           const answer = await askAI(detectedText);
           
           setConversation(prev => [...prev, { role: 'assistant', text: answer }]);
           setCurrentStage('speaking');
           setStatus('🔊 جاري الرد الصوتي والمحاكاة النطقية الفورية...');
           
-          // تشغيل النطق المحلي المستقر والسريع بالكامل داخل الويندوز
+          // تشغيل قراءة الرد صوتياً بالكامل
           speakText(answer, {
             onEnd: () => {
               setCurrentStage('idle');
@@ -73,7 +65,7 @@ function VoiceChat({ onClose }) {
         }
       },
       (errorMessage) => {
-        // معالجة الأخطاء في حال عدم وجود ميكروفون نشط في اللابتوب
+        // معالجة الأخطاء (مثل عدم وجود ميكروفون أو صمت)
         setStatus(errorMessage);
         setCurrentStage('idle');
         setListening(false);
@@ -82,8 +74,10 @@ function VoiceChat({ onClose }) {
   };
 
   const handleStopListening = () => {
-    stopRecordingLocal();
-    setStatus('⚡ جاري رفع الإشارة الصوتية لفك الترميز وترجمتها...');
+    stopVoiceRecognition();
+    setCurrentStage('idle');
+    setListening(false);
+    setStatus('');
   };
 
   return (
@@ -104,11 +98,12 @@ function VoiceChat({ onClose }) {
             <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: '#f3e1a0', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span>🔮</span> مركز التفاعل الأكاديمي الصوتي الذكي
             </h3>
-            <p style={{ color: '#a0aec0', fontSize: '0.82rem', margin: '4px 0 0 0' }}>تقنية معالجة البيانات الفورية وجداول الحضور والغياب للجامعة (محدث ومؤمن 100%)</p>
+            <p style={{ color: '#a0aec0', fontSize: '0.82rem', margin: '4px 0 0 0' }}>تقنية معالجة البيانات الفورية وجداول الحضور والغياب للجامعة (محدث ومؤمن 100% بدون بطء)</p>
           </div>
           <motion.button whileHover={{ scale: 1.1, rotate: 90 }} whileTap={{ scale: 0.9 }} onClick={onClose} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>✕</motion.button>
         </div>
 
+        {/* مؤشر تموجات الصوت التفاعلية */}
         <div style={{ height: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'rgba(0,0,0,0.2)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.02)', position: 'relative' }}>
           {currentStage === 'idle' && <span style={{ color: '#a0aec0', fontSize: '0.9rem', fontStyle: 'italic' }}>بوابة الاستشعار الصوتي بانتظار تفعيل الميكروفون...</span>}
           
@@ -135,6 +130,7 @@ function VoiceChat({ onClose }) {
           </AnimatePresence>
         </div>
 
+        {/* صندوق عرض نصوص المحادثة المستلمة والمكتوبة */}
         <div className="voice-conversation-container" style={{ height: '220px', overflowY: 'auto', padding: '10px 5px', display: 'flex', flexDirection: 'column', gap: '15px', scrollbarWidth: 'thin' }}>
           <AnimatePresence>
             {conversation.map((msg, i) => (
@@ -173,6 +169,7 @@ function VoiceChat({ onClose }) {
           <div ref={chatEndRef} />
         </div>
 
+        {/* عرض شريط الحالة النظيف */}
         <AnimatePresence>
           {status && (
             <motion.p 
@@ -184,6 +181,7 @@ function VoiceChat({ onClose }) {
           )}
         </AnimatePresence>
 
+        {/* أزرار التحكم الفاخرة والمحسنة */}
         <div className="voice-actions-lux" style={{ display: 'flex', gap: '12px', marginTop: '5px' }}>
           <motion.button
             whileHover={{ y: -3, boxShadow: listening ? '0 10px 25px rgba(239,68,68,0.2)' : '0 10px 25px rgba(214,175,55,0.2)' }}
@@ -199,8 +197,8 @@ function VoiceChat({ onClose }) {
           >
             {listening ? (
               <>
-                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#fff' }} />
-                إيقاف التسجيل واستلام الرد
+                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#fff', display: 'inline-block' }} />
+                جاري الاستماع... (اضغط هنا للإلغاء)
               </>
             ) : (
               <>🎤 فتح الميكروفون والحديث للمستشار</>
