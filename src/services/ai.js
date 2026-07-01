@@ -336,7 +336,7 @@ export async function comprehensiveAnalysis() {
   ].join('\n');
 
   return await askAI(
-    'قدم تقريراً شاملاً عن حالة النظام. ما هي أبرز الملاحظات؟ ما التوصيات الاستراتيجية للتحسين؟',
+    'قدم تقريراً شاملاً عن حالة النظام. ما هي أبرز الملاحظات? ما التوصيات الاستراتيجية للتحسين؟',
     context,
     { maxTokens: 450, detailed: true, role: 'المدير التنفيذي للنظام' }
   );
@@ -353,7 +353,7 @@ export async function transcribeAudioLocal(audioBlob) {
 
   const formData = new FormData();
   formData.append('file', audioBlob, 'speech.wav');
-  formData.append('model', 'whisper-large-v3'); // النموذج الأحدث والأقوى للصوت العربي
+  formData.append('model', 'whisper-large-v3'); 
   formData.append('language', 'ar');
 
   const response = await fetch(GROQ_WHISPER_URL, {
@@ -410,9 +410,13 @@ export function stopRecordingLocal() {
   }
 }
 
-// ⭐ الدالة الجسرية للتوافق: تمنع أخطاء الـ Build وتضمن بقاء التوافق مع أي استدعاءات قديمة
+// ⭐ الدوال الجسرية للتوافق: تمنع أخطاء الـ Build تماماً وتدعم الاستدعاءات القديمة في النظام
 export function stopVoiceRecognition() {
   stopRecordingLocal();
+}
+
+export function startVoiceChat(onDataReady, onError) {
+  startRecordingLocal(onDataReady, onError);
 }
 
 // ج) دالة النطق المحلية المستقرة 100% داخل الويندوز
