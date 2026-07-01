@@ -56,7 +56,7 @@ const SYSTEM_PROMPT = `أنت "المستشار الأكاديمي الذكي و
 
 [محددات صارمة وقاطعة لمنع الهلوسة والأغاني]
 - اعتمد بنسبة 100% على البيانات الممررة. يمنع منعاً باتاً اختراع أي معلومات أو الحديث في مواضيع خارج النطاق الأكاديمي والجامعي (مثل الفن، أو الأغاني، أو نانسي عجرم، أو غيرها).
-- إذا كان النص المستلم فارغاً أو يحتوي على ضوضاء غير مفهومة، أجب بـ: "عذراً مدير النظام، لم أسمع استفسارك الأكاديمي بوضوح، يرجى تكرار السؤال."
+- إذا كان النص المستلم فارغاً أو يحتوي على ضوضاء غير مفهومة, أجب بـ: "عذراً مدير النظام، لم أسمع استفسارك الأكاديمي بوضوح، يرجى تكرار السؤال."
 - أجب باللغة العربية الفصحى الاحترافية والردود المقتضبة والذكية لضمان سرعة النطق التلقائي.`;
 
 // ==========================================
@@ -234,9 +234,10 @@ export async function transcribeAudioLocal(audioBlob) {
   return new Promise((resolve, reject) => {
     const formData = new FormData();
     
-    // الحل النهائي لـ Invalid Media File: نقوم بإجبار الغلاف على إعلان الملف كـ audio/mp3 وتسميته speech.mp3
-    // ليتوافق تماماً مع بروتوكولات فك الترميز الصارمة لسيرفر Groq الخارجي
-    formData.append('file', audioBlob, 'speech.mp3');
+    // الحل الاحترافي: إنشاء كائن ملف رسمي بصيغة webm المتوافقة بالكامل مع نواة Chromium و Electron
+    // وتمريرها باسم صريح لكي يتعرف عليها مفسر الترميز في Groq وتختفي أخطاء الـ 400 تماماً
+    const audioFile = new File([audioBlob], 'speech.webm', { type: 'audio/webm' });
+    formData.append('file', audioFile);
     formData.append('model', WHISPER_MODEL); 
     formData.append('language', 'ar');
 
@@ -264,7 +265,7 @@ export async function startRecordingLocal(onDataReady, onError) {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     audioChunks = [];
 
-    // طلب تسجيل الصوت عبر الـ MediaRecorder القياسي المدعوم داخل نواة الـ Chromium
+    // طلب تسجيل الصوت عبر الـ MediaRecorder القياسي المدعوم 100% داخل نواة المتصفح
     mediaRecorder = new MediaRecorder(stream);
 
     mediaRecorder.ondataavailable = (event) => {
@@ -272,11 +273,11 @@ export async function startRecordingLocal(onDataReady, onError) {
     };
 
     mediaRecorder.onstop = async () => {
-      // تعديل صيغة التحزيم لـ audio/mp3 لضمان قبول الحزمة التلقائي من السيرفر
-      const audioBlob = new Blob(audioChunks, { type: 'audio/mp3' });
+      // تجميع حزم الصوت بصيغة ميديا نقية ومطابقة
+      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
       
-      // كبح ومنع إرسال المقاطع الصامتة أو الفارغة نهائياً لقطع دابر الهلوسة
-      if (audioBlob.size < 2500) { 
+      // كبح ومنع إرسال المقاطع الصامتة أو الفارغة نهائياً لقطع دابر الهلوسة والـ HTTP2 protocol error
+      if (audioBlob.size < 3000) { 
         onError('⚠️ المقطع الصوتي قصير جداً أو صامت، يرجى التحدث بوضوح.');
         return;
       }
