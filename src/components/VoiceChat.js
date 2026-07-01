@@ -1,7 +1,8 @@
-// src/components/VoiceChat.js – بوابة التفاعل الصوتي الذكي والتحليل النطقي المطور
+// src/components/VoiceChat.js – بوابة التفاعل الصوتي الذكي والتحليل النطقي المطور بنظام Whisper السيادي
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { startVoiceChat, stopVoiceRecognition } from '../services/ai';
+// استدعاء محركات تسجيل الـ Blob المضمونة محلياً
+import { askAI, speakText, startRecordingLocal, stopRecordingLocal } from '../services/ai';
 
 function VoiceChat({ onClose }) {
   const [listening, setListening] = useState(false);
@@ -14,59 +15,68 @@ function VoiceChat({ onClose }) {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conversation, status]);
 
-  // تنظيف كامل عند إغلاق النافذة لمنع تعليق الميكروفون في الخلفية
+  // تنظيف كامل عند إغلاق النافذة لضمان تحرير الميكروفون في نظام الويندوز
   useEffect(() => {
     return () => {
-      stopVoiceRecognition();
+      stopRecordingLocal();
     };
   }, []);
 
-  const handleVoiceChat = async () => {
+  const handleStartListening = () => {
     setListening(true);
     setCurrentStage('listening');
-    setStatus('🎤 النظام في وضع الاستماع الميداني الفوري... تحدث الآن');
+    setStatus('🎤 النظام في وضع التقاط نبضات الصوت المباشر... تحدث الآن');
 
-    // استدعاء المحرك الموحد والمضمون من ملف خدمات الـ AI
-    const result = await startVoiceChat((isThinking) => {
-      if (isThinking) {
+    // تشغيل محرك التسجيل المحلي وبث الـ Blob إلى خادم Whisper
+    startRecordingLocal(
+      async (detectedText) => {
+        // فحص إذا كان النص المترجم فارغاً
+        if (!detectedText || detectedText.trim() === '') {
+          setStatus('⚠️ لم يتم التقاط بصمة صوتية واضحة. يرجى المحاولة مرة أخرى.');
+          setCurrentStage('idle');
+          setListening(false);
+          return;
+        }
+
+        // إضافة النص المترجم القادم من Whisper إلى المحادثة فوراً
+        setConversation(prev => [...prev, { role: 'user', text: detectedText }]);
         setCurrentStage('thinking');
         setStatus('🧠 جاري تحليل البصمة الصوتية واستنباط الرد الاستراتيجي...');
-      }
-    });
 
-    // معالجة النتائج بعد انتهاء الاستدعاء والنطق التلقائي
-    if (result.error) {
-      setStatus(result.error);
-      setCurrentStage('idle');
-      setListening(false);
-      return;
-    }
-
-    if (result.question && result.answer) {
-      // إضافة السؤال والإجابة إلى شاشة المحادثة
-      setConversation(prev => [
-        ...prev, 
-        { role: 'user', text: result.question },
-        { role: 'assistant', text: result.answer }
-      ]);
-      
-      setCurrentStage('speaking');
-      setStatus('🔊 جاري توليد النطق ومحاكاة الصوت الرئوي المعتمد...');
-      
-      // العودة لحالة الاستعداد بعد إنهاء الحديث
-      setTimeout(() => {
+        try {
+          // استدعاء نموذج المستشار الأكاديمي لتحليل النص وقاعدة البيانات
+          const answer = await askAI(detectedText);
+          
+          setConversation(prev => [...prev, { role: 'assistant', text: answer }]);
+          setCurrentStage('speaking');
+          setStatus('🔊 جاري توليد النطق ومحاكاة الصوت الرئوي المعتمد...');
+          
+          // تشغيل النطق المحلي المستقر بالكامل داخل الويندوز
+          speakText(answer, {
+            onEnd: () => {
+              setCurrentStage('idle');
+              setStatus('');
+              setListening(false);
+            }
+          });
+        } catch (error) {
+          setStatus('❌ واجهت خوادم التفكير عارضاً تقنياً أثناء المعالجة');
+          setCurrentStage('idle');
+          setListening(false);
+        }
+      },
+      (errorMessage) => {
+        // معالجة الأخطاء في حال عدم وجود ميكروفون أو فشل خادم الـ Audio
+        setStatus(errorMessage);
         setCurrentStage('idle');
-        setStatus('');
         setListening(false);
-      }, 3000);
-    }
+      }
+    );
   };
 
-  const handleStop = () => {
-    stopVoiceRecognition();
-    setListening(false);
-    setCurrentStage('idle');
-    setStatus('🔌 تم تعليق التقاط الإشارات النطقية');
+  const handleStopListening = () => {
+    stopRecordingLocal();
+    setStatus('🔌 جاري إغلاق قناة البث وتجميع حزم البيانات الصوتية...');
   };
 
   return (
@@ -87,7 +97,7 @@ function VoiceChat({ onClose }) {
             <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: '#f3e1a0', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ animation: currentStage !== 'idle' ? 'pulse 1.5s infinite' : 'none' }}>🔮</span> مركز التفاعل الأكاديمي الصوتي الذكي
             </h3>
-            <p style={{ color: '#a0aec0', fontSize: '0.82rem', margin: '4px 0 0 0' }}>تقنية معالجة اللغات الطبيعية والبث البيومتري المباشر للبيانات</p>
+            <p style={{ color: '#a0aec0', fontSize: '0.82rem', margin: '4px 0 0 0' }}>تقنية معالجة اللغات الطبيعية والبث البيومتري المباشر للبيانات (نظام Whisper السحابي مستقل البث)</p>
           </div>
           <motion.button whileHover={{ scale: 1.1, rotate: 90 }} whileTap={{ scale: 0.9 }} onClick={onClose} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>✕</motion.button>
         </div>
@@ -148,7 +158,7 @@ function VoiceChat({ onClose }) {
           </AnimatePresence>
 
           {conversation.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '40px 0', color: '#a0aec0', display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
+            <div style={{ textalign: 'center', padding: '40px 0', color: '#a0aec0', display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
               <span style={{ fontSize: '2.5rem', opacity: 0.3 }}>🎙️</span>
               <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600 }}>بانتظار استقبال الأوامر الصوتية للتدقيق والرد الصوتي المباشر</p>
             </div>
@@ -171,7 +181,7 @@ function VoiceChat({ onClose }) {
           <motion.button
             whileHover={{ y: -3, boxShadow: listening ? '0 10px 25px rgba(239,68,68,0.2)' : '0 10px 25px rgba(214,175,55,0.2)' }}
             whileTap={{ scale: 0.97 }}
-            onClick={listening ? handleStop : handleVoiceChat}
+            onClick={listening ? handleStopListening : handleStartListening}
             style={{
               flex: 3, padding: '14px', borderRadius: '14px', border: 'none',
               background: listening ? 'linear-gradient(135deg, #ef4444, #b91c1c)' : 'linear-gradient(135deg, #d6af37, #b89324)',
@@ -183,7 +193,7 @@ function VoiceChat({ onClose }) {
             {listening ? (
               <>
                 <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#fff', animation: 'pulse 1s infinite' }} />
-                إيقاف التقاط الإشارة
+                إيقاف التقاط الإشارة وبثها
               </>
             ) : (
               <>🎤 فتح قناة البث والحديث المباشر</>
