@@ -1,15 +1,19 @@
-// src/services/ai.js – المستشار الأكاديمي الذكي | gpt-oss-20b | Groq API
+// src/services/ai.js – المستشار الأكاديمي الذكي | gpt-oss-20b & Whisper v3 | Groq API
 import { getQuery } from './db';
 
 // ========== حالة النظام ==========
 let isLoaded = false;
 let totalRequests = 0;
 let successfulRequests = 0;
-let recognition = null;
+
+// ========== إعدادات مسجل الصوت المحلي (Whisper) ==========
+let mediaRecorder = null;
+let audioChunks = [];
 
 // ========== إعدادات Groq ==========
 const GROQ_MODEL = 'gpt-oss-20b';
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_WHISPER_URL = 'https://api.groq.com/openai/v1/audio/transcriptions'; // رابط محرك الصوت الجديد
 
 // ========== دالة جلب المفتاح من إعدادات النظام ==========
 function getApiKey() {
@@ -339,61 +343,81 @@ export async function comprehensiveAnalysis() {
 }
 
 // ==========================================
-// ٥. المحادثة الصوتية (المعدلة والمضمونة 100%)
+// ٥. نظام معالجة الصوت السيادي (Groq Whisper)
 // ==========================================
 
-export function startVoiceRecognition(callback) {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) {
-    callback('❌ متصفحك لا يدعم التعرف على الصوت. يرجى استعمال Google Chrome.', null);
-    return null;
+// أ) إرسال الـ Blob الصوتي لخوادم Whisper السحابية التابعة لـ Groq
+export async function transcribeAudioLocal(audioBlob) {
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error('لم يتم تعيين مفتاح الذكاء الاصطناعي.');
+
+  const formData = new FormData();
+  formData.append('file', audioBlob, 'speech.wav');
+  formData.append('model', 'whisper-large-v3'); // النموذج الأحدث والأقوى للصوت العربي
+  formData.append('language', 'ar');
+
+  const response = await fetch(GROQ_WHISPER_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: formData
+  });
+
+  if (!response.ok) {
+    throw new Error(`خطأ في مخدم الصوت الخارجي: ${response.status}`);
   }
 
-  recognition = new SpeechRecognition();
-  recognition.lang = 'ar-SA';
-  recognition.continuous = false;
-  recognition.interimResults = false; // تم تعديلها لتجنب التكرار وضمان التقاط جملة كاملة ونظيفة
-  recognition.maxAlternatives = 1;
+  const data = await response.json();
+  return data.text;
+}
 
-  let finalText = '';
+// ب) نظام تشغيل الميكروفون المحلي وبث الـ Blob
+export async function startRecordingLocal(onDataReady, onError) {
+  try {
+    // التقاط إشارة كرت الصوت مباشرة من نظام الويندوز بدون قيود المتصفح
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioChunks = [];
 
-  recognition.onstart = () => { finalText = ''; };
+    mediaRecorder = new MediaRecorder(stream);
 
-  recognition.onresult = (event) => {
-    if (event.results.length > 0) {
-      finalText = event.results[0][0].transcript;
-    }
-  };
-
-  recognition.onerror = (event) => {
-    const errors = {
-      'not-allowed': '❌ الرجاء السماح للميكروفون في إعدادات المتصفح.',
-      'no-speech': '❌ لم يتم اكتشاف أي صوت. حاول مرة أخرى.',
-      'audio-capture': '❌ لا يوجد ميكروفون متاح.',
-      'network': '⚠️ مشكلة في الاتصال بالمخدم الصوتي.',
-      'aborted': '⏹️ تم إيقاف التسجيل.'
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        audioChunks.push(event.data);
+      }
     };
-    callback(errors[event.error] || `❌ خطأ: ${event.error}`, null);
-  };
 
-  recognition.onend = () => {
-    callback(null, finalText.trim() || null);
-  };
+    mediaRecorder.onstop = async () => {
+      const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+      try {
+        const text = await transcribeAudioLocal(audioBlob);
+        onDataReady(text);
+      } catch (err) {
+        console.error(err);
+        onError('❌ فشل تحويل الإشارات الصوتية عبر خوادم Whisper المحمية.');
+      }
+      // إغلاق الميكروفون تماماً وتحريره لمنع التعليق
+      stream.getTracks().forEach(track => track.stop());
+    };
 
-  recognition.start();
-  return recognition;
+    mediaRecorder.start();
+  } catch (err) {
+    onError('❌ لم يتم العثور على ميكروفون نشط في اللابتوب أو تم رفض الصلاحية.');
+  }
 }
 
-export function stopVoiceRecognition() {
-  if (recognition) { recognition.stop(); recognition = null; }
+export function stopRecordingLocal() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+  }
 }
 
+// ج) دالة النطق المحلية المستقرة 100% داخل الويندوز
 export function speakText(text, options = {}) {
   if (!window.speechSynthesis) return;
-  window.speechSynthesis.cancel(); // إلغاء أي نطق قديم متراكم فوراً
+  window.speechSynthesis.cancel(); // إلغاء أي نطق قديم متراكم
 
   const { rate = 1.0, pitch = 1.0, volume = 1.0, onEnd = null } = options;
-
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = 'ar-SA';
   utterance.rate = rate;
@@ -402,7 +426,6 @@ export function speakText(text, options = {}) {
 
   const setVoice = () => {
     const voices = window.speechSynthesis.getVoices();
-    // البحث عن أفضل صوت متاح يدعم العربية الفصحى الفاخرة
     const preferred = voices.find(v =>
       v.lang.startsWith('ar') &&
       (v.name.includes('Majed') || v.name.includes('Naeem') || v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Maged'))
@@ -420,28 +443,8 @@ export function speakText(text, options = {}) {
   }
 }
 
-// 🔥 التعديل الجوهري: جعل الدالة تعود فورا بالنتيجة وتبدأ النطق بلا تعليق
-export async function startVoiceChat(onThinking) {
-  return new Promise((resolve) => {
-    startVoiceRecognition(async (error, text) => {
-      if (error) { resolve({ error, question: null, answer: null }); return; }
-      if (!text) { resolve({ error: '❌ لم يتم التقاط أي نص، يرجى المحاولة مجدداً.', question: null, answer: null }); return; }
-      
-      if (onThinking) onThinking(true);
-      const answer = await askAI(text);
-      if (onThinking) onThinking(false);
-
-      // 1. 🔥 نطق الإجابة فوراً دون انتظار التحديثات الصعبة
-      speakText(answer);
-
-      // 2. إرجاع النتيجة مباشرة لـ App.js ليعرض النص وينهي دوامات التفكير للجرم الكريستالي
-      resolve({ error: null, question: text, answer: answer });
-    });
-  });
-}
-
 // ==========================================
-// ٦. دوال مساعدة
+// ٦. دوال مساعدة وضبط الحالة
 // ==========================================
 
 export function isModelReady() { return isLoaded && !!getApiKey(); }
@@ -453,10 +456,10 @@ export function getModelInfo() {
   return {
     الاسم: 'gpt-oss-20b',
     المزود: 'Groq API',
-    النوع: 'سحابي – يحتاج إنترنت',
-    السرعة: '⚡ فوري',
-    السعر: '🆓 مجاني',
-    الحالة: (isLoaded && currentKey) ? '✅ جاهز' : '❌ غير متصل (تأكد من المفتاح)',
+    النوع: 'سحابي مع معالج صوتي سيادي (Whisper)',
+    السرعة: '⚡ فوري للبيانات والنطق',
+    السعر: '🆓 مجاني بالكامل',
+    الحالة: (isLoaded && currentKey) ? '✅ جاهز ومؤمن' : '❌ غير متصل (تأكد من المفتاح)',
     إجمالي_الاستدعاءات: totalRequests,
     الاستدعاءات_الناجحة: successfulRequests
   };
