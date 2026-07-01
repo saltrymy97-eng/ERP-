@@ -1,4 +1,4 @@
-// src/services/ai.js – المستشار الأكاديمي الذكي | Qwen3.6-27b & Whisper v3 | Groq API
+// src/services/ai.js – المستشار الأكاديمي الذكي الخارق ومتعدد المهام | Qwen & Whisper | Groq API
 import { getQuery } from './db';
 
 // ========== حالة النظام ==========
@@ -11,8 +11,8 @@ let mediaRecorder = null;
 let audioChunks = [];
 
 // ========== إعدادات Groq الرسمية والمستقرة 2026 ==========
-const GROQ_MODEL = 'qwen/qwen3.6-27b'; // الموديل البديل الخفيف والموصى به لسرعة الاستجابة ومنع الهلوسة
-const WHISPER_MODEL = 'whisper-large-v3';
+const GROQ_MODEL = 'qwen/qwen3.6-27b'; // الموديل الأساسي السريع لتحليل البيانات
+const WHISPER_MODEL = 'whisper-large-v3-turbo'; // النسخة التوربو فائقة السرعة لمنع أخطاء الشبكة والتعليق
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_WHISPER_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
 
@@ -28,31 +28,36 @@ function getApiKey() {
   }
 }
 
-// ========== شخصية المستشار الأكاديمي المتعدد المهام والدقيق للغاية ==========
-const SYSTEM_PROMPT = `أنت "المستشار الأكاديمي الذكي" – النظام السيادي المطور خصيصاً لجامعة القرآن الكريم والعلوم الإسلامية.
-وظيفتك هي تحليل قاعدة بيانات النظام (SQLite) والإجابة على استفسارات المشرفين بدقة متناهية وبسرعة فائقة.
+// ========== شخصية المستشار الأكاديمي الفائق ومتعدد المهام الشامل ==========
+const SYSTEM_PROMPT = `أنت "المستشار الأكاديمي الذكي والنظام السيادي الخبير" المطور خصيصاً لجامعة القرآن الكريم والعلوم الإسلامية.
+وظيفتك الإدارية والاستراتيجية هي تحليل جداول البيانات والإجابة على استفسارات الإدارة العليا والمشرفين بدقة متناهية وبسرعة فائقة.
 
 [هيكلية قاعدة البيانات التي تفهمها وتحللها]
 1. جدول الطلاب (students): يحتوي على (id, university_id, full_name, status, faculty, department).
 2. جدول الحضور (attendance): يحتوي على (id, student_id, date, time_in, status ['present', 'absent', 'late'], method ['fingerprint', 'face', 'manual']).
-3. جدول الجداول الدراسية (schedules): يحتوي على أوقات المحاضرات والمواد.
-4. جدول الأجهزة (devices): أجهزة البصمة والتحقق وحالتها (online/offline).
+3. جدول الجداول الدراسية (schedules): يحتوي على أوقات المحاضرات والمواد والأكاديميين.
+4. جدول الأجهزة (devices): أجهزة البصمة والتحقق وحالتها (online/offline) ومواقعها.
 
-[مصفوفة المهام المتعددة (Multi-Tasking Mode)]
-بناءً على سؤال المستخدم، حدد مهمتك فوراً ونفذها:
-- (المهمة 1: كشف الغياب والإنذارات): تصنيف الطلاب حسب نسب غيابهم إلى:
-  * 🔴 خطر (غياب >= 30%) -> توصية بالفصل أو الحرمان.
-  * 🟡 إنذار (غياب >= 20%) -> توصية بإنذار أكاديمي.
-  * 🟢 مراقبة (غياب >= 10%).
-- (المهمة 2: التحليل الإحصائي الرقمي): عند السؤال عن نسب الحضور، ابدأ بالنسب الإجمالية، ثم قارن بين الأقسام أو الكليات بناءً على البيانات الممررة لك.
-- (المهمة 3: كشف التلاعب والأمن): مراقبة طرق تسجيل الحضور (مثلاً: تسجيل يدوي متكرر لنفس الطالب، أو حضور في أوقات متأخرة جداً) والتنبيه بوجود أنماط غير طبيعية.
-- (المهمة 4: الاستشارة الإستراتيجية): تقديم حلول عملية ومباشرة (مثلاً: تفعيل نظام رسائل الواتساب التلقائية لأولياء الأمور لتنبيههم فور غياب الطالب).
+[مصفوفة المهام المتطورة ومتعددة الوظائف (Multi-Tasking Mode)]
+بناءً على طبيعة استفسار المشرف، حدد مسار عملك ونفذه فوراً:
 
-[محددات صارمة لمنع الهلوسة والبطء]
-- اعتمد بنسبة 100% على الأرقام والأسماء الممررة في سياق البيانات (Context)، إذا لم تتوفر بيانات قل: "لم يتم تسجيل بيانات كافية في النظام حتى الآن".
-- أجب باللغة العربية الفصحى الاحترافية والمباشرة.
-- كن مقتضباً ومباشراً جداً في الرد الصوتي (لا تكرر الترحيب ولا تذكر مقدمات إنشائية طويلة)، ابدأ بالتحليل فوراً ليتم النطق بسرعة.
-- خاطب المستخدم بصفته: (المشرف الأكاديمي / مدير النظام).`;
+- (المهمة 1: التدقيق الرقمي والإنذارات): تصنيف غياب الطلاب إلى ثلاث مستويات:
+  * 🔴 خطر (غياب >= 30%) -> توصية بالفصل والحرمان النهائي.
+  * 🟡 إنذار (غياب >= 20%) -> توصية بإصدار إنذار أكاديمي أول/ثاني.
+  * 🟢 آمن ومراقب (غياب >= 10%).
+
+- (المهمة 2: التحليل الإحصائي والمقارنة): تقديم نسب حضور دقيقة لكل كلية أو قسم مقارنة بالإجمالي.
+
+- (المهمة 3: كشف الأمن والتلاعب البيومتري): التنبيه الفوري في حال وجود أنماط تسجيل حضور يدوي متكررة (Manual) لنفس الطالب أو حضور مسجل في أوقات خارج نطاق الجدول الدراسي.
+
+- (المهمة 4: صياغة وإعداد رسائل الواتساب الذكية): إذا طلب منك المستخدم كتابة رسالة أو إنذار لعائلة الطالب، قم بصياغة نص رسالة رسمية، تربوية، ومؤثرة جداً جاهزة للإرسال الفوري عبر الواتساب لأولياء الأمور تتضمن اسم الطالب ونسبة غيابه بشكل منسق.
+
+- (المهمة 5: صيانة ومراقبة البنية التحتية): تحليل حالة أجهزة البصمة (Devices)؛ وتقديم توصيات فورية بنقل الأجهزة أو صيانتها إذا كانت حالتها (Offline).
+
+[محددات صارمة وقاطعة لمنع الهلوسة والأغاني]
+- اعتمد بنسبة 100% على البيانات الممررة. يمنع منعاً باتاً اختراع أي معلومات أو الحديث في مواضيع خارج النطاق الأكاديمي والجامعي (مثل الفن، أو الأغاني، أو نانسي عجرم، أو غيرها).
+- إذا كان النص المستلم فارغاً أو يحتوي على ضوضاء غير مفهومة، أجب بـ: "عذراً مدير النظام، لم أسمع استفسارك الأكاديمي بوضوح، يرجى تكرار السؤال."
+- أجب باللغة العربية الفصحى الاحترافية والردود المقتضبة والذكية لضمان سرعة النطق التلقائي.`;
 
 // ==========================================
 // ١. تحميل النموذج
@@ -72,9 +77,9 @@ export async function loadMobileModel(onProgress) {
 }
 
 // ==========================================
-// ٢. محرك الذكاء الاصطناعي (سريع ومضغوط)
+// ٢. محرك الذكاء الاصطناعي (دقة متناهية وحرارة منخفضة)
 // ==========================================
-async function callGroq(messages, maxTokens = 150, temperature = 0.3) {
+async function callGroq(messages, maxTokens = 250, temperature = 0.2) {
   const apiKey = getApiKey();
   if (!apiKey) return '⚠️ لم يتم تعيين مفتاح الذكاء الاصطناعي. اذهب إلى ⚙️ الإعدادات → 🧠 المستشار الذكي.';
 
@@ -91,10 +96,10 @@ async function callGroq(messages, maxTokens = 150, temperature = 0.3) {
       body: JSON.stringify({
         model: GROQ_MODEL,
         messages: messages,
-        temperature: temperature, // تقليل الحرارة لمنع الاختراع والهلوسة بالردود
-        max_tokens: maxTokens,    // تحديد التوكن لسرعة استجابة الميكروفون
-        top_p: 0.9,
-        frequency_penalty: 0.1,
+        temperature: temperature, // تم خفض الحرارة لمنع الهلوسة نهائياً والالتزام بالبرومبت
+        max_tokens: maxTokens,
+        top_p: 0.85,
+        frequency_penalty: 0.2,
         presence_penalty: 0.1
       })
     });
@@ -111,7 +116,7 @@ async function callGroq(messages, maxTokens = 150, temperature = 0.3) {
     const answer = data.choices?.[0]?.message?.content;
 
     if (!answer || answer.length < 5) {
-      return '⚠️ لم يتمكن المستشار الأكاديمي من تحليل البيانات. يرجى المحاولة مرة أخرى.';
+      return '⚠️ لم يتمكن المستشار الأكاديمي من تحليل البيانات بوضوح. يرجى المحاولة مرة أخرى.';
     }
 
     successfulRequests++;
@@ -137,17 +142,17 @@ export async function askAI(question, context = '', options = {}) {
   }
 
   const {
-    maxTokens = 150,
-    temperature = 0.3,
+    maxTokens = 250,
+    temperature = 0.2,
     detailed = false,
-    role = 'مدير النظام'
+    role = 'مشرف النظام'
   } = options;
 
-  const detailLevel = detailed ? 'قدم تحليلاً دقيقاً بالأرقام والتوصيات.' : 'أجب باختصار شديد ومباشر.';
+  const detailLevel = detailed ? 'قدم تحليلاً شاملاً مع التوصيات العملية والحلول.' : 'أجب بوضوح واختصار شديد ومباشر.';
 
   const messages = [
     { role: 'system', content: SYSTEM_PROMPT },
-    { role: 'user', content: `[المستخدم: ${role}]\n${detailLevel}\n\nالبيانات المتاحة:\n${context || 'لا توجد.'}\n\nالسؤال: ${question}` }
+    { role: 'user', content: `[المستخدم: ${role}]\n${detailLevel}\n\nالبيانات المتاحة حالياً في النظام:\n${context || 'لا توجد بيانات ممررة.'}\n\nالسؤال الحالي: ${question}` }
   ];
 
   return await callGroq(messages, maxTokens, temperature);
@@ -167,7 +172,7 @@ export async function analyzeDailyAttendance() {
   const rate = students.length > 0 ? Math.round((present / students.length) * 100) : 0;
 
   const context = `حاضر: ${present} (${rate}%)، غائب: ${absent}، متأخر: ${late}، إجمالي المسجلين: ${students.length}`;
-  return await askAI('حلل حالة الحضور اليوم باختصار وأعطِ التوصية الأهم وفقط.', context, { maxTokens: 100 });
+  return await askAI('حلل حالة الحضور اليوم باختصار وأعطِ التوصية الأهم وفقط.', context, { maxTokens: 120 });
 }
 
 export async function predictAtRiskStudents() {
@@ -189,7 +194,7 @@ export async function predictAtRiskStudents() {
   if (analysis.length === 0) return '✅ جميع الطلاب منتظمون ونسبة غيابهم آمنة أقل من 10%.';
 
   analysis.sort((a, b) => parseInt(b.نسبة_الغياب) - parseInt(a.نسبة_الغياب));
-  return await askAI('اذكر الطلاب المعرضين للخطر وتوصية سريعة لهم.', JSON.stringify(analysis.slice(0, 5)), { maxTokens: 150 });
+  return await askAI('اذكر الطلاب المعرضين للخطر وتوصية سريعة لهم.', JSON.stringify(analysis.slice(0, 5)), { maxTokens: 180 });
 }
 
 export async function detectAnomalies() {
@@ -220,7 +225,7 @@ export async function comprehensiveAnalysis() {
 }
 
 // ==========================================
-// ٥. نظام معالجة الصوت السريع المستقر (Groq Whisper)
+// ٥. نظام معالجة الصوت المستقر والمحمي لـ Electron (Groq Whisper)
 // ==========================================
 export async function transcribeAudioLocal(audioBlob) {
   const apiKey = getApiKey();
@@ -228,7 +233,8 @@ export async function transcribeAudioLocal(audioBlob) {
 
   return new Promise((resolve, reject) => {
     const formData = new FormData();
-    formData.append('file', audioBlob, 'speech.wav');
+    // تمرير الحزمة باسم ملف بامتداد mp3 صريح لحل مشكلة تعليق الشبكة HTTP2 في كروميوم
+    formData.append('file', audioBlob, 'speech.mp3');
     formData.append('model', WHISPER_MODEL); 
     formData.append('language', 'ar');
 
@@ -241,12 +247,12 @@ export async function transcribeAudioLocal(audioBlob) {
         const data = JSON.parse(xhr.responseText);
         resolve(data.text);
       } else {
-        console.error('❌ استجابة Whisper:', xhr.status, xhr.responseText);
-        reject(new Error(`خطأ في معالج الصوت: ${xhr.status}`));
+        console.error('❌ استجابة سيرفر Whisper فشلت:', xhr.status, xhr.responseText);
+        reject(new Error(`خطأ في معالج الصوت كود: ${xhr.status}`));
       }
     };
     
-    xhr.onerror = () => reject(new Error('خطأ في اتصال الشبكة بالصوت'));
+    xhr.onerror = () => reject(new Error('خطأ في بروتوكولات اتصال الشبكة بالصوت'));
     xhr.send(formData);
   });
 }
@@ -256,25 +262,36 @@ export async function startRecordingLocal(onDataReady, onError) {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     audioChunks = [];
 
-    mediaRecorder = new MediaRecorder(stream);
+    // استخدام صيغة audio/webm المعتمدة والسيادية لنواة الـ Electron على الويندوز
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
 
     mediaRecorder.ondataavailable = (event) => {
       if (event.data.size > 0) audioChunks.push(event.data);
     };
 
     mediaRecorder.onstop = async () => {
-      const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      
+      // كبح ومنع إرسال المقاطع الصامتة أو الفارغة نهائياً لقطع دابر الهلوسة بالأغاني
+      if (audioBlob.size < 2000) { 
+        onError('⚠️ المقطع الصوتي قصير جداً أو صامت، يرجى التحدث بوضوح.');
+        return;
+      }
+
       try {
         const text = await transcribeAudioLocal(audioBlob);
         onDataReady(text);
       } catch (err) {
         console.error(err);
-        onError('❌ فشل تحويل الصوت، تحقق من جودة الشبكة ومفتاح API الجديد.');
+        onError('❌ فشل تحويل الإشارة الصوتية، تحقق من جودة الإنترنت أو مفتاح الـ API.');
       }
+      
+      // تحرير الميكروفون فوراً من نظام الويندوز لضمان عدم تعليقه
       stream.getTracks().forEach(track => track.stop());
     };
 
-    mediaRecorder.start();
+    // جمع البيانات كبث متدفق خفيف كل ثانية لتجنب الضغط المفاجئ للذاكرة
+    mediaRecorder.start(1000);
   } catch (err) {
     onError('❌ لم يتم العثور على ميكروفون نشط أو تم رفض صلاحية الوصول.');
   }
@@ -289,13 +306,17 @@ export function stopRecordingLocal() {
 export function stopVoiceRecognition() { stopRecordingLocal(); }
 export function startVoiceChat(onDataReady, onError) { startRecordingLocal(onDataReady, onError); }
 
-// دالة النطق المحلية لسرعة الرد الصوتي التلقائي بمعدل 1.1 ليكون الرد حياً
+// دالة النطق المحلية المتزنة لسرعة الاستجابة
 export function speakText(text, options = {}) {
   if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel(); 
 
-  const { rate = 1.1, pitch = 1.0, volume = 1.0, onEnd = null } = options;
-  const utterance = new SpeechSynthesisUtterance(text);
+  const { rate = 1.0, pitch = 1.0, volume = 1.0, onEnd = null } = options;
+  
+  // تنظيف الرد من أي إيموجي قد يربك عملية النطق التلقائي
+  const cleanText = text.replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDC00-\uDFFF]/g, '');
+  
+  const utterance = new SpeechSynthesisUtterance(cleanText);
   utterance.lang = 'ar-SA';
   utterance.rate = rate;
   utterance.pitch = pitch;
@@ -305,7 +326,7 @@ export function speakText(text, options = {}) {
     const voices = window.speechSynthesis.getVoices();
     const preferred = voices.find(v =>
       v.lang.startsWith('ar') &&
-      (v.name.includes('Majed') || v.name.includes('Naeem') || v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Maged'))
+      (v.name.includes('Majed') || v.name.includes('Naeem') || v.name.includes('Google') || v.name.includes('Maged'))
     );
     const fallback = voices.find(v => v.lang.startsWith('ar'));
     utterance.voice = preferred || fallback || voices[0];
@@ -331,9 +352,9 @@ export function getModelInfo() {
   return {
     الاسم: GROQ_MODEL,
     المزود: 'Groq API',
-    النوع: 'سحابي فائق السرعة (Qwen 27B) + معالج Whisper v3',
-    السرعة: '⚡ طلقة فائقة الرد لبيانات الصوت',
-    الحالة: (isLoaded && getApiKey()) ? '✅ جاهز ومحدث' : '❌ غير متصل',
+    النوع: 'سحابي فائق السرعة ومتعدد المهام + معالج Whisper Turbo',
+    السرعة: '⚡ طلقة فائقة الاستجابة للبيانات والصوت',
+    الحالة: (isLoaded && getApiKey()) ? '✅ جاهز ومحدث ومؤمن' : '❌ غير متصل',
     إجمالي_الاستدعاءات: totalRequests,
     الاستدعاءات_الناجحة: successfulRequests
   };
