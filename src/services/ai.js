@@ -1,4 +1,4 @@
-// src/services/ai.js – المستشار الأكاديمي الذكي | gpt-oss-20b & Whisper v3 | Groq API
+// src/services/ai.js – المستشار الأكاديمي الذكي | llama-3.2-1b-preview & Whisper v3 | Groq API
 import { getQuery } from './db';
 
 // ========== حالة النظام ==========
@@ -11,9 +11,9 @@ let mediaRecorder = null;
 let audioChunks = [];
 
 // ========== إعدادات Groq ==========
-const GROQ_MODEL = 'gpt-oss-20b';
+const GROQ_MODEL = 'llama-3.2-1b-preview';
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_WHISPER_URL = 'https://api.groq.com/openai/v1/audio/transcriptions'; // رابط محرك الصوت الجديد
+const GROQ_WHISPER_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
 
 // ========== دالة جلب المفتاح من إعدادات النظام ==========
 function getApiKey() {
@@ -75,7 +75,7 @@ export async function loadMobileModel(onProgress) {
 
   isLoaded = true;
   if (onProgress) onProgress('✅ المستشار الأكاديمي جاهز');
-  console.log('✅ المستشار الأكاديمي الذكي جاهز ومفعّل (gpt-oss-20b)');
+  console.log('✅ المستشار الأكاديمي الذكي جاهز ومفعّل (llama-3.2-1b-preview)');
   return true;
 }
 
@@ -111,6 +111,8 @@ async function callGroq(messages, maxTokens = 300, temperature = 0.4) {
     const elapsed = Date.now() - startTime;
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ استجابة Groq:', response.status, errorText);
       throw new Error(`خطأ في استجابة الخادم: ${response.status}`);
     }
 
@@ -365,6 +367,8 @@ export async function transcribeAudioLocal(audioBlob) {
   });
 
   if (!response.ok) {
+    const errorText = await response.text();
+    console.error('❌ استجابة Whisper:', response.status, errorText);
     throw new Error(`خطأ في مخدم الصوت الخارجي: ${response.status}`);
   }
 
@@ -410,7 +414,7 @@ export function stopRecordingLocal() {
   }
 }
 
-// ⭐ الدوال الجسرية للتوافق: تمنع أخطاء الـ Build تماماً وتدعم الاستدعاءات القديمة في النظام
+// ⭐ الدوال الجسرية للتوافق
 export function stopVoiceRecognition() {
   stopRecordingLocal();
 }
@@ -461,7 +465,7 @@ export async function unloadModel() { isLoaded = false; }
 export function getModelInfo() {
   const currentKey = getApiKey();
   return {
-    الاسم: 'gpt-oss-20b',
+    الاسم: 'llama-3.2-1b-preview',
     المزود: 'Groq API',
     النوع: 'سحابي مع معالج صوتي سيادي (Whisper)',
     السرعة: '⚡ فوري للبيانات والنطق',
