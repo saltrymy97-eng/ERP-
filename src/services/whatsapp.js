@@ -3,21 +3,20 @@ import { getQuery, runQuery } from './db';
 
 let whatsappConfig = null;
 
-// ========== تحميل وتأمين إعدادات الربط ==========
+// دالة مخصصة لعمل تأخير زمني لمنع تجميد المتصفح أو حظر النوافذ المتتالية
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// ========== تحميل وتأمين إعدادات الربط (تم تعديلها للإجبار التلقائي) ==========
 function loadConfig() {
-  if (!whatsappConfig) {
-    const saved = localStorage.getItem('whatsapp_config');
-    // نعتبره مفعلاً تلقائياً للربط المحلي، أو نعتمد على قيمة الحفظ لسهولة التحكم
-    whatsappConfig = saved ? JSON.parse(saved) : { enabled: true };
-  }
-  return whatsappConfig;
+  // نقوم بإرجاع التفعيل دائماً لتخطي أي قيم خاطئة في الـ localStorage ولضمان عمل النظام فوراً
+  return { enabled: true };
 }
 
 // ========== الدالة الأساسية المعدلة: الإرسال عبر البروتوكول المحلي العبقري ==========
 export async function sendWhatsApp(to, message) {
   const config = loadConfig();
   
-  // حماية برمجية: التحقق من التفعيل (يمكن للمستخدم إطفائه من الإعدادات)
+  // حماية برمجية: التحقق من التفعيل
   if (config.enabled === false) {
     console.warn('⚠️ نظام إشعارات واتساب غير نشط من شاشة الإعدادات');
     return { success: false, error: 'غير مفعل' };
@@ -39,8 +38,13 @@ export async function sendWhatsApp(to, message) {
 
     // 4. إصدار أمر بيئة Electron لفتح تطبيق الواتساب أو المتصفح الخارجي فوراً
     if (window.require) {
-      const { shell } = window.require('electron');
-      shell.openExternal(whatsappUrl);
+      try {
+        const { shell } = window.require('electron');
+        shell.openExternal(whatsappUrl);
+      } catch (electronError) {
+        // بديل أمني في حال رفضت بيئة التشغيل فتح أمر خارجي
+        window.open(whatsappUrl, '_blank');
+      }
     } else {
       window.open(whatsappUrl, '_blank');
     }
@@ -148,9 +152,13 @@ export async function notifyAllAbsent() {
   for (const student of absentStudents) {
     const activePhone = student.parent_phone || student.phone;
     if (!activePhone) continue;
-    // استدعاء الففتح المحلي المتتالي
+    
+    // استدعاء الفتح المحلي المتتالي
     const result = await notifyParent(student.id, 'absent');
     if (result.success) sent++;
+    
+    // تأخير زمني بمقدار ثانية ونصف بين كل نافذة وأخرى لضمان الاستقرار في الأجهزة القديمة
+    await delay(1500);
   }
 
   return { success: true, total: absentStudents.length, sent };
@@ -202,6 +210,7 @@ export async function notifyAbsenceStages() {
           sent++;
           notifications.push({ student: s.full_name, stage: stageType, rate });
         }
+        await delay(1500); // تأخير آمن بين النوافذ المتتابعة
       }
     }
   }
@@ -232,6 +241,7 @@ export async function notifyAbsentFromLecture(scheduleId) {
 
     const result = await notifyParent(student.id, 'lecture', { subject: schedule[0].subject, time: schedule[0].time_from });
     if (result.success) sent++;
+    await delay(1500); // تأخير آمن
   }
 
   return { success: true, total: absentStudents.length, sent };
