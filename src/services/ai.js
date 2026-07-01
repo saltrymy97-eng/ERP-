@@ -375,7 +375,6 @@ export async function transcribeAudioLocal(audioBlob) {
 // ب) نظام تشغيل الميكروفون المحلي وبث الـ Blob
 export async function startRecordingLocal(onDataReady, onError) {
   try {
-    // التقاط إشارة كرت الصوت مباشرة من نظام الويندوز بدون قيود المتصفح
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     audioChunks = [];
 
@@ -396,7 +395,6 @@ export async function startRecordingLocal(onDataReady, onError) {
         console.error(err);
         onError('❌ فشل تحويل الإشارات الصوتية عبر خوادم Whisper المحمية.');
       }
-      // إغلاق الميكروفون تماماً وتحريره لمنع التعليق
       stream.getTracks().forEach(track => track.stop());
     };
 
@@ -412,10 +410,15 @@ export function stopRecordingLocal() {
   }
 }
 
+// ⭐ الدالة الجسرية للتوافق: تمنع أخطاء الـ Build وتضمن بقاء التوافق مع أي استدعاءات قديمة
+export function stopVoiceRecognition() {
+  stopRecordingLocal();
+}
+
 // ج) دالة النطق المحلية المستقرة 100% داخل الويندوز
 export function speakText(text, options = {}) {
   if (!window.speechSynthesis) return;
-  window.speechSynthesis.cancel(); // إلغاء أي نطق قديم متراكم
+  window.speechSynthesis.cancel(); 
 
   const { rate = 1.0, pitch = 1.0, volume = 1.0, onEnd = null } = options;
   const utterance = new SpeechSynthesisUtterance(text);
