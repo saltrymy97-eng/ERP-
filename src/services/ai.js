@@ -11,8 +11,8 @@ let mediaRecorder = null;
 let audioChunks = [];
 
 // ========== إعدادات Groq الرسمية والمستقرة 2026 ==========
-const GROQ_MODEL = 'qwen/qwen3.6-27b'; // الموديل الأساسي السريع لتحليل البيانات
-const WHISPER_MODEL = 'whisper-large-v3-turbo'; // النسخة التوربو فائقة السرعة لمنع أخطاء الشبكة والتعليق
+const GROQ_MODEL = 'qwen/qwen3.6-27b'; 
+const WHISPER_MODEL = 'whisper-large-v3-turbo'; // النسخة التوربو المستقرة والمعتمدة في حسابك
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_WHISPER_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
 
@@ -96,7 +96,7 @@ async function callGroq(messages, maxTokens = 250, temperature = 0.2) {
       body: JSON.stringify({
         model: GROQ_MODEL,
         messages: messages,
-        temperature: temperature, // تم خفض الحرارة لمنع الهلوسة نهائياً والالتزام بالبرومبت
+        temperature: temperature, 
         max_tokens: maxTokens,
         top_p: 0.85,
         frequency_penalty: 0.2,
@@ -183,7 +183,7 @@ export async function predictAtRiskStudents() {
   for (const s of students) {
     const sA = attendance.filter(a => a.student_id === s.id);
     if (sA.length === 0) continue;
-    const absences = sA.filter(a => a.status === 'absent').length;
+    const absences = sA.filter(a => a.student_id === s.id && a.status === 'absent').length;
     const rate = Math.round((absences / sA.length) * 100);
 
     if (rate >= 10) {
@@ -233,7 +233,9 @@ export async function transcribeAudioLocal(audioBlob) {
 
   return new Promise((resolve, reject) => {
     const formData = new FormData();
-    // تمرير الحزمة باسم ملف بامتداد mp3 صريح لحل مشكلة تعليق الشبكة HTTP2 في كروميوم
+    
+    // الحل النهائي لـ Invalid Media File: نقوم بإجبار الغلاف على إعلان الملف كـ audio/mp3 وتسميته speech.mp3
+    // ليتوافق تماماً مع بروتوكولات فك الترميز الصارمة لسيرفر Groq الخارجي
     formData.append('file', audioBlob, 'speech.mp3');
     formData.append('model', WHISPER_MODEL); 
     formData.append('language', 'ar');
@@ -262,18 +264,19 @@ export async function startRecordingLocal(onDataReady, onError) {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     audioChunks = [];
 
-    // استخدام صيغة audio/webm المعتمدة والسيادية لنواة الـ Electron على الويندوز
-    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+    // طلب تسجيل الصوت عبر الـ MediaRecorder القياسي المدعوم داخل نواة الـ Chromium
+    mediaRecorder = new MediaRecorder(stream);
 
     mediaRecorder.ondataavailable = (event) => {
       if (event.data.size > 0) audioChunks.push(event.data);
     };
 
     mediaRecorder.onstop = async () => {
-      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      // تعديل صيغة التحزيم لـ audio/mp3 لضمان قبول الحزمة التلقائي من السيرفر
+      const audioBlob = new Blob(audioChunks, { type: 'audio/mp3' });
       
-      // كبح ومنع إرسال المقاطع الصامتة أو الفارغة نهائياً لقطع دابر الهلوسة بالأغاني
-      if (audioBlob.size < 2000) { 
+      // كبح ومنع إرسال المقاطع الصامتة أو الفارغة نهائياً لقطع دابر الهلوسة
+      if (audioBlob.size < 2500) { 
         onError('⚠️ المقطع الصوتي قصير جداً أو صامت، يرجى التحدث بوضوح.');
         return;
       }
