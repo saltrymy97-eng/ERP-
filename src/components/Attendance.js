@@ -1,8 +1,8 @@
-// src/components/Attendance.js – نظام رصد الحضور والانصراف (مصلح ومتوافق تماماً مع بنية SQLite 4.0)
+// src/components/Attendance.js – نظام رصد الحضور والانصراف (مصلح ومتوافق تماماً مع بنية SQLite 4.0 والربط المحلي)
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery, initDatabase } from '../services/db';
-import { notifyAllAbsent } from '../services/whatsapp';
+import { notifyParent } from '../services/whatsapp'; // استيراد دالة إرسال الفردي لتوثيق وبث الحالات بدقة
 
 function Attendance() {
   const [tab, setTab] = useState('live');
@@ -52,7 +52,6 @@ function Attendance() {
 
   // ========== تحميل الطلاب مع جلب أسماء الكليات والتخصصات بالربط الصحيح ==========
   const loadStudents = async () => {
-    // تم إصلاح الاستعلام بالربط مع جداول الكليات والأقسام والتخصصات لجلب أسمائها بدلاً من استدعائها الخاطئ مباشرة من جدول الطلاب
     const data = await getQuery(`
       SELECT s.id, s.university_id, s.full_name, s.phone, s.photo, s.status,
              m.name AS major_name,
@@ -222,20 +221,41 @@ function Attendance() {
     await loadTodayAttendance();
   };
 
-  // ========== إرسال إشعارات للغائبين ==========
+  // ========== الدالة المعدلة: إرسال إشعارات للغائبين عبر البروتوكول المحلي المتتالي ==========
   const handleNotifyAbsent = async () => {
+    // جلب الطلاب المقيدين كـ غياب في جدول الحضور لليوم
+    const absentRecords = todayAttendance.filter(record => record.status === 'absent');
+
+    if (absentRecords.length === 0) {
+      alert('لا يوجد طلاب غائبون لإرسال إشعارات لهم حالياً.');
+      return;
+    }
+
     setSendingNotification(true);
     setNotificationResult(null);
     
     try {
-      const result = await notifyAllAbsent();
-      if (result && result.success) {
-        setNotificationResult({ type: 'success', message: `✅ تم بث وتوجيه الإشعارات بنجاح إلى أولياء الأمور للغائبين.` });
+      let successCount = 0;
+
+      // المرور التكراري على الطلاب الغائبين وفتح محادثاتهم محلياً بالترتيب وتوثيقها
+      for (const record of absentRecords) {
+        const result = await notifyParent(record.student_id, 'absent');
+        if (result.success) {
+          successCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        setNotificationResult({ 
+          type: 'success', 
+          message: `✅ تم تجهيز وفتح واجهة البث لعدد (${successCount}) من أولياء الأمور بنجاح.` 
+        });
       } else {
-        setNotificationResult({ type: 'error', message: `❌ فشل البث: ${result?.error || 'بوابة الإرسال غير مستجيبة'}` });
+        setNotificationResult({ type: 'error', message: `❌ فشل فتح وبث الإشعارات، يرجى مراجعة سجلات الأرقام.` });
       }
     } catch (e) {
-      setNotificationResult({ type: 'error', message: '❌ فشل الاتصال التام بخدمة الـ WhatsApp API' });
+      console.error(e);
+      setNotificationResult({ type: 'error', message: '❌ حدث خطأ داخلي أثناء معالجة وإطلاق بروتوكول WhatsApp' });
     }
     
     setSendingNotification(false);
@@ -403,6 +423,25 @@ function Attendance() {
                 )}
               </AnimatePresence>
 
+              {/* 🔔 مساحة عرض حالة نتائج بث الواتساب وعمليات التوجيه */}
+              <AnimatePresence>
+                {notificationResult && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    style={{
+                      padding: '15px', borderRadius: '12px', marginBottom: '20px', fontWeight: 'bold', fontSize: '0.95rem',
+                      background: notificationResult.type === 'success' ? 'rgba(52,211,153,0.1)' : 'rgba(239,68,68,0.1)',
+                      color: notificationResult.type === 'success' ? '#34d399' : '#ef4444',
+                      border: `1px solid ${notificationResult.type === 'success' ? '#34d39933' : '#ef444433'}`
+                    }}
+                  >
+                    {notificationResult.message}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               <motion.div className="students-grid" variants={containerVariants} initial="hidden" animate="show" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
                 {students
                   .filter(s => s.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || s.university_id?.includes(searchTerm))
@@ -532,6 +571,25 @@ function Attendance() {
                   {sendingNotification ? '⏳ جاري بث الرسائل...' : `💬 بث إشعار WhatsApp للغائبين (${stats.absent})`}
                 </motion.button>
               </div>
+
+              {/* 🔔 مساحة عرض حالة نتائج بث الواتساب وعمليات التوجيه داخل تبويب الكشف اليومي */}
+              <AnimatePresence>
+                {notificationResult && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0 }}
+                    style={{
+                      padding: '12px 20px', borderRadius: '10px', marginBottom: '20px', fontWeight: 'bold', fontSize: '0.9rem',
+                      background: notificationResult.type === 'success' ? 'rgba(52,211,153,0.1)' : 'rgba(239,68,68,0.1)',
+                      color: notificationResult.type === 'success' ? '#34d399' : '#ef4444',
+                      border: `1px solid ${notificationResult.type === 'success' ? '#34d39933' : '#ef444433'}`
+                    }}
+                  >
+                    {notificationResult.message}
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <div className="data-table">
                 <table>
