@@ -1,5 +1,6 @@
-// src/App.js – نظام الحضور والغياب الإلكتروني الإمبراطوري المطور
+// src/App.js – نظام إدارة الحضور والغياب البيومتري الإمبراطوري المطور
 // هندسة بصرية فائقة الفخامة + جناح التوجيه الاستراتيجي المحلي وعقدة الأجرام السبعة السيادية
+// مطور النظام الإمبراطوري: المهندس سالم فهمي التريمي
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { initDatabase } from './services/db';
@@ -11,6 +12,9 @@ import Attendance from './components/Attendance';
 import Reports from './components/Reports';
 import Settings from './components/Settings';
 import Teachers from './components/Teachers';
+
+// استيراد صورة شعار الجامعة المعتمدة
+import universityLogo from './24664.jpg';
 import './App.css';
 
 // ========== حركات الرسوم الفاخرة الموحدة (Global Motion Variants) ==========
@@ -111,23 +115,21 @@ function AIChatModal({ onClose, aiState }) {
         overflow: 'hidden'
       }}
     >
-      {/* تأثير الضوء المحيط الخلفي داخل المودال */}
       <div style={{ position: 'absolute', top: '-10%', left: '50%', transform: 'translateX(-50%)', width: '300px', height: '150px', background: 'radial-gradient(circle, rgba(212,175,55,0.08) 0%, transparent 80%)', pointerEvents: 'none' }}></div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid rgba(212,175,55,0.15)', paddingBottom: '15px', zIndex: 2 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ fontSize: '1.7rem', filter: 'drop-shadow(0 0 10px var(--gold-main))' }}>👑</span>
+          <span style={{ fontSize: '1.7rem', filter: 'drop-shadow(0 0 10px var(--gold-main))' }}>🤖</span>
           <h3 style={{ fontFamily: 'Amiri, serif', color: 'var(--gold-light)', fontSize: '1.5rem', margin: 0, letterSpacing: '0.5px' }}>جناح التوجيه الاستراتيجي والذكاء الاصطناعي</h3>
         </div>
         <motion.button 
           whileHover={{ scale: 1.15, rotate: 90 }}
           whileTap={{ scale: 0.95 }}
           onClick={onClose} 
-          style={{ background: 'transparent', border: 'none', color: '#rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: '1.5rem', padding: '5px' }}
+          style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: '1.5rem', padding: '5px' }}
         >✕</motion.button>
       </div>
 
-      {/* لوحة عرض الحوار الفاخرة */}
       <div style={{ 
         flexGrow: 1, 
         overflowY: 'auto', 
@@ -170,14 +172,13 @@ function AIChatModal({ onClose, aiState }) {
             style={{ alignSelf: 'flex-end', background: 'rgba(212,175,55,0.04)', padding: '12px 20px', borderRadius: '22px 22px 22px 0px', border: '1px solid rgba(212,175,55,0.2)' }}
           >
             <span style={{ color: 'var(--gold-light)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              🔮 تفكير عميق: جاري سحب الجداول وحساب نسب الحضور والغياب محلياً...
+              🤖 تفكير عميق: جاري سحب الجداول وحساب نسب الحضور والغياب محلياً عبر Qwen...
             </span>
           </motion.div>
         )}
         <div ref={chatBottomRef} />
       </div>
 
-      {/* نموذج الإدخال الفاخر */}
       <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '12px', marginTop: '20px', zIndex: 2 }}>
         <input 
           type="text"
@@ -236,7 +237,7 @@ function IconCard({ icon, index, openMenu, onIconClick, setScreen, setOpenMenu, 
       case 'students': return 'student-orb';
       case 'teachers': return 'attendance-orb';
       case 'reports': return 'report-orb';
-      case 'ai_advisor': return 'student-orb'; // تفعيل التوهج الذهبي الملكي
+      case 'ai_advisor': return 'ai-robot-orb'; // كلاس التوهج الذهبي الروبوتي المخصص له
       case 'settings': return 'settings-orb';
       default: return 'report-orb';
     }
@@ -306,7 +307,7 @@ function IconCard({ icon, index, openMenu, onIconClick, setScreen, setOpenMenu, 
   );
 }
 
-// ========== التطبيق الرئيسي للنظام الأكاديمي السيادي ==========
+// ========== التطبيق الرئيسي للنظام الأكاديمي البيومتري ==========
 function App() {
   const [screen, setScreen] = useState('home');
   const [openMenu, setOpenMenu] = useState(null);
@@ -364,7 +365,7 @@ function App() {
     setPassword('');
   };
 
-  // مصفوفة الأجرام السبعة السيادية الموحدة بصرياً بالكامل
+  // مصفوفة الأجرام السبعة السيادية الموحدة بصرياً بالكامل (تم استبدال التاج بالروبوت)
   const mainIcons = [
     {
       id: 'dashboard',
@@ -403,7 +404,7 @@ function App() {
       title: 'هيئة التدريس',
       icon: '👨‍🏫',
       color: '#f472b6',
-      desc: 'إدارة أعضاء هيئة التدريس والمحاضرين والكادر الأكاديمي',
+      desc: 'إدارة أعضاء هيئة التدريس والمحاضرين للكادر الأكاديمي',
       subItems: [
         { title: '👨‍🏫 قائمة المعلمين والكادر', screen: 'teachers' },
         { title: '📋 إضافة معلم وأستاذ جديد', screen: 'teachers' },
@@ -425,7 +426,7 @@ function App() {
     {
       id: 'ai_advisor', 
       title: 'المستشار الذكي',
-      icon: '👑', 
+      icon: '🤖', // تم تغيير الأيقونة هنا إلى روبوت ذكي بناءً على طلبك
       color: '#D4AF37',
       desc: 'محرك التحليل الاستراتيجي التوليدي المحلي الفوري للمنظومة',
       subItems: []
@@ -460,7 +461,17 @@ function App() {
     return (
       <div className="splash-screen">
         <div className="splash-content" style={{ textAlign: 'center' }}>
-          <motion.div className="splash-logo-3d" animate={{ scale: [1, 1.08, 1], y: [0, -12, 0], filter: ['drop-shadow(0 0 10px rgba(212,175,55,0.3))', 'drop-shadow(0 0 25px var(--gold-main))', 'drop-shadow(0 0 10px rgba(212,175,55,0.3))'] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }} style={{ fontSize: '6rem' }}>🏛️</motion.div>
+          <motion.img 
+            src={universityLogo} 
+            alt="University Logo"
+            className="uni-logo-3d" 
+            animate={{ 
+              scale: [1, 1.05, 1], 
+              y: [0, -10, 0]
+            }} 
+            transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }} 
+            style={{ width: '150px', height: '150px', borderRadius: '50%' }}
+          />
           <h3 style={{ fontFamily: 'Amiri, serif', fontWeight: 500, color: '#f3e5ab', marginTop: '25px', letterSpacing: '0.5px' }}>جاري تفويض الصلاحيات وتحديث الأجرام الكريستالية...</h3>
           <div className="splash-loader" style={{ margin: '20px auto' }}></div>
         </div>
@@ -472,7 +483,14 @@ function App() {
     return (
       <div className="login-screen">
         <motion.div className="login-card" initial={{ opacity: 0, y: 60 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', damping: 20 }}>
-          <div className="login-logo-3d" style={{ fontSize: '5.5rem', marginBottom: '15px', filter: 'drop-shadow(0 10px 20px rgba(0,0,0,0.5))' }}>🏛️</div>
+          <motion.img 
+            src={universityLogo} 
+            alt="University Logo"
+            className="uni-logo-3d"
+            animate={{ rotateY: 360 }}
+            transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+            style={{ width: '130px', height: '130px', marginBottom: '15px', borderRadius: '50%' }}
+          />
           <h1 style={{ fontFamily: 'Amiri, serif', fontSize: '2.5rem', color: '#f3e5ab', margin: '0 0 10px 0' }}>بوابة السيطرة المركزية</h1>
           <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: '30px', fontSize: '0.95rem' }}>يرجى إدخال شيفرة التصديق لتفويض الدخول للمنظومة</p>
           <div className="login-input-group" style={{ marginBottom: '25px' }}>
@@ -493,10 +511,36 @@ function App() {
           <div className="bg-orb bg-orb-2"></div>
         </div>
 
-        <header className="home-header" style={{ padding: '40px 20px 20px 20px' }}>
-          <div className="home-logo" style={{ fontSize: '4.5rem', filter: 'drop-shadow(0 0 20px rgba(212,175,55,0.4))' }}>🏛️</div>
-          <h1 style={{ fontFamily: 'Amiri, serif', fontSize: '2.8rem', color: '#ffffff', margin: '10px 0' }}>نظام إدارة الحضور والغياب الإلكتروني الفاخر</h1>
-          <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,0.6)', maxWidth: '700px', margin: '0 auto' }}>البوابة الأكاديمية السيادية للتوجيه الفوري والربط الذكي للكليات</p>
+        <header className="home-header" style={{ padding: '40px 20px 20px 20px', position: 'relative' }}>
+          {/* إدراج شعار الجامعة ثلاثي الأبعاد المضيء */}
+          <motion.img 
+            src={universityLogo} 
+            alt="University Logo"
+            className="uni-logo-3d"
+            animate={{ 
+              y: [0, -12, 0],
+              filter: [
+                'drop-shadow(0 0 15px rgba(214, 175, 55, 0.4)) border-shadow(0 0 5px rgba(214,175,55,0.2))',
+                'drop-shadow(0 0 35px rgba(214, 175, 55, 0.8)) border-shadow(0 0 15px rgba(214,175,55,0.5))',
+                'drop-shadow(0 0 15px rgba(214, 175, 55, 0.4)) border-shadow(0 0 5px rgba(214,175,55,0.2))'
+              ]
+            }}
+            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+            style={{ width: '140px', height: '140px', borderRadius: '50%', objectFit: 'cover' }}
+          />
+          
+          {/* تغيير اسم النظام رسمياً */}
+          <h1 style={{ fontFamily: 'Amiri, serif', fontSize: '2.8rem', color: '#ffffff', margin: '15px 0 10px 0' }}>
+            نظام إدارة الحضور والغياب البيومتري
+          </h1>
+          <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,0.6)', maxWidth: '700px', margin: '0 auto 10px auto' }}>
+            البوابة الأكاديمية السيادية للتوجيه الفوري والربط الذكي للكليات
+          </p>
+
+          {/* إضافة توقيع المطور أسفل هيدر المنظومة مباشرة */}
+          <div className="developer-signature" style={{ fontFamily: 'Amiri, serif', color: 'var(--gold-light)', fontSize: '1.1rem', opacity: 0.9, letterSpacing: '0.5px' }}>
+            مطور النظام: <span style={{ color: '#ffffff', fontWeight: 'bold', textShadow: '0 0 10px var(--gold-main)' }}>سالم فهمي التريمي</span>
+          </div>
         </header>
 
         <div className="icons-grid">
