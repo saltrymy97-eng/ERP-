@@ -1,5 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Tajawal:wght@300;400;500;700;800;900&display=swap');
 
+/* ========================================================= */
+/* 👑 المتغيرات الملكية المحدثة بالتوهج الكريستالي السائل 👑 */
+/* ========================================================= */
 :root {
   --emerald-dark: #02110c;
   --emerald-deep: #041f15;
@@ -8,18 +11,18 @@
   --gold-dark: #996f0f;
   --gold-main: #D4AF37;
   --gold-light: #fbeea7;
-  --gold-glow: rgba(212, 175, 55, 0.45);
-  --bg-dark: #010705;
+  --gold-glow: rgba(212, 175, 55, 0.55);
+  --bg-dark: #010704; /* تعميق الخلفية لتبرز الأجرام الكريستالية */
   --white: #ffffff;
   --red-crystal: #ff3366;
   --blue-crystal: #00f0ff;
   --green-crystal: #00ff88;
   --orange-crystal: #ff7700;
   --purple-crystal: #d300ff;
-  --glass-bg: rgba(255, 255, 255, 0.01);
-  --glass-bg-hover: rgba(255, 255, 255, 0.04);
-  --glass-border: rgba(212, 175, 55, 0.12);
-  --glass-border-hover: rgba(212, 175, 55, 0.6);
+  --glass-bg: rgba(4, 28, 19, 0.35);
+  --glass-bg-hover: rgba(6, 43, 30, 0.55);
+  --glass-border: rgba(212, 175, 55, 0.15);
+  --glass-border-hover: rgba(212, 175, 55, 0.75);
   --text-primary: #f8fafc;
   --text-secondary: #cbd5e1;
   --text-muted: #475569;
@@ -46,32 +49,31 @@ input, textarea, select {
   font-family: 'Tajawal', sans-serif;
 }
 
-/* حقول النص العادية والخيارات تظل لغة عربية من اليمين */
 input[type="text"], textarea, select {
   direction: rtl !important; 
   text-align: right !important; 
 }
 
 /* ========================================================= */
-/* ✨ الهيكل المشترك لجميع عناصر الإدخال في النظام ✨ */
+/* ✨ الهيكل الفخم لعناصر الإدخال والتحكم المطور ✨ */
 /* ========================================================= */
 .glass-input, 
 input[type="text"], 
 input[type="date"], 
 input[type="time"], 
 select {
-  background: rgba(4, 25, 18, 0.88) !important;
+  background: rgba(2, 15, 10, 0.92) !important;
   color: #ffffff !important;
-  border: 1px solid rgba(212, 175, 55, 0.5) !important;
-  border-radius: 12px !important;
-  padding: 14px 16px !important;
+  border: 1px solid rgba(212, 175, 55, 0.4) !important;
+  border-radius: 14px !important;
+  padding: 14px 18px !important;
   font-size: 1.05rem !important;
   font-weight: 700 !important;
   outline: none !important;
   position: relative !important;
   z-index: 100 !important;
-  box-shadow: inset 0 2px 5px rgba(0,0,0,0.6) !important;
-  transition: all 0.3s ease !important;
+  box-shadow: inset 0 3px 8px rgba(0,0,0,0.8), 0 4px 10px rgba(0,0,0,0.3) !important;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 .glass-input:focus, 
@@ -79,13 +81,13 @@ input[type="date"]:focus,
 input[type="time"]:focus, 
 input[type="text"]:focus,
 select:focus {
-  background: rgba(2, 14, 10, 0.98) !important;
+  background: rgba(1, 8, 5, 0.98) !important;
   border-color: var(--gold-main) !important;
-  box-shadow: 0 0 15px rgba(212, 175, 55, 0.6), inset 0 2px 4px rgba(0,0,0,0.7) !important;
+  box-shadow: 0 0 25px rgba(212, 175, 55, 0.7), inset 0 2px 4px rgba(0,0,0,0.8) !important;
 }
 
 /* ========================================================= */
-/* ⏰ تبويب الجدول الدراسي: حقول الوقت تظل ميكانيكية ونظيفة ومستقيمة ⏰ */
+/* ⏰ حقول الوقت الميكانيكية النظيفة المستقيمة ⏰ */
 /* ========================================================= */
 input[type="time"] {
   direction: ltr !important; 
@@ -95,13 +97,13 @@ input[type="time"] {
 input[type="time"]::-webkit-datetime-edit-text {
   color: var(--gold-main) !important;
   font-weight: 900 !important;
-  padding: 0 4px !important;
+  padding: 0 6px !important;
 }
 
 input[type="time"]::-webkit-datetime-edit-hour-field,
 input[type="time"]::-webkit-datetime-edit-minute-field,
 input[type="time"]::-webkit-datetime-edit-ampm-field {
-  color: rgba(212, 175, 55, 0.75) !important;
+  color: rgba(212, 175, 55, 0.9) !important;
   font-weight: 700 !important;
 }
 
@@ -120,14 +122,13 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 }
 
 /* ========================================================= */
-/* 📅 تبويب التقويم فقط: إجبار حقل التاريخ على الإدخال اليدوي الصرف 📅 */
+/* 📅 قفل واجبار حقل التاريخ على الادخال اليدوي الصرف 📅 */
 /* ========================================================= */
 input[type="date"] {
-  direction: rtl !important; /* الكتابة اليدوية العربية من اليمين لليسار */
+  direction: rtl !important; 
   text-align: right !important;
 }
 
-/* 1. إخفاء البنية الداخلية الافتراضية بالكامل لمنع ظهور الكلمات المقطعة */
 input[type="date"]::-webkit-datetime-edit,
 input[type="date"]::-webkit-datetime-edit-fields-wrapper,
 input[type="date"]::-webkit-datetime-edit-text,
@@ -139,17 +140,17 @@ input[type="date"]::-webkit-datetime-edit-year-field {
   display: none !important; 
 }
 
-/* 2. 🔒 قفل ومنع فتح نافذة النتيجة (Calendar Picker) عند الضغط 🔒 */
 input[type="date"]::-webkit-calendar-picker-indicator {
   position: absolute !important;
-  left: 12px !important;
-  opacity: 0.4 !important;
+  left: 14px !important;
+  opacity: 0.5 !important;
   filter: invert(0.8) sepia(1) saturate(5) hue-rotate(15deg) brightness(1.3) !important;
-  /* تفجير التفاعل الافتراضي: منع المتصفح من فتح النتيجة نهائياً عند الضغط */
   pointer-events: none !important; 
 }
-/* ========================================================= */
 
+/* ========================================================= */
+/* 🏛️ شاشات الواجهة والتحميل الفاخرة (Splash & Login) 🏛 */
+/* ========================================================= */
 .splash-screen {
   display: flex; align-items: center; justify-content: center; min-height: 100vh;
   background: radial-gradient(circle at center, var(--emerald-light) 0%, var(--emerald-dark) 100%);
@@ -177,34 +178,39 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   background: linear-gradient(135deg, var(--emerald-dark) 0%, #010503 100%); padding: 20px;
 }
 .login-card {
-  background: rgba(4, 24, 17, 0.5); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
+  background: rgba(4, 24, 17, 0.6); backdrop-filter: blur(50px); -webkit-backdrop-filter: blur(50px);
   border: 1px solid var(--glass-border); border-radius: 36px; padding: 50px 45px;
-  width: 100%; max-width: 450px; text-align: center; box-shadow: 0 40px 90px rgba(0,0,0,0.7);
+  width: 100%; max-width: 450px; text-align: center; box-shadow: 0 40px 90px rgba(0,0,0,0.8);
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .login-card:hover {
-  border-color: rgba(212, 175, 55, 0.5);
-  box-shadow: 0 40px 90px rgba(0,0,0,0.85), 0 0 50px rgba(212, 175, 55, 0.15);
+  border-color: rgba(212, 175, 55, 0.6);
+  box-shadow: 0 45px 100px rgba(0,0,0,0.95), 0 0 60px rgba(212, 175, 55, 0.25);
 }
 .login-input-group input {
-  width: 100%; padding: 16px 20px; border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 18px; color: var(--white); background: rgba(255, 255, 255, 0.02);
+  width: 100%; padding: 16px 20px; border: 1px solid rgba(212, 175, 55, 0.25);
+  border-radius: 18px; color: var(--white); background: rgba(0, 0, 0, 0.4);
+  font-weight: bold; text-align: center; font-size: 1.1rem;
   transition: all 0.3s ease;
 }
 .login-input-group input:focus {
-  outline: none; border-color: var(--gold-main); background: rgba(255, 255, 255, 0.06);
-  box-shadow: 0 0 20px rgba(212, 175, 55, 0.25);
+  outline: none; border-color: var(--gold-main); background: rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 25px rgba(212, 175, 55, 0.4);
 }
 .login-btn {
   width: 100%; padding: 18px; background: linear-gradient(135deg, var(--gold-dark), var(--gold-main));
   color: var(--emerald-dark); border: none; border-radius: 18px; font-size: 1.15rem; font-weight: 900;
   cursor: pointer; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  text-shadow: 0 1px 2px rgba(255,255,255,0.3);
 }
 .login-btn:hover {
   background: linear-gradient(135deg, var(--gold-main), var(--gold-light)); transform: translateY(-3px);
-  box-shadow: 0 15px 40px rgba(212, 175, 55, 0.5);
+  box-shadow: 0 15px 40px rgba(212, 175, 55, 0.6);
 }
 
+/* ========================================================= */
+/* 🌐 شبكة الأجرام السبعة المتزنة هندسياً (Icons Grid System) 🌐 */
+/* ========================================================= */
 .home-screen {
   min-height: 100vh; 
   background: radial-gradient(circle at 50% 15%, var(--emerald-deep) 0%, var(--bg-dark) 100%);
@@ -212,75 +218,92 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   position: relative;
 }
 .home-bg { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 0; pointer-events: none; }
-.bg-orb { position: absolute; border-radius: 50%; filter: blur(150px); opacity: 0.14; animation: orbFloat 25s infinite ease-in-out; }
-.bg-orb-1 { width: 650px; height: 650px; background: var(--gold-main); top: -250px; right: -150px; }
-.bg-orb-2 { width: 500px; height: 500px; background: var(--emerald-light); bottom: -120px; left: -120px; animation-delay: -8s; }
+.bg-orb { position: absolute; border-radius: 50%; filter: blur(160px); opacity: 0.16; animation: orbFloat 22s infinite ease-in-out; }
+.bg-orb-1 { width: 700px; height: 700px; background: var(--gold-main); top: -250px; right: -150px; }
+.bg-orb-2 { width: 550px; height: 550px; background: var(--emerald-light); bottom: -120px; left: -120px; animation-delay: -7s; }
 
 @keyframes orbFloat {
   0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-40px, 40px) scale(1.05); }
+  50% { transform: translate(-50px, 50px) scale(1.08); }
 }
 
-.home-header { text-align: center; margin-bottom: 50px; position: relative; z-index: 1; }
+.home-header { text-align: center; margin-bottom: 55px; position: relative; z-index: 1; }
 .home-logo { font-size: 5.8rem; display: inline-block; filter: drop-shadow(0 20px 35px rgba(0,0,0,0.6)); animation: floatUpDown 4s ease-in-out infinite; }
 .home-header h1 {
   font-family: 'Amiri', serif; font-size: 3.5rem;
   background: linear-gradient(135deg, var(--white) 10%, var(--gold-light) 50%, var(--gold-main) 100%);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 4px 15px rgba(0,0,0,0.7));
+  filter: drop-shadow(0 4px 15px rgba(0,0,0,0.8));
 }
 
+/* التوزيع الإمبراطوري المتناسق للعدد الفردي 7 */
 .icons-grid {
   display: grid; 
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); 
-  gap: 30px;
-  max-width: 1400px; 
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
+  gap: 35px;
+  max-width: 1450px; 
   margin: 0 auto; 
   position: relative; 
   z-index: 5;
 }
+
+/* هندسة الشاشات الكبيرة: تفكيك العشوائية لتبدو 4 في الأعلى و 3 في الأسفل */
+@media (min-width: 1250px) {
+  .icons-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  
+  /* جعل الجرم الأخير (الإعدادات) يتوسط المساحة بذكاء دون المساس بهيكل المصفوفة */
+  .icon-wrapper:nth-child(7) {
+    grid-column: span 1;
+  }
+}
+
 .icon-wrapper { position: relative; perspective: 2000px; display: flex; flex-direction: column; }
 
 .icon-card {
   width: 100%; background: var(--glass-bg);
   backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
   border: 1px solid var(--glass-border); border-radius: 34px;
-  padding: 35px 25px 25px 25px; text-align: center; cursor: pointer;
+  padding: 40px 25px 30px 25px; text-align: center; cursor: pointer;
   transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), background 0.5s, border-color 0.5s, box-shadow 0.5s;
   position: relative; overflow: visible;
-  box-shadow: 0 25px 50px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255,255,255,0.03);
+  box-shadow: 0 25px 50px rgba(0,0,0,0.5), inset 0 1px 2px rgba(255,255,255,0.04);
   z-index: 10;
 }
 
 .icon-wrapper:hover, .icon-wrapper:focus-within { z-index: 9999; }
 
 .icon-card:hover { 
-  transform: translateY(-18px) rotateX(8deg) rotateY(-4deg) scale(1.03);
+  transform: translateY(-20px) rotateX(10deg) rotateY(-5deg) scale(1.04);
   background: var(--glass-bg-hover); border-color: var(--glass-border-hover);
-  box-shadow: 0 45px 80px rgba(0,0,0,0.65), 0 0 40px rgba(212, 175, 55, 0.3);
+  box-shadow: 0 50px 90px rgba(0,0,0,0.75), 0 0 50px rgba(212, 175, 55, 0.4);
 }
 
 .icon-card.active {
   transform: translateY(-6px) scale(1.02);
-  background: rgba(6, 51, 36, 0.6); border-color: var(--gold-main);
-  box-shadow: 0 30px 60px rgba(0,0,0,0.7), 0 0 50px rgba(212, 175, 55, 0.4);
+  background: rgba(4, 38, 26, 0.75); border-color: var(--gold-main);
+  box-shadow: 0 35px 70px rgba(0,0,0,0.85), 0 0 60px rgba(212, 175, 55, 0.5);
   z-index: 100;
 }
 
+/* ========================================================= */
+/* 🔮 المظهر السائل ثلاثي الأبعاد للأجرام الكريستالية 🔮 */
+/* ========================================================= */
 .icon-3d-container {
-  width: 115px; height: 115px; margin: 0 auto 25px auto;
+  width: 115px; height: 115px; margin: 0 auto 28px auto;
   position: relative; display: flex; align-items: center; justify-content: center;
   overflow: visible; z-index: 3;
 }
 
 .icon-3d-liquid {
   width: 100%; height: 100%;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.02) 100%);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.03) 100%);
   border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: inset 0 4px 10px rgba(255, 255, 255, 0.2), 
-              inset -4px -10px 20px rgba(0, 0, 0, 0.6),
-              0 15px 30px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: inset 0 6px 12px rgba(255, 255, 255, 0.25), 
+              inset -6px -12px 24px rgba(0, 0, 0, 0.7),
+              0 20px 35px rgba(0, 0, 0, 0.6);
   display: flex; align-items: center; justify-content: center;
   transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
   animation: liquidMorph 6s ease-in-out infinite alternate;
@@ -289,166 +312,174 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 .icon-3d-liquid::before {
   content: ''; position: absolute; top: -100%; left: -100%; width: 300%; height: 300%;
-  background: linear-gradient(45deg, transparent 45%, rgba(255, 255, 255, 0.4) 50%, transparent 55%);
-  transform: rotate(-30deg); animation: laserRun 3.5s cubic-bezier(0.3, 1, 0.2, 1) infinite;
+  background: linear-gradient(45deg, transparent 45%, rgba(255, 255, 255, 0.5) 50%, transparent 55%);
+  transform: rotate(-30deg); animation: laserRun 3.2s cubic-bezier(0.3, 1, 0.2, 1) infinite;
 }
 
 .icon-3d-aura {
-  position: absolute; inset: 5px; border-radius: 50%; filter: blur(22px);
-  opacity: 0.35; transition: all 0.6s ease; z-index: -1;
+  position: absolute; inset: 2px; border-radius: 50%; filter: blur(24px);
+  opacity: 0.4; transition: all 0.6s ease; z-index: -1;
   background: var(--gold-main);
 }
 
-.student-orb .icon-3d-aura { background: var(--blue-crystal); }
-.attendance-orb .icon-3d-aura { background: var(--green-crystal); }
-.report-orb .icon-3d-aura { background: var(--purple-crystal); }
-.settings-orb .icon-3d-aura { background: var(--orange-crystal); }
+/* الهوية الضوئية لكل جرم كريستالي */
+.student-orb .icon-3d-aura { background: radial-gradient(circle, var(--blue-crystal) 0%, transparent 70%); }
+.attendance-orb .icon-3d-aura { background: radial-gradient(circle, var(--green-crystal) 0%, transparent 70%); }
+.report-orb .icon-3d-aura { background: radial-gradient(circle, var(--purple-crystal) 0%, transparent 70%); }
+.settings-orb .icon-3d-aura { background: radial-gradient(circle, var(--orange-crystal) 0%, transparent 70%); }
 
 .icon-3d-canvas, .icon-3d-fallback {
   font-size: 3.8rem; display: flex; align-items: center; justify-content: center;
   transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  filter: drop-shadow(0 10px 15px rgba(0,0,0,0.65));
+  filter: drop-shadow(0 12px 18px rgba(0,0,0,0.7));
   z-index: 5;
 }
 
 .icon-card:hover .icon-3d-liquid {
-  transform: scale(1.15) rotate(10deg);
-  border-radius: 50% 50% 50% 50%;
-  border-color: rgba(255,255,255,0.4);
-  box-shadow: inset 0 4px 15px rgba(255, 255, 255, 0.3), 
-              inset -2px -5px 15px rgba(0, 0, 0, 0.4),
-              0 25px 45px rgba(0, 0, 0, 0.7);
+  transform: scale(1.16) rotate(12deg);
+  border-radius: 50%;
+  border-color: rgba(255,255,255,0.5);
+  box-shadow: inset 0 6px 18px rgba(255, 255, 255, 0.45), 
+              inset -3px -6px 18px rgba(0, 0, 0, 0.5),
+              0 30px 55px rgba(0, 0, 0, 0.8);
 }
-.icon-card:hover .icon-3d-aura { opacity: 0.85; transform: scale(1.3); filter: blur(28px); }
+.icon-card:hover .icon-3d-aura { opacity: 0.95; transform: scale(1.35); filter: blur(32px); }
 .icon-card:hover .icon-3d-canvas, .icon-card:hover .icon-3d-fallback {
-  transform: scale(1.12) rotate(-10deg) translateZ(20px);
-  filter: brightness(1.4) drop-shadow(0 15px 25px rgba(0,0,0,0.8));
+  transform: scale(1.15) rotate(-12deg) translateZ(25px);
+  filter: brightness(1.4) drop-shadow(0 18px 28px rgba(0,0,0,0.85));
 }
-
-.icon-card.active .icon-3d-liquid { transform: scale(1.08) rotate(-5deg); border-radius: 48%; }
-.icon-card.active .icon-3d-aura { opacity: 0.9; filter: blur(30px); }
 
 .icon-card.settings-card {
-  border-color: rgba(214, 175, 55, 0.35);
-  background: linear-gradient(135deg, rgba(2, 17, 12, 0.6) 0%, rgba(214, 175, 55, 0.05) 100%);
+  border-color: rgba(214, 175, 55, 0.4);
+  background: linear-gradient(145deg, rgba(2, 17, 12, 0.6) 0%, rgba(214, 175, 55, 0.07) 100%);
 }
 .icon-card.settings-card .icon-3d-liquid {
-  background: linear-gradient(135deg, rgba(214, 175, 55, 0.25) 0%, rgba(0, 0, 0, 0.5) 100%);
-  border-color: rgba(214, 175, 55, 0.4);
-}
-.icon-card.settings-card:hover {
-  border-color: var(--gold-main);
-  box-shadow: 0 45px 85px rgba(0,0,0,0.7), 0 0 50px rgba(214, 175, 55, 0.4);
+  background: linear-gradient(135deg, rgba(214, 175, 55, 0.3) 0%, rgba(0, 0, 0, 0.6) 100%);
+  border-color: rgba(214, 175, 55, 0.5);
 }
 
 .icon-title { 
-  font-family: 'Tajawal', sans-serif; font-weight: 900; font-size: 1.4rem; color: var(--white); 
-  margin-bottom: 8px; text-shadow: 0 3px 6px rgba(0,0,0,0.6);
+  font-family: 'Tajawal', sans-serif; font-weight: 900; font-size: 1.45rem; color: var(--white); 
+  margin-bottom: 10px; text-shadow: 0 3px 6px rgba(0,0,0,0.7);
 }
 .icon-card:hover .icon-title { color: var(--gold-light); }
-.icon-desc { font-size: 0.88rem; color: var(--text-secondary); opacity: 0.7; padding: 0 5px; }
+.icon-desc { font-size: 0.9rem; color: var(--text-secondary); opacity: 0.75; padding: 0 8px; lineHeight: 1.5; }
 
+/* ========================================================= */
+/* 💎 القوائم المنسدلة الحركية الفاخرة (Dropdown Panels) 💎 */
+/* ========================================================= */
 .dropdown-panel {
-  background: rgba(1, 8, 5, 0.99) !important; 
-  backdrop-filter: blur(40px) !important; 
-  -webkit-backdrop-filter: blur(40px) !important;
+  background: rgba(1, 9, 5, 0.98) !important; 
+  backdrop-filter: blur(45px) !important; 
+  -webkit-backdrop-filter: blur(45px) !important;
   border: 1px solid var(--gold-main) !important; 
-  border-radius: 24px !important;
+  border-radius: 26px !important;
   position: absolute !important; 
-  top: 108% !important; 
+  top: 106% !important; 
   left: 0 !important; 
   right: 0 !important;
   z-index: 9999999 !important;
-  box-shadow: 0 50px 100px rgba(0,0,0,0.98), 0 0 60px rgba(212, 175, 55, 0.45) !important;
+  box-shadow: 0 60px 110px rgba(0,0,0,1), 0 0 60px rgba(212, 175, 55, 0.5) !important;
   overflow: hidden !important; 
-  padding: 12px !important;
-  animation: slideDownMenu 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  padding: 14px !important;
+  animation: slideDownMenu 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
 }
 
 @keyframes slideDownMenu {
-  from { opacity: 0; transform: translateY(-25px) scaleY(0.85); }
+  from { opacity: 0; transform: translateY(-20px) scaleY(0.88); }
   to { opacity: 1; transform: translateY(0) scaleY(1); }
 }
 
 .dropdown-item {
   display: flex; align-items: center; justify-content: space-between;
-  width: 100%; padding: 15px 22px; background: transparent; border: none;
-  color: var(--text-secondary); font-size: 1.02rem; text-align: right;
-  cursor: pointer; font-family: 'Tajawal', sans-serif;
-  transition: all 0.25s ease; border-right: 4px solid transparent; border-radius: 14px;
+  width: 100%; padding: 16px 24px; background: transparent; border: none;
+  color: var(--text-secondary); font-size: 1.05rem; text-align: right;
+  cursor: pointer; font-family: 'Tajawal', sans-serif; font-weight: 500;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); border-right: 4px solid transparent; border-radius: 14px;
 }
 .dropdown-item:not(:last-child) { border-bottom: 1px solid rgba(255,255,255,0.02); }
 .dropdown-item:hover {
-  background: rgba(212, 175, 55, 0.12); color: var(--gold-light);
-  border-right-color: var(--gold-main); padding-right: 28px;
+  background: rgba(212, 175, 55, 0.14); color: var(--gold-light);
+  border-right-color: var(--gold-main); padding-right: 32px;
 }
 
+.arrow-transition {
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.icon-card.active .arrow-transition {
+  transform: translateX(-6px);
+}
+
+/* ========================================================= */
+/* 👤 كبسولة التحكم والمسؤول والمغادرة السفلى 👤 */
+/* ========================================================= */
 .user-bar {
   display: flex; 
   flex-direction: row;
   justify-content: center; 
   align-items: center; 
-  gap: 15px;
+  gap: 18px;
   width: auto; 
-  height: 60px;
-  padding: 10px 25px;
-  background: rgba(3, 20, 14, 0.96); 
-  backdrop-filter: blur(35px); 
-  -webkit-backdrop-filter: blur(35px);
-  border: 1px solid rgba(212, 175, 55, 0.35); 
+  height: 65px;
+  padding: 10px 30px;
+  background: rgba(2, 14, 9, 0.95); 
+  backdrop-filter: blur(40px); 
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid rgba(212, 175, 55, 0.4); 
   border-radius: 100px;
   position: fixed; 
-  bottom: 25px; 
-  left: 25px;
+  bottom: 30px; 
+  left: 30px;
   right: auto;
   top: auto;
   transform: none;
   z-index: 9999; 
-  box-shadow: 0 15px 40px rgba(0,0,0,0.8);
-  transition: all 0.3s ease;
-}
-
-.user-bar:hover {
-  width: auto;
-  padding: 10px 25px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.85), 0 0 30px rgba(6, 51, 36, 0.3);
 }
 
 .user-role-badge {
-  background: rgba(212, 175, 55, 0.18); color: var(--gold-light);
-  border: 1px solid rgba(212, 175, 55, 0.3); padding: 8px 16px; border-radius: 100px; 
-  font-weight: 700; font-size: 0.9rem; width: auto; text-align: center;
-  white-space: nowrap;
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.25) 0%, rgba(6, 51, 36, 0.4) 100%); 
+  color: var(--gold-light);
+  border: 1px solid rgba(212, 175, 55, 0.45); padding: 8px 18px; border-radius: 100px; 
+  font-weight: 800; font-size: 0.9rem; width: auto; text-align: center;
+  white-space: nowrap; letter-spacing: 0.3px;
 }
 
 .btn-logout {
-  background: rgba(255, 77, 77, 0.12); color: #ffa1a1;
-  border: 1px solid rgba(255, 77, 77, 0.3); padding: 8px 16px; 
+  background: rgba(255, 77, 77, 0.14); color: #ffa1a1;
+  border: 1px solid rgba(255, 77, 77, 0.35); padding: 8px 20px; 
   border-radius: 100px; cursor: pointer; font-weight: 700; width: auto;
-  transition: all 0.3s; text-align: center; white-space: nowrap; font-size: 0.9rem;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); text-align: center; white-space: nowrap; font-size: 0.9rem;
 }
 .btn-logout:hover { 
   background: var(--red-crystal);
   color: var(--white); 
-  box-shadow: 0 0 25px rgba(255, 77, 77, 0.5); 
+  box-shadow: 0 0 30px rgba(255, 77, 77, 0.6); 
   transform: translateY(-2px); 
 }
 
+/* ========================================================= */
+/* 🎛️ الهياكل العلوية والجداول للواجهات الداخلية 🎛️ */
+/* ========================================================= */
 .top-bar {
-  display: flex; align-items: center; gap: 20px; padding: 22px 35px;
-  background: rgba(2, 14, 10, 0.8); backdrop-filter: blur(25px);
-  border-bottom: 1px solid var(--glass-border); position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; gap: 20px; padding: 24px 35px;
+  background: rgba(1, 8, 5, 0.85); backdrop-filter: blur(30px);
+  border-bottom: 1px solid rgba(212, 175, 55, 0.2); position: sticky; top: 0; z-index: 100;
 }
 .back-btn {
-  background: rgba(212, 175, 55, 0.06); border: 1px solid rgba(212, 175, 55, 0.25);
-  padding: 10px 22px; border-radius: 14px; cursor: pointer; color: var(--gold-light); font-weight: 700; transition: all 0.25s;
+  background: rgba(212, 175, 55, 0.08); border: 1px solid rgba(212, 175, 55, 0.3);
+  padding: 10px 24px; border-radius: 14px; cursor: pointer; color: var(--gold-light); font-weight: 700; transition: all 0.25s;
 }
-.back-btn:hover { background: var(--gold-main); color: var(--emerald-dark); box-shadow: 0 0 20px rgba(212,175,55,0.35); }
+.back-btn:hover { background: var(--gold-main); color: var(--emerald-dark); box-shadow: 0 0 25px rgba(212,175,55,0.45); }
 
 .data-table { width: 100%; border-collapse: collapse; text-align: right; }
 .data-table th { background: var(--emerald-main); color: var(--gold-light); padding: 18px 20px; font-weight: 700; border-bottom: 2px solid var(--gold-main); }
 .data-table td { padding: 16px 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.02); color: var(--text-secondary); }
-.data-table tr:hover { background: rgba(212, 175, 55, 0.04); }
+.data-table tr:hover { background: rgba(212, 175, 55, 0.05); }
 
+/* ========================================================= */
+/* 🛠️ الرسوم المتحركة والفيزياء الحركية للنظام 🛠️ */
+/* ========================================================= */
 @keyframes liquidMorph {
   0% { border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%; }
   100% { border-radius: 70% 30% 52% 48% / 60% 40% 60% 40%; }
@@ -458,7 +489,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes goldShine {
   0%, 100% { filter: drop-shadow(0 0 25px var(--gold-glow)); }
-  50% { filter: drop-shadow(0 0 50px rgba(255, 238, 167, 0.7)) drop-shadow(0 0 15px var(--gold-main)); }
+  50% { filter: drop-shadow(0 0 50px rgba(255, 238, 167, 0.8)) drop-shadow(0 0 15px var(--gold-main)); }
 }
 
 @media(max-width: 768px) {
@@ -467,6 +498,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     left: 15px; 
     right: 15px;
     bottom: 15px;
+    height: 60px;
   }
   .home-screen { padding: 20px 15px 120px 15px; }
 }
