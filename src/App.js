@@ -237,7 +237,7 @@ function IconCard({ icon, index, openMenu, onIconClick, setScreen, setOpenMenu, 
       case 'students': return 'student-orb';
       case 'teachers': return 'attendance-orb';
       case 'reports': return 'report-orb';
-      case 'ai_advisor': return 'ai-robot-orb'; // كلاس التوهج الذهبي الروبوتي المخصص له
+      case 'ai_advisor': return 'ai-robot-orb'; 
       case 'settings': return 'settings-orb';
       default: return 'report-orb';
     }
@@ -250,14 +250,13 @@ function IconCard({ icon, index, openMenu, onIconClick, setScreen, setOpenMenu, 
       initial="hidden"
       animate="visible"
       transition={{ delay: index * 0.06 }}
-      style={{ zIndex: isMenuOpen ? 99999 : 10 }}
+      style={{ zIndex: isMenuOpen ? 999999 : 10 }}
     >
       <div
         className={`icon-card ${isMenuOpen ? 'active' : ''} ${icon.id === 'settings' ? 'settings-card' : ''}`}
         onClick={() => onIconClick(icon)}
         style={{
           position: 'relative',
-          overflow: 'hidden',
           transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
         }}
       >
@@ -280,23 +279,24 @@ function IconCard({ icon, index, openMenu, onIconClick, setScreen, setOpenMenu, 
           {isMenuOpen && icon.subItems.length > 0 && (
             <motion.div
               className="dropdown-panel"
-              initial={{ opacity: 0, scaleY: 0 }}
-              animate={{ opacity: 1, scaleY: 1 }}
-              exit={{ opacity: 0, scaleY: 0 }}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
               onClick={(e) => e.stopPropagation()}
-              style={{ originY: 0 }}
+              style={{ position: 'absolute', top: '102%', left: 0, right: 0 }}
             >
               {icon.subItems.map((sub, subIndex) => (
                 <button
                   key={`${sub.title}-${subIndex}`}
                   className="dropdown-item"
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation(); // منع ارتداد الحدث وإغلاق القائمة بشكل عشوائي
                     setScreen(sub.screen);
                     setOpenMenu(null);
                   }}
                 >
                   <span>{sub.title}</span>
-                  <span style={{ fontSize: '1.2rem', transition: 'transform 0.2s' }} className="arrow-transition">←</span>
+                  <span style={{ fontSize: '1.2rem' }} className="arrow-transition">←</span>
                 </button>
               ))}
             </motion.div>
@@ -365,7 +365,6 @@ function App() {
     setPassword('');
   };
 
-  // مصفوفة الأجرام السبعة السيادية الموحدة بصرياً بالكامل (تم استبدال التاج بالروبوت)
   const mainIcons = [
     {
       id: 'dashboard',
@@ -426,7 +425,7 @@ function App() {
     {
       id: 'ai_advisor', 
       title: 'المستشار الذكي',
-      icon: '🤖', // تم تغيير الأيقونة هنا إلى روبوت ذكي بناءً على طلبك
+      icon: '🤖', 
       color: '#D4AF37',
       desc: 'محرك التحليل الاستراتيجي التوليدي المحلي الفوري للمنظومة',
       subItems: []
@@ -512,7 +511,6 @@ function App() {
         </div>
 
         <header className="home-header" style={{ padding: '40px 20px 20px 20px', position: 'relative' }}>
-          {/* إدراج شعار الجامعة ثلاثي الأبعاد المضيء */}
           <motion.img 
             src={universityLogo} 
             alt="University Logo"
@@ -529,7 +527,6 @@ function App() {
             style={{ width: '140px', height: '140px', borderRadius: '50%', objectFit: 'cover' }}
           />
           
-          {/* تغيير اسم النظام رسمياً */}
           <h1 style={{ fontFamily: 'Amiri, serif', fontSize: '2.8rem', color: '#ffffff', margin: '15px 0 10px 0' }}>
             نظام إدارة الحضور والغياب البيومتري
           </h1>
@@ -537,7 +534,6 @@ function App() {
             البوابة الأكاديمية السيادية للتوجيه الفوري والربط الذكي للكليات
           </p>
 
-          {/* إضافة توقيع المطور أسفل هيدر المنظومة مباشرة */}
           <div className="developer-signature" style={{ fontFamily: 'Amiri, serif', color: 'var(--gold-light)', fontSize: '1.1rem', opacity: 0.9, letterSpacing: '0.5px' }}>
             مطور النظام: <span style={{ color: '#ffffff', fontWeight: 'bold', textShadow: '0 0 10px var(--gold-main)' }}>سالم فهمي التريمي</span>
           </div>
@@ -549,10 +545,11 @@ function App() {
           ))}
         </div>
 
-        <div className="user-bar" style={{ backdropFilter: 'blur(15px)', background: 'rgba(2, 12, 6, 0.8)', borderTop: '1px solid rgba(212,175,55,0.2)' }}>
-          <div className="user-info-block">
+        {/* كبسولة التحكم الإمبراطورية المتمركزة بدقة هندسية فائقة الفخامة في منتصف الشاشة السفلي */}
+        <div className="user-bar">
+          <div className="user-info-block" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
             <span style={{ color: '#ffffff', fontSize: '0.95rem' }}>👤 السحابة الأمنية: <strong style={{ color: '#d4af37' }}>{user?.username}</strong></span>
-            <span className="user-role-badge" style={{ background: 'linear-gradient(135deg, var(--gold-dark), #032b18)', border: '1px solid var(--gold-main)' }}>
+            <span className="user-role-badge">
               {user?.role === 'admin' ? 'السيادة الإدارية العليا' : 'مسؤول رصد'}
             </span>
           </div>
