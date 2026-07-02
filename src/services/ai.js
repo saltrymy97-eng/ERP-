@@ -1,32 +1,36 @@
-// src/services/ai.js – المستشار الأكاديمي الذكي | إصدار التحويل الفوري الخفيف والمستقر
+// src/services/ai.js – المستشار الأكاديمي الذكي الفخم | الإصدار المحلي السيادي والمستقر 100%
 import { getQuery } from './db';
 
 let isLoaded = false;
 let totalRequests = 0;
 let successfulRequests = 0;
 
-// محرك التعرف الفوري على الصوت المدمج في نواة المتصفح والنظام
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognition = null;
+// محرك تتبع حالة المعالجة اللحظي لدعم المؤثرات البصرية والأيقونات الـ 3D التفاعلية
+export const AI_STATES = {
+  IDLE: 'idle',
+  THINKING: 'thinking',
+  TYPING: 'typing',
+  ERROR: 'error'
+};
+let currentSystemState = AI_STATES.IDLE;
+let stateListener = null;
 
-if (SpeechRecognition) {
-  recognition = new SpeechRecognition();
-  recognition.continuous = false; // يقف تلقائياً بمجرد انتهاء العبارة
-  recognition.lang = 'ar-SA';     // دعم كامل وفوري للغة العربية
-  recognition.interimResults = false; 
+// ضبط إعدادات خادم Ollama المحلي بدلاً من الخدمات السحابية الخارجية
+const OLLAMA_MODEL = 'qwen2.5:1.5b'; 
+const OLLAMA_URL = 'http://localhost:11434/api/chat';
+
+// دالة لتحديث الحالة البرمجية وضخها مباشرة للواجهة الرسومية (UI Animation Trigger)
+function updateSystemState(newState) {
+  currentSystemState = newState;
+  if (stateListener) stateListener(newState);
 }
 
-const GROQ_MODEL = 'qwen/qwen3.6-27b'; 
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-
-function getApiKey() {
-  try {
-    const saved = localStorage.getItem('ai_config');
-    if (!saved) return null;
-    const config = JSON.parse(saved);
-    return config.enabled ? config.api_key : null;
-  } catch (e) { return null; }
+export function subscribeToAIState(callback) {
+  stateListener = callback;
+  return () => { stateListener = null; };
 }
+
+export function getSystemState() { return currentSystemState; }
 
 // ========== شخصية المستشار الأكاديمي الفائق ومتعدد المهام الشامل (البرومبت الكامل) ==========
 const SYSTEM_PROMPT = `أنت "المستشار الأكاديمي الذكي والنظام السيادي الخبير" المطور خصيصاً لجامعة القرآن الكريم والعلوم الإسلامية.
@@ -48,9 +52,9 @@ const SYSTEM_PROMPT = `أنت "المستشار الأكاديمي الذكي و
 
 - (المهمة 2: التحليل الإحصائي والمقارنة): تقديم نسب حضور دقيقة لكل كلية أو قسم مقارنة بالإجمالي.
 
-- (المهمة 3: كشف الأمن والتلاعب البيومتري): التنبيه الفوري in حال وجود أنماط تسجيل حضور يدوي متكررة (Manual) لنفس الطالب أو حضور مسجل في أوقات خارج نطاق الجدول الدراسي.
+- (المهمة 3: كشف الأمن والتلاعب البيومتري): التنبيه الفوري في حال وجود أنماط تسجيل حضور يدوي متكررة (Manual) لنفس الطالب أو حضور مسجل في أوقات خارج نطاق الجدول الدراسي.
 
-- (المهمة 4: صياغة وإعداد رسائل الواتساب الذكية): إذا طلب منك المستخدم كتابة رسالة أو إنذار لعائلة الطالب, قم بصياغة نص رسالة رسمية، تربوية، ومؤثرة جداً جاهزة للإرسال الفوري عبر الواتساب لأولياء الأمور تتضمن اسم الطالب ونسبة غيابه بشكل منسق.
+- (المهمة 4: صياغة وإعداد رسائل الواتساب الذكية): إذا طلب منك المستخدم كتابة رسالة أو إنذار لعائلة الطالب، قم بصياغة نص رسالة رسمية، تربوية، ومؤثرة جداً جاهزة للإرسال الفوري عبر الواتساب لأولياء الأمور تتضمن اسم الطالب ونسبة غيابه بشكل منسق.
 
 - (المهمة 5: صيانة ومراقبة البنية التحتية): تحليل حالة أجهزة البصمة (Devices)؛ وتقديم توصيات فورية بنقل الأجهزة أو صيانتها إذا كانت حالتها (Offline).
 
@@ -60,106 +64,78 @@ const SYSTEM_PROMPT = `أنت "المستشار الأكاديمي الذكي و
 - أجب باللغة العربية الفصحى الاحترافية والردود المقتضبة والذكية لضمان سرعة النطق التلقائي وبدون مقدمات برمجية أو علامات تفكير مكتومة مثل tags التفكير.`;
 
 export async function loadMobileModel(onProgress) {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    if (onProgress) onProgress('❌ لم يتم تعيين مفتاح AI');
+  updateSystemState(AI_STATES.THINKING);
+  try {
+    const response = await fetch('http://localhost:11434/api/tags');
+    if (!response.ok) throw new Error();
+    isLoaded = true;
+    if (onProgress) onProgress('✅ المستشار الأكاديمي المحلي جاهز ومؤمن بالكامل بالسيادة المطلقة');
+    updateSystemState(AI_STATES.IDLE);
+    return true;
+  } catch (e) {
+    isLoaded = false;
+    if (onProgress) onProgress('❌ خادم Ollama غير نشط، يرجى تشغيل الاختصار المحتشم أولاً');
+    updateSystemState(AI_STATES.ERROR);
     return false;
   }
-  isLoaded = true;
-  if (onProgress) onProgress('✅ المستشار الأكاديمي جاهز ومؤمن');
-  return true;
 }
 
-// محرك إرسال النصوص الخفيف والمستقر جداً
-async function callGroq(messages, maxTokens = 250) {
-  const apiKey = getApiKey();
-  if (!apiKey) return '⚠️ لم يتم تعيين مفتاح الذكاء الاصطناعي. اذهب إلى ⚙️ الإعدادات → 🧠 المستشار الذكي.';
-
+// محرك إرسال النصوص الذكي والمحلي المستقر 100% بدون إنترنت
+async function callLocalOllama(messages) {
   totalRequests++;
+  updateSystemState(AI_STATES.THINKING); // إطلاق حركة تفكير الأيقونة ثنائية أو ثلاثية الأبعاد فوراً
+
   try {
-    const response = await fetch(GROQ_URL, {
+    const response = await fetch(OLLAMA_URL, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: GROQ_MODEL,
+        model: OLLAMA_MODEL,
         messages: messages,
-        temperature: 0.1, // تقليل الحرارة لمنع الهلوسة وخروج الأكواد
-        max_tokens: maxTokens,
-        top_p: 0.85
+        options: {
+          temperature: 0.1, // حماية النظم من الهلوسة
+          top_p: 0.85,
+          num_predict: 350  // سقف استجابة ذكي وسريع جداً
+        },
+        stream: false // معالجة فورية مجمعة لأعلى سرعة لابتوب
       })
     });
 
-    if (!response.ok) throw new Error(`خطأ خادم: ${response.status}`);
+    if (!response.ok) throw new Error(`خطأ خادم محلي: ${response.status}`);
 
     const data = await response.json();
     successfulRequests++;
-    return data.choices?.[0]?.message?.content?.trim() || '⚠️ لم يتمكن المستشار من التحليل.';
+    
+    updateSystemState(AI_STATES.TYPING); // إطلاق تأثير الكتابة والوميض الساحر على الأيقونة
+    setTimeout(() => updateSystemState(AI_STATES.IDLE), 1000);
+
+    return data.message?.content?.trim() || '⚠️ لم يتمكن المستشار الأكاديمي المحلي من صياغة التحليل.';
   } catch (e) {
-    console.error(e);
-    return '⚠️ تعذر الاتصال بالمستشار الأكاديمي. تأكد من الإنترنت ومفتاح الـ API.';
+    console.error('Ollama Local Connection Error:', e);
+    updateSystemState(AI_STATES.ERROR); // تحويل الأيقونة للون التحذيري الفخم
+    return '⚠️ تعذر الاتصال بالمستشار الأكاديمي المحلي. يرجى التأكد من تشغيل تطبيق Ollama في الخلفية عبر سطر الأوامر.';
   }
 }
 
-export async function askAI(question, context = '', options = {}) {
-  if (!question || question.trim() === '') return 'عذراً مدير النظام، لم أسمع استفسارك الأكاديمي بوضوح، يرجى تكرار السؤال.';
+export async function askAI(question, context = '') {
+  if (!question || question.trim() === '') return 'عذراً مدير النظام الموقر، حقل الاستفسار الأكاديمي فارغ حالياً.';
   
   const messages = [
     { role: 'system', content: SYSTEM_PROMPT },
-    { role: 'user', content: `بيانات النظام الحالية المتاحة للتحليل:\n"""\n${context || 'لا توجد بيانات حالية ممررة.'}\n"""\n\nالسؤال الحالي: ${question}` }
+    { role: 'user', content: `بيانات النظام الحالية المتاحة للتحليل:\n"""\n${context || 'لا توجد بيانات حالية ممررة.'}\n"""\n\nالسؤال الإداري الحالي: ${question}` }
   ];
-  return await callGroq(messages, options.maxTokens || 350);
+  return await callLocalOllama(messages);
 }
 
-// ==========================================
-// ٥. تشغيل وإيقاف الصوت الفوري الذكي والآمن
-// ==========================================
-export function startVoiceChat(onDataReady, onError) {
-  if (!recognition) {
-    onError('❌ ميزة التعرف على الصوت غير مدعومة في هذه البيئة.');
-    return;
-  }
+// ========================================================
+// 🛡️ دالات توافقية لمنع انهيار البناء مع الواجهات السابقة
+// ========================================================
+export function startVoiceChat(onDataReady, onError) { if (onError) onError('💡 النظام يعمل حالياً بالنمط الكتابي الفخم والسيادي الكامل.'); }
+export function stopVoiceRecognition() {}
+export function startRecordingLocal(onDataReady, onError) { return startVoiceChat(onDataReady, onError); }
+export function stopRecordingLocal() { return stopVoiceRecognition(); }
 
-  recognition.onstart = () => {
-    console.log('🎤 بدأ الاستماع الفوري لحديثك...');
-  };
-
-  recognition.onresult = async (event) => {
-    const speechToText = event.results[0][0].transcript;
-    console.log('📝 النص الذي تم التقاطه محلياً:', speechToText);
-    
-    if (!speechToText || speechToText.trim() === '') {
-      onError('⚠️ لم يتم رصد أي كلمات واضحة.');
-      return;
-    }
-    onDataReady(speechToText);
-  };
-
-  recognition.onerror = (event) => {
-    console.error('Speech Recognition Error:', event.error);
-    if (event.error === 'no-speech') {
-      onError('⚠️ لم يتم سماع أي صوت، يرجى التحدث بالقرب من الميكروفون.');
-    } else {
-      onError('❌ عذراً، حدث خطأ في التقاط الصوت محلياً.');
-    }
-  };
-
-  try {
-    recognition.start();
-  } catch (e) {
-    recognition.stop();
-  }
-}
-
-export function stopVoiceRecognition() {
-  if (recognition) {
-    recognition.stop();
-  }
-}
-
-// دالة النطق الصوتي للمستشار (محلي 100% وسريع جداً)
+// دالة النطق الصوتي الفخمة والمحسنة (تعمل بالخلفية 100% واختيارية للمستخدم)
 export function speakText(text, options = {}) {
   if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel(); 
@@ -167,34 +143,22 @@ export function speakText(text, options = {}) {
   const cleanText = text.replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDC00-\uDFFF]/g, '');
   const utterance = new SpeechSynthesisUtterance(cleanText);
   utterance.lang = 'ar-SA';
-  utterance.rate = options.rate || 1.0;
+  utterance.rate = options.rate || 0.95;
 
   const voices = window.speechSynthesis.getVoices();
   const preferred = voices.find(v =>
     v.lang.startsWith('ar') &&
-    (v.name.includes('Majed') || v.name.includes('Naeem') || v.name.includes('Google') || v.name.includes('Maged'))
+    (v.name.includes('Majed') || v.name.includes('Naeem') || v.name.includes('Google'))
   );
-  const fallback = voices.find(v => v.lang.startsWith('ar'));
-  utterance.voice = preferred || fallback || voices[0];
+  utterance.voice = preferred || voices.find(v => v.lang.startsWith('ar')) || voices[0];
   
   if (options.onEnd) utterance.onend = options.onEnd;
   window.speechSynthesis.speak(utterance);
 }
 
-// ========================================================
-// 🛡️ دالات توافقية لمنع انهيار البناء (التصدير الآمن القديم)
-// ========================================================
-export function startRecordingLocal(onDataReady, onError) {
-  return startVoiceChat(onDataReady, onError);
-}
-
-export function stopRecordingLocal() {
-  return stopVoiceRecognition();
-}
-
-// ==========================================
-// ٦. الدوال المساعدة لقاعدة البيانات الإحصائية للجامعة
-// ==========================================
+// =========================================================
+// ٦. الدوال المساعدة الإحصائية المربوطة مباشرة بقواعد البيانات
+// =========================================================
 export async function analyzeDailyAttendance() {
   const today = new Date().toISOString().slice(0, 10);
   const students = await getQuery("SELECT * FROM students WHERE status = 'active'") || [];
@@ -206,7 +170,7 @@ export async function analyzeDailyAttendance() {
   const rate = students.length > 0 ? Math.round((present / students.length) * 100) : 0;
 
   const context = `حاضر: ${present} (${rate}%)، غائب: ${absent}، متأخر: ${late}، إجمالي المسجلين: ${students.length}`;
-  return await askAI('حلل حالة الحضور اليوم باختصار وأعطِ التوصية الأهم وفقط.', context, { maxTokens: 120 });
+  return await askAI('حلل حالة الحضور اليوم باختصار وأعطِ التوصية الأهم وفقط.', context);
 }
 
 export async function predictAtRiskStudents() {
@@ -227,14 +191,14 @@ export async function predictAtRiskStudents() {
 
   if (analysis.length === 0) return '✅ جميع الطلاب منتظمون ونسبة غيابهم آمنة أقل من 10%.';
   analysis.sort((a, b) => parseInt(b.نسبة_الغياب) - parseInt(a.نسبة_الغياب));
-  return await askAI('اذكر الطلاب المعرضين للخطر وتوصية سريعة لهم.', JSON.stringify(analysis.slice(0, 5)), { maxTokens: 180 });
+  return await askAI('اذكر الطلاب المعرضين للخطر وتوصية سريعة لهم.', JSON.stringify(analysis.slice(0, 5)));
 }
 
 export async function detectAnomalies() {
   const today = new Date().toISOString().slice(0, 10);
   const todayData = await getQuery("SELECT * FROM attendance WHERE date = ?", [today]) || [];
   const context = `إجمالي العمليات اليوم: ${todayData.length}`;
-  return await askAI('هل هناك أنماط غير طبيعية اليوم؟ أجب بوضوح واختصار.', context, { maxTokens: 100 });
+  return await askAI('هل هناك أنماط غير طبيعية اليوم؟ أجب بوضوح واختصار.', context);
 }
 
 export async function getWeeklyRecommendations() {
@@ -247,18 +211,17 @@ export async function getWeeklyRecommendations() {
   const present = weekData.filter(a => a.status === 'present').length;
   const context = `إحصائيات الأسبوع: حضور ${present} | غياب ${absences}`;
 
-  return await askAI('أعطني 3 توصيات استراتيجية سريعة ومباشرة بناءً على الحضور الأسبوعي.', context, { maxTokens: 150 });
+  return await askAI('أعطني 3 توصيات استراتيجية سريعة ومباشرة بناءً على الحضور الأسبوعي.', context);
 }
 
 export async function comprehensiveAnalysis() {
-  const today = new Date().toISOString().slice(0, 10);
   const students = await getQuery("SELECT * FROM students WHERE status = 'active'") || [];
-  const context = `تقرير شامل: إجمالي الطلاب ${students.length}، تاريخ اليوم ${today}`;
-  return await askAI('قدم خلاصة سريعة جداً عن حالة النظام بنقاط رصاصية.', context, { maxTokens: 150 });
+  const context = `تقرير شامل سيادي: إجمالي الطلاب النشطين حالياً ${students.length}`;
+  return await askAI('قدم خلاصة سريعة جداً عن حالة النظام بنقاط رصاصية واضحة.', context);
 }
 
-export function isModelReady() { return isLoaded && !!getApiKey(); }
+export function isModelReady() { return isLoaded; }
 export function isModelLoading() { return false; }
 export async function unloadModel() { isLoaded = false; }
-export function getModelInfo() { return { الاسم: GROQ_MODEL, المزود: 'Groq API', الحالة: '✅ جاهز ومستقر ومؤمن بالبرومبت الكامل' }; }
+export function getModelInfo() { return { الاسم: OLLAMA_MODEL, المزود: 'منظومة سيادية محلية (Ollama)', الحالة: '✅ جاهز ومستقر أوفلاين بالكامل' }; }
 export function getUsageStats() { return { totalRequests, successfulRequests }; }
