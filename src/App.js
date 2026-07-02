@@ -1,9 +1,10 @@
-// src/App.js – نظام الحضور والغياب الإمبراطوري الحركي (أجرام كريستالية حركية + زر AI الصوتي الفاخر)
+// src/App.js – نظام الحضور والغياب الإلكتروني الإمبراطوري المطور
+// هندسة بصرية فائقة الفخامة + جناح التوجيه الاستراتيجي المحلي وعقدة الأجرام السبعة السيادية
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { initDatabase } from './services/db';
 import { login, logout, restoreSession } from './services/auth';
-import { askAI, speakText, startRecordingLocal, stopRecordingLocal } from './services/ai';
+import { askAI, speakText, subscribeToAIState, AI_STATES } from './services/ai';
 import Dashboard from './components/Dashboard';
 import Students from './components/Students';
 import Attendance from './components/Attendance';
@@ -12,181 +13,220 @@ import Settings from './components/Settings';
 import Teachers from './components/Teachers';
 import './App.css';
 
+// ========== حركات الرسوم الفاخرة الموحدة (Global Motion Variants) ==========
+const FADE_IN_UP = {
+  hidden: { opacity: 0, y: 30, scale: 0.97 },
+  visible: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 80, damping: 15 } }
+};
+
+const MODAL_ANIMS = {
+  hidden: { opacity: 0, scale: 0.9, y: 20, backdropFilter: 'blur(0px)' },
+  visible: { opacity: 1, scale: 1, y: 0, backdropFilter: 'blur(25px)', transition: { type: 'spring', duration: 0.5 } },
+  exit: { opacity: 0, scale: 0.95, y: 10, backdropFilter: 'blur(0px)', transition: { duration: 0.3 } }
+};
+
 // ========== مكون الأيقونة الكريستالية السائلة الحركية الفاخرة ==========
-function CrystalOrbIcon({ icon, orbClass }) {
+function CrystalOrbIcon({ icon, orbClass, aiState }) {
+  const isThinking = aiState === AI_STATES.THINKING;
+  const isTyping = aiState === AI_STATES.TYPING;
+
   return (
-    <div className={`icon-3d-container ${orbClass}`}>
-      <div className="icon-3d-aura"></div>
+    <motion.div 
+      className={`icon-3d-container ${orbClass}`}
+      animate={{
+        scale: isThinking ? [1, 1.12, 1] : isTyping ? [1, 1.04, 1] : [1, 1.03, 1],
+        rotate: isThinking ? 360 : 0,
+        boxShadow: isThinking 
+          ? '0 0 40px rgba(214, 175, 55, 0.6), inset 0 0 20px rgba(214, 175, 55, 0.4)' 
+          : isTyping ? '0 0 40px rgba(0, 255, 136, 0.5), inset 0 0 20px rgba(0, 255, 136, 0.3)' : '0 15px 30px rgba(0,0,0,0.5)'
+      }}
+      transition={{ 
+        scale: { repeat: Infinity, duration: isThinking ? 1.5 : 3, ease: "easeInOut" },
+        rotate: { repeat: Infinity, duration: 8, ease: "linear" }
+      }}
+    >
+      <div className="icon-3d-aura" style={{
+        background: isThinking ? 'radial-gradient(circle, rgba(212,175,55,0.4) 0%, transparent 70%)' : isTyping ? 'radial-gradient(circle, rgba(0,255,136,0.3) 0%, transparent 70%)' : ''
+      }}></div>
       <div className="icon-3d-liquid">
-        <span className="icon-3d-fallback">{icon}</span>
+        <span className="icon-3d-fallback" style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.5))' }}>
+          {isThinking ? '🔮' : isTyping ? '✍️' : icon}
+        </span>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
-// ========== مكون زر المحادثة الصوتية الفاخر بالذكاء الاصطناعي الحقيقي المتصل بـ Groq ==========
-function AIVoiceWidget() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [aiState, setAiState] = useState('idle');
-  const [transcript, setTranscript] = useState('');
+// ========== مكون جناح الحوار الاستراتيجي للمستشار الأكاديمي المحلي ==========
+function AIChatModal({ onClose, aiState }) {
+  const [inputMessage, setInputMessage] = useState('');
+  const [chatHistory, setChatHistory] = useState([
+    { role: 'bot', text: 'مرحباً بك في المنظومة الرقمية السيادية للمستشار الأكاديمي الذكي. اكتب استفسارك الإداري هنا وسأقوم بتحليل قاعدة البيانات فوراً ومحلياً 100% وبدون إنترنت.' }
+  ]);
+  const chatBottomRef = useRef(null);
 
   useEffect(() => {
-    return () => {
-      stopRecordingLocal();
-      if (window.speechSynthesis) window.speechSynthesis.cancel();
-    };
-  }, [isOpen]);
-
-  const handleVoiceSession = async () => {
-    if (aiState === 'listening') {
-      stopRecordingLocal();
-      setAiState('idle');
-      setTranscript('⏹️ تم إيقاف الاستماع بطلب منك.');
-      return;
+    if (chatBottomRef.current) {
+      chatBottomRef.current.scrollIntoView({ behavior: 'smooth' });
     }
+  }, [chatHistory, aiState]);
 
-    setAiState('listening');
-    setTranscript('🎙️ أنا أستمع إليك الآن... تحدث بوضوح وسؤالك سيُرسل للمستشار مباشرة.');
+  const handleSendMessage = async (e) => {
+    if (e) e.preventDefault();
+    if (!inputMessage.trim() || aiState === AI_STATES.THINKING) return;
 
-    startRecordingLocal(
-      async (detectedText) => {
-        if (!detectedText || detectedText.trim() === '') {
-          setAiState('idle');
-          setTranscript('⚠️ لم يتم التقاط بصمة صوتية واضحة. يرجى المحاولة مرة أخرى.');
-          return;
-        }
+    const userQuery = inputMessage.trim();
+    setChatHistory(prev => [...prev, { role: 'user', text: userQuery }]);
+    setInputMessage('');
 
-        setAiState('processing');
-        setTranscript('🔮 جاري معالجة صوتك وتوليد التحليل الأكاديمي التوليدي من Groq...');
-
-        try {
-          const answer = await askAI(detectedText);
-          setAiState('idle');
-          setTranscript(`🗣️ أنت: "${detectedText}"\n\n🤖 المستشار: "${answer}"`);
-          
-          speakText(answer, {
-            onEnd: () => {
-              setTranscript(prev => prev + '\n\n✅ انتهى النطق الصوتي.');
-            }
-          });
-        } catch (error) {
-          setAiState('idle');
-          setTranscript('❌ واجهت خوادم التفكير عارضاً تقنياً أثناء المعالجة');
-        }
-      },
-      (errorMessage) => {
-        setAiState('idle');
-        setTranscript(errorMessage);
-      }
-    );
+    try {
+      const answer = await askAI(userQuery);
+      setChatHistory(prev => [...prev, { role: 'bot', text: answer }]);
+      speakText(answer);
+    } catch (error) {
+      setChatHistory(prev => [...prev, { role: 'bot', text: '❌ واجه المستشار عارضاً تقنياً أثناء الاتصال بالخادم المحلي.' }]);
+    }
   };
 
   return (
-    <div style={{ position: 'fixed', bottom: '30px', left: '30px', zIndex: 999999 }}>
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8, y: 50, x: -20 }}
-            animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: 50, x: -20 }}
-            style={{
-              width: '330px',
-              background: 'rgba(2, 11, 7, 0.98)',
-              backdropFilter: 'blur(30px)',
-              border: '1px solid var(--gold-main)',
-              borderRadius: '24px',
-              padding: '20px',
-              boxShadow: '0 30px 60px rgba(0,0,0,0.8), 0 0 40px rgba(212, 175, 55, 0.2)',
-              marginBottom: '20px',
-              direction: 'rtl',
-              textAlign: 'right'
+    <motion.div 
+      variants={MODAL_ANIMS}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+      style={{
+        background: 'linear-gradient(145deg, rgba(3, 18, 11, 0.98) 0%, rgba(1, 7, 4, 0.99) 100%)',
+        border: '1px solid linear-gradient(to bottom, var(--gold-main), transparent)',
+        boxShadow: '0 40px 100px rgba(0,0,0,0.9), inset 0 1px 2px rgba(255,255,255,0.1), 0 0 50px rgba(212, 175, 55, 0.1)',
+        borderRadius: '32px',
+        padding: '30px',
+        direction: 'rtl',
+        textAlign: 'right',
+        display: 'flex',
+        flexDirection: 'column',
+        height: '620px',
+        maxWidth: '750px',
+        margin: '20px auto',
+        position: 'relative',
+        overflow: 'hidden'
+      }}
+    >
+      {/* تأثير الضوء المحيط الخلفي داخل المودال */}
+      <div style={{ position: 'absolute', top: '-10%', left: '50%', transform: 'translateX(-50%)', width: '300px', height: '150px', background: 'radial-gradient(circle, rgba(212,175,55,0.08) 0%, transparent 80%)', pointerEvents: 'none' }}></div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid rgba(212,175,55,0.15)', paddingBottom: '15px', zIndex: 2 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '1.7rem', filter: 'drop-shadow(0 0 10px var(--gold-main))' }}>👑</span>
+          <h3 style={{ fontFamily: 'Amiri, serif', color: 'var(--gold-light)', fontSize: '1.5rem', margin: 0, letterSpacing: '0.5px' }}>جناح التوجيه الاستراتيجي والذكاء الاصطناعي</h3>
+        </div>
+        <motion.button 
+          whileHover={{ scale: 1.15, rotate: 90 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={onClose} 
+          style={{ background: 'transparent', border: 'none', color: '#rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: '1.5rem', padding: '5px' }}
+        >✕</motion.button>
+      </div>
+
+      {/* لوحة عرض الحوار الفاخرة */}
+      <div style={{ 
+        flexGrow: 1, 
+        overflowY: 'auto', 
+        display: 'flex', 
+        flexDirection: 'column', 
+        gap: '16px', 
+        padding: '15px 10px',
+        background: 'rgba(0,0,0,0.2)',
+        borderRadius: '20px',
+        border: '1px solid rgba(255,255,255,0.02)',
+        boxShadow: 'inset 0 10px 30px rgba(0,0,0,0.5)'
+      }}>
+        {chatHistory.map((msg, idx) => (
+          <motion.div 
+            key={idx}
+            initial={{ opacity: 0, x: msg.role === 'user' ? -15 : 15 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3 }}
+            style={{ 
+              alignSelf: msg.role === 'user' ? 'flex-start' : 'flex-end',
+              background: msg.role === 'user' ? 'linear-gradient(135deg, rgba(212,175,55,0.12) 0%, rgba(212,175,55,0.03) 100%)' : 'linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%)',
+              border: msg.role === 'user' ? '1px solid rgba(212,175,55,0.25)' : '1px solid rgba(255,255,255,0.06)',
+              padding: '14px 20px',
+              borderRadius: msg.role === 'user' ? '22px 22px 0px 22px' : '22px 22px 22px 0px',
+              maxWidth: '80%',
+              boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
+              backdropFilter: 'blur(5px)'
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-              <h4 style={{ fontFamily: 'Amiri, serif', color: 'var(--gold-light)', fontSize: '1.2rem', margin: 0 }}>المستشار الأكاديمي الصوتي الحقيقي</h4>
-              <button 
-                onClick={() => {
-                  setIsOpen(false);
-                  if (window.speechSynthesis) window.speechSynthesis.cancel();
-                }} 
-                style={{ background: 'transparent', border: 'none', color: '#ff4d4d', cursor: 'pointer', fontSize: '1.1rem' }}
-              >✕</button>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '15px 0' }}>
-              <motion.div
-                onClick={handleVoiceSession}
-                animate={{
-                  scale: aiState === 'listening' ? [1, 1.2, 1] : aiState === 'processing' ? [1, 1.08, 1] : 1,
-                  boxShadow: aiState === 'listening' 
-                    ? '0 0 35px #00ff88' 
-                    : aiState === 'processing' ? '0 0 35px var(--gold-main)' : '0 0 20px rgba(212,175,55,0.3)'
-                }}
-                transition={{ repeat: Infinity, duration: aiState === 'listening' ? 1.2 : 2 }}
-                style={{
-                  width: '85px',
-                  height: '85px',
-                  borderRadius: '50%',
-                  background: aiState === 'listening' 
-                    ? 'radial-gradient(circle, #047857 0%, #062b1e 100%)'
-                    : aiState === 'processing'
-                    ? 'radial-gradient(circle, #b89324 0%, #041d14 100%)'
-                    : 'radial-gradient(circle, var(--gold-light) 0%, var(--gold-dark) 100%)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  fontSize: '2.4rem'
-                }}
-              >
-                {aiState === 'listening' ? '🛑' : aiState === 'processing' ? '🔮' : '🎙️'}
-              </motion.div>
-            </div>
-
-            <div style={{ 
-              fontSize: '0.9rem', 
-              color: '#cbd5e1', 
-              maxHeight: '160px', 
-              overflowY: 'auto', 
-              padding: '5px', 
-              whiteSpace: 'pre-line',
-              lineHeight: '1.6',
-              borderTop: '1px solid rgba(255,255,255,0.05)',
-              marginTop: '10px'
-            }}>
-              {transcript || 'انقر على المايكروفون، وسيتحدث معك المستشار الأكاديمي للجامعة فوراً بصوته ويبحث في قاعدة البيانات...'}
-            </div>
+            <strong style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: msg.role === 'user' ? 'var(--gold-light)' : '#34d399', marginBottom: '6px' }}>
+              {msg.role === 'user' ? '👤 الاستفسار الإداري السيادي:' : '🤖 المستشار التحليلي للمنظومة:'}
+            </strong>
+            <span style={{ lineHeight: '1.7', fontSize: '1rem', color: '#e2e8f0' }}>{msg.text}</span>
+          </motion.div>
+        ))}
+        {aiState === AI_STATES.THINKING && (
+          <motion.div 
+            animate={{ opacity: [0.5, 1, 0.5] }}
+            transition={{ repeat: Infinity, duration: 1.5 }}
+            style={{ alignSelf: 'flex-end', background: 'rgba(212,175,55,0.04)', padding: '12px 20px', borderRadius: '22px 22px 22px 0px', border: '1px solid rgba(212,175,55,0.2)' }}
+          >
+            <span style={{ color: 'var(--gold-light)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              🔮 تفكير عميق: جاري سحب الجداول وحساب نسب الحضور والغياب محلياً...
+            </span>
           </motion.div>
         )}
-      </AnimatePresence>
+        <div ref={chatBottomRef} />
+      </div>
 
-      <motion.button
-        onClick={() => setIsOpen(!isOpen)}
-        whileHover={{ scale: 1.1, rotate: 5 }}
-        whileTap={{ scale: 0.95 }}
-        style={{
-          width: '65px',
-          height: '65px',
-          borderRadius: '50%',
-          background: 'linear-gradient(135deg, var(--gold-dark), var(--emerald-light))',
-          border: '2px solid var(--gold-main)',
-          boxShadow: '0 10px 30px rgba(212, 175, 55, 0.4), inset 0 2px 5px rgba(255,255,255,0.3)',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '1.8rem',
-          outline: 'none'
-        }}
-      >
-        🤖
-      </motion.button>
-    </div>
+      {/* نموذج الإدخال الفاخر */}
+      <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '12px', marginTop: '20px', zIndex: 2 }}>
+        <input 
+          type="text"
+          value={inputMessage}
+          onChange={(e) => setInputMessage(e.target.value)}
+          placeholder={aiState === AI_STATES.THINKING ? "جاري تحليل المعطيات الإحصائية..." : "اكتب أمرك أو استفسارك الأكاديمي هنا..."}
+          disabled={aiState === AI_STATES.THINKING}
+          style={{ 
+            flexGrow: 1, 
+            background: 'rgba(1, 10, 5, 0.6)', 
+            border: '1px solid rgba(212,175,55,0.3)', 
+            borderRadius: '16px', 
+            padding: '15px 20px', 
+            color: '#ffffff', 
+            outline: 'none',
+            fontSize: '1rem',
+            transition: 'border-color 0.3s',
+            boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+          }}
+          onFocus={(e) => e.target.style.borderColor = 'var(--gold-main)'}
+          onBlur={(e) => e.target.style.borderColor = 'rgba(212,175,55,0.3)'}
+        />
+        <motion.button 
+          whileHover={{ scale: 1.03, boxShadow: '0 0 20px rgba(212,175,55,0.4)' }}
+          whileTap={{ scale: 0.97 }}
+          type="submit" 
+          disabled={!inputMessage.trim() || aiState === AI_STATES.THINKING} 
+          style={{ 
+            background: 'linear-gradient(135deg, var(--gold-dark) 0%, var(--emerald-dark) 100%)', 
+            border: '1px solid var(--gold-main)', 
+            borderRadius: '16px', 
+            color: '#ffffff', 
+            padding: '0 35px', 
+            cursor: 'pointer',
+            fontSize: '1.05rem',
+            fontWeight: 'bold',
+            fontFamily: 'Amiri, serif',
+            textShadow: '0 2px 4px rgba(0,0,0,0.5)'
+          }}
+        >
+          تحليل سيادي
+        </motion.button>
+      </form>
+    </motion.div>
   );
 }
 
 // ========== مكون بطاقة الأيقونة الرئيسية المطور بصرياً وهندسياً ==========
-function IconCard({ icon, index, openMenu, onIconClick, setScreen, setOpenMenu }) {
+function IconCard({ icon, index, openMenu, onIconClick, setScreen, setOpenMenu, aiState }) {
   const isMenuOpen = openMenu === icon.id;
 
   const getOrbClass = (id) => {
@@ -196,6 +236,7 @@ function IconCard({ icon, index, openMenu, onIconClick, setScreen, setOpenMenu }
       case 'students': return 'student-orb';
       case 'teachers': return 'attendance-orb';
       case 'reports': return 'report-orb';
+      case 'ai_advisor': return 'student-orb'; // تفعيل التوهج الذهبي الملكي
       case 'settings': return 'settings-orb';
       default: return 'report-orb';
     }
@@ -204,18 +245,24 @@ function IconCard({ icon, index, openMenu, onIconClick, setScreen, setOpenMenu }
   return (
     <motion.div
       className="icon-wrapper"
-      initial={{ opacity: 0, y: 40 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05, type: 'spring', stiffness: 110 }}
+      variants={FADE_IN_UP}
+      initial="hidden"
+      animate="visible"
+      transition={{ delay: index * 0.06 }}
       style={{ zIndex: isMenuOpen ? 99999 : 10 }}
     >
       <div
         className={`icon-card ${isMenuOpen ? 'active' : ''} ${icon.id === 'settings' ? 'settings-card' : ''}`}
         onClick={() => onIconClick(icon)}
+        style={{
+          position: 'relative',
+          overflow: 'hidden',
+          transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
+        }}
       >
-        <CrystalOrbIcon icon={icon.icon} orbClass={getOrbClass(icon.id)} />
+        <CrystalOrbIcon icon={icon.icon} orbClass={getOrbClass(icon.id)} aiState={icon.id === 'ai_advisor' ? aiState : null} />
 
-        <h3 className="icon-title">{icon.title}</h3>
+        <h3 className="icon-title" style={{ fontFamily: 'Amiri, serif', letterSpacing: '0.3px' }}>{icon.title}</h3>
         <p className="icon-desc">{icon.desc}</p>
 
         {icon.subItems.length > 0 && (
@@ -236,6 +283,7 @@ function IconCard({ icon, index, openMenu, onIconClick, setScreen, setOpenMenu }
               animate={{ opacity: 1, scaleY: 1 }}
               exit={{ opacity: 0, scaleY: 0 }}
               onClick={(e) => e.stopPropagation()}
+              style={{ originY: 0 }}
             >
               {icon.subItems.map((sub, subIndex) => (
                 <button
@@ -247,7 +295,7 @@ function IconCard({ icon, index, openMenu, onIconClick, setScreen, setOpenMenu }
                   }}
                 >
                   <span>{sub.title}</span>
-                  <span style={{ fontSize: '1.1rem' }}>←</span>
+                  <span style={{ fontSize: '1.2rem', transition: 'transform 0.2s' }} className="arrow-transition">←</span>
                 </button>
               ))}
             </motion.div>
@@ -267,6 +315,7 @@ function App() {
   const [loginError, setLoginError] = useState('');
   const [loading, setLoading] = useState(false);
   const [dbReady, setDbReady] = useState(false);
+  const [aiState, setAiState] = useState(AI_STATES.IDLE);
 
   useEffect(() => {
     let isMounted = true;
@@ -282,7 +331,15 @@ function App() {
         .catch(() => {});
     }
     startup();
-    return () => { isMounted = false; };
+
+    const unsubscribe = subscribeToAIState((newState) => {
+      setAiState(newState);
+    });
+
+    return () => { 
+      isMounted = false; 
+      unsubscribe();
+    };
   }, []);
 
   const handleLogin = async () => {
@@ -307,6 +364,7 @@ function App() {
     setPassword('');
   };
 
+  // مصفوفة الأجرام السبعة السيادية الموحدة بصرياً بالكامل
   const mainIcons = [
     {
       id: 'dashboard',
@@ -319,7 +377,7 @@ function App() {
     {
       id: 'attendance',
       title: 'الحضور والغياب',
-      icon: '🖐️',
+      icon: '🧬', 
       color: '#38bdf8',
       desc: 'رصد الحضور ومطابقة البصمة السحابية الفورية وتتبع الغياب',
       subItems: [
@@ -365,6 +423,14 @@ function App() {
       ]
     },
     {
+      id: 'ai_advisor', 
+      title: 'المستشار الذكي',
+      icon: '👑', 
+      color: '#D4AF37',
+      desc: 'محرك التحليل الاستراتيجي التوليدي المحلي الفوري للمنظومة',
+      subItems: []
+    },
+    {
       id: 'settings',
       title: 'إعدادات النظام',
       icon: '⚙️',
@@ -379,7 +445,10 @@ function App() {
   ];
 
   const handleIconClick = (icon) => {
-    if (icon.subItems.length > 0) {
+    if (icon.id === 'ai_advisor') {
+      setScreen('ai_chat_view'); 
+      setOpenMenu(null);
+    } else if (icon.subItems.length > 0) {
       setOpenMenu(openMenu === icon.id ? null : icon.id);
     } else {
       setScreen(icon.id);
@@ -390,10 +459,10 @@ function App() {
   if (loading) {
     return (
       <div className="splash-screen">
-        <div className="splash-content">
-          <motion.div className="splash-logo-3d" animate={{ scale: [1, 1.05, 1], y: [0, -10, 0] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}>🏛️</motion.div>
-          <h3 style={{ fontWeight: 500, color: '#f3e5ab', marginTop: '20px' }}>جاري تفويض الصلاحيات وتحديث الأجرام الكريستالية...</h3>
-          <div className="splash-loader"></div>
+        <div className="splash-content" style={{ textAlign: 'center' }}>
+          <motion.div className="splash-logo-3d" animate={{ scale: [1, 1.08, 1], y: [0, -12, 0], filter: ['drop-shadow(0 0 10px rgba(212,175,55,0.3))', 'drop-shadow(0 0 25px var(--gold-main))', 'drop-shadow(0 0 10px rgba(212,175,55,0.3))'] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }} style={{ fontSize: '6rem' }}>🏛️</motion.div>
+          <h3 style={{ fontFamily: 'Amiri, serif', fontWeight: 500, color: '#f3e5ab', marginTop: '25px', letterSpacing: '0.5px' }}>جاري تفويض الصلاحيات وتحديث الأجرام الكريستالية...</h3>
+          <div className="splash-loader" style={{ margin: '20px auto' }}></div>
         </div>
       </div>
     );
@@ -402,14 +471,14 @@ function App() {
   if (!user) {
     return (
       <div className="login-screen">
-        <motion.div className="login-card" initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="login-logo-3d" style={{ fontSize: '5.5rem', marginBottom: '15px' }}>🏛️</div>
-          <h1 style={{ fontFamily: 'Amiri, serif', fontSize: '2.4rem', color: '#f3e5ab' }}>بوابة السيطرة المركزية</h1>
-          <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '25px' }}>يرجى إدخال شيفرة التصديق لتفويض الدخول للمنظومة</p>
+        <motion.div className="login-card" initial={{ opacity: 0, y: 60 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', damping: 20 }}>
+          <div className="login-logo-3d" style={{ fontSize: '5.5rem', marginBottom: '15px', filter: 'drop-shadow(0 10px 20px rgba(0,0,0,0.5))' }}>🏛️</div>
+          <h1 style={{ fontFamily: 'Amiri, serif', fontSize: '2.5rem', color: '#f3e5ab', margin: '0 0 10px 0' }}>بوابة السيطرة المركزية</h1>
+          <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: '30px', fontSize: '0.95rem' }}>يرجى إدخال شيفرة التصديق لتفويض الدخول للمنظومة</p>
           <div className="login-input-group" style={{ marginBottom: '25px' }}>
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="رمز المرور الأمني للمنصة" onKeyPress={e => e.key === 'Enter' && handleLogin()} autoFocus />
           </div>
-          {loginError && <p style={{ color: '#ff4d4d', margin: '10px 0' }}>⚠️ {loginError}</p>}
+          {loginError && <p style={{ color: '#ff4d4d', margin: '10px 0', fontSize: '0.95rem' }}>⚠️ {loginError}</p>}
           <button className="login-btn" onClick={handleLogin} disabled={!password.trim()}>🔐 تصديق الدخول الآمن</button>
         </motion.div>
       </div>
@@ -424,24 +493,24 @@ function App() {
           <div className="bg-orb bg-orb-2"></div>
         </div>
 
-        <header className="home-header">
-          <div className="home-logo">🏛️</div>
-          <h1>نظام إدارة الحضور والغياب الإلكتروني الفاخر</h1>
-          <p>البوابة الأكاديمية السيادية للتوجيه الفوري والربط الذكي للكليات</p>
+        <header className="home-header" style={{ padding: '40px 20px 20px 20px' }}>
+          <div className="home-logo" style={{ fontSize: '4.5rem', filter: 'drop-shadow(0 0 20px rgba(212,175,55,0.4))' }}>🏛️</div>
+          <h1 style={{ fontFamily: 'Amiri, serif', fontSize: '2.8rem', color: '#ffffff', margin: '10px 0' }}>نظام إدارة الحضور والغياب الإلكتروني الفاخر</h1>
+          <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,0.6)', maxWidth: '700px', margin: '0 auto' }}>البوابة الأكاديمية السيادية للتوجيه الفوري والربط الذكي للكليات</p>
         </header>
 
         <div className="icons-grid">
           {mainIcons.map((icon, index) => (
-            <IconCard key={icon.id} icon={icon} index={index} openMenu={openMenu} onIconClick={handleIconClick} setScreen={setScreen} setOpenMenu={setOpenMenu} />
+            <IconCard key={icon.id} icon={icon} index={index} openMenu={openMenu} onIconClick={handleIconClick} setScreen={setScreen} setOpenMenu={setOpenMenu} aiState={aiState} />
           ))}
         </div>
 
-        <AIVoiceWidget />
-
-        <div className="user-bar">
+        <div className="user-bar" style={{ backdropFilter: 'blur(15px)', background: 'rgba(2, 12, 6, 0.8)', borderTop: '1px solid rgba(212,175,55,0.2)' }}>
           <div className="user-info-block">
-            <span style={{ color: '#ffffff' }}>👤 السحابة الأمنية: <strong style={{ color: '#d4af37' }}>{user?.username}</strong></span>
-            <span className="user-role-badge">{user?.role === 'admin' ? 'السيادة الإدارية العليا' : 'مسؤول رصد'}</span>
+            <span style={{ color: '#ffffff', fontSize: '0.95rem' }}>👤 السحابة الأمنية: <strong style={{ color: '#d4af37' }}>{user?.username}</strong></span>
+            <span className="user-role-badge" style={{ background: 'linear-gradient(135deg, var(--gold-dark), #032b18)', border: '1px solid var(--gold-main)' }}>
+              {user?.role === 'admin' ? 'السيادة الإدارية العليا' : 'مسؤول رصد'}
+            </span>
           </div>
           <button className="btn-logout" onClick={handleLogout}>🚪 تسجيل الخروج الآمن</button>
         </div>
@@ -454,7 +523,7 @@ function App() {
       'dashboard': '📊 لوحة التحكم والمؤشرات الإحصائية العامة',
       'students': '👥 إدارة سجلات القبض البيومتري وشؤون الطلاب',
       'teachers': '👨‍🏫 إدارة هيئة التدريس والكادر الأكاديمي',
-      'attendance': '🖐️ منظومة الرصد الاستراتيجي والمطابقة الفورية',
+      'attendance': '🧬 منظومة الرصد الاستراتيجي والمطابقة الفورية',
       'reports': '📄 مركز استخراج الصكوك والبيانات التحليلية للغياب',
       'settings': '⚙️ المركز السيادي لإدارة الصلاحيات والنسخ الاحتياطي'
     };
@@ -462,26 +531,29 @@ function App() {
   };
 
   return (
-    <div className="app-layout" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <header className="top-bar">
-        <button className="back-btn" onClick={() => setScreen('home')}>🏠 البوابة الرئيسية</button>
-        <h2 style={{ fontFamily: 'Amiri, serif', color: '#ffffff', fontSize: '1.6rem' }}>{getTitle()}</h2>
-        <div className="header-status" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: dbReady ? '#00ff88' : '#ff3366', boxShadow: dbReady ? '0 0 10px #00ff88' : '0 0 10px #ff3366' }}></span>
-          <span style={{ fontSize: '0.9rem', color: '#cbd5e1' }}>{dbReady ? 'SQLite نشطة | الأجرام جاهزة' : 'جاري التهيئة...'}</span>
+    <div className="app-layout" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#010704' }}>
+      <header className="top-bar" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.4)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(212,175,55,0.15)' }}>
+        <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="back-btn" onClick={() => setScreen('home')}>
+          🏠 البوابة الرئيسية
+        </motion.button>
+        <h2 style={{ fontFamily: 'Amiri, serif', color: '#ffffff', fontSize: '1.6rem', margin: 0 }}>{getTitle()}</h2>
+        <div className="header-status" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ width: '11px', height: '11px', borderRadius: '50%', backgroundColor: dbReady ? '#00ff88' : '#ff3366', boxShadow: dbReady ? '0 0 12px #00ff88' : '0 0 12px #ff3366' }}></span>
+          <span style={{ fontSize: '0.95rem', color: '#cbd5e1', fontWeight: '500' }}>{dbReady ? 'SQLite نشطة | الأجرام جاهزة' : 'جاري التهيئة...'}</span>
         </div>
       </header>
 
-      <main className="main-content" style={{ flexGrow: 1, padding: '30px', position: 'relative' }}>
-        {screen === 'dashboard' && <Dashboard />}
-        {screen === 'students' && <Students />}
-        {screen === 'teachers' && <Teachers />}
-        {screen === 'attendance' && <Attendance />}
-        {screen === 'reports' && <Reports />}
-        {screen === 'settings' && <Settings />}
+      <main className="main-content" style={{ flexGrow: 1, padding: '40px 30px', position: 'relative' }}>
+        <AnimatePresence mode="wait">
+          {screen === 'dashboard' && <Dashboard />}
+          {screen === 'students' && <Students />}
+          {screen === 'teachers' && <Teachers />}
+          {screen === 'attendance' && <Attendance />}
+          {screen === 'reports' && <Reports />}
+          {screen === 'settings' && <Settings />}
+          {screen === 'ai_chat_view' && <AIChatModal onClose={() => setScreen('home')} aiState={aiState} />}
+        </AnimatePresence>
       </main>
-      
-      <AIVoiceWidget />
     </div>
   );
 }
