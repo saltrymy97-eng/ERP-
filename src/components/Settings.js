@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery, initDatabase, exportDatabase, importDatabase } from '../services/db';
 import { getCurrentUser, changePassword, addUser, deleteUser, getAllUsers, isAdmin } from '../services/auth';
+import { loadMobileModel } from '../services/ai'; // ربط فحص الاتصال التلقائي بالخادم السحابي
 
 function Settings() {
   const [tab, setTab] = useState('devices');
@@ -15,8 +16,7 @@ function Settings() {
   const [deviceForm, setDeviceForm] = useState({ name: '', ip_address: '', port: 4370 });
   const [isTestingId, setIsTestingId] = useState(null);
 
-  // إعدادات الواتساب والذكاء الاصطناعي
-  const [whatsappConfig, setWhatsappConfig] = useState({ api_key: '', phone_number_id: '', enabled: false });
+  // إعدادات الذكاء الاصطناعي
   const [aiConfig, setAiConfig] = useState({ api_key: '', enabled: false, model: 'gpt-oss-20b' }); 
 
   // التقويم الأكاديمي
@@ -44,10 +44,7 @@ function Settings() {
         await loadSchedules();
         if (isAdmin()) loadUsers();
         
-        const savedWA = localStorage.getItem('whatsapp_config');
-        if (savedWA) setWhatsappConfig(JSON.parse(savedWA));
-        
-        // جلب الإعدادات المؤمنة للذكاء الاصطناعي مع منع التحديث المتأخر للـ React
+        // جلب الإعدادات المزامنة من التخزين المحلي لضمان استرجاع المفتاح فور فتح الصفحة
         const savedAI = localStorage.getItem('ai_config');
         if (savedAI) {
           try {
@@ -55,7 +52,7 @@ function Settings() {
             setAiConfig({
               api_key: parsedAI.api_key || '',
               enabled: parsedAI.enabled ?? false,
-              model: 'gpt-oss-20b'
+              model: 'gpt-oss-20b' // الحفاظ على اسم النموذج ثابتاً في الإعدادات كما أردت
             });
           } catch (e) {
             console.error("Error parsing AI config on load:", e);
@@ -96,18 +93,8 @@ function Settings() {
     finally { setIsTestingId(null); }
   };
 
-  // ========== إدارة إعدادات الواتساب ==========
-  const saveWhatsappConfig = () => {
-    if (!whatsappConfig.api_key.trim() || !whatsappConfig.phone_number_id.trim()) {
-      showMessage('❌ لا يمكن الحفظ! يرجى ملء مفتاح الـ API ومعرّف الهاتف أولاً لمنع تعطل الإشعارات', 'error');
-      return;
-    }
-    localStorage.setItem('whatsapp_config', JSON.stringify(whatsappConfig)); 
-    showMessage('✨ تم حفظ وتأمين إعدادات WhatsApp بنجاح'); 
-  };
-
-  // ========== دالة حفظ إعدادات المستشار الذكي (النسخة المعدلة والمؤمنة 100%) ==========
-  const saveAiConfig = () => {
+  // ========== دالة حفظ إعدادات المستشار الذكي المتوافقة بالكامل والمربوطة بالخدمة السحابية ==========
+  const saveAiConfig = async () => {
     if (!aiConfig.api_key || !aiConfig.api_key.trim()) {
       showMessage('❌ لا يمكن الحفظ! يرجى كتابة مفتاح الـ API الخاص بـ Groq أولاً', 'error');
       return;
@@ -116,12 +103,24 @@ function Settings() {
     const updatedConfig = { 
       api_key: aiConfig.api_key.trim(), 
       enabled: aiConfig.enabled, 
-      model: 'gpt-oss-20b' 
+      model: 'gpt-oss-20b' // بقاء اسم النموذج دون تغيير كما هو مطلوب في ملف الواجهة
     }; 
 
-    localStorage.setItem('ai_config', JSON.stringify(updatedConfig)); 
+    // 1. المزامنة والتخزين الفوري للـ localStorage لاسترجاعه برمجياً عبر ملف الذكاء الاصطناعي
+    localStorage.setItem('ai_config', JSON.stringify(updatedConfig));
+    // مزامنة مفتاح الجلب المباشر أيضاً للتأكيد المتكامل مع الخدمة
+    localStorage.setItem('GROQ_API_KEY', updatedConfig.api_key);
     setAiConfig(updatedConfig);
-    showMessage('🧠 تم ترقية وحفظ وتأمين إعدادات المستشار الذكي بنجاح'); 
+    
+    showMessage('⏳ جاري التحقق من صحة المفتاح وبناء قنوات الاتصال السحابي...', 'info');
+
+    // 2. اختبار الربط عبر المنظومة السحابية الخارجية دون فك تحميل الواجهة
+    const isReady = await loadMobileModel();
+    if (isReady) {
+      showMessage('🧠 تم ترقية وحفظ وتأمين إعدادات المستشار الذكي بنجاح، والقنوات متصلة!');
+    } else {
+      showMessage('⚠️ تم الحفظ محلياً ولكن فشل فحص الاتصال التلقائي بالخادم. يرجى مراجعة صلاحية المفتاح والإنترنت.', 'error');
+    }
   };
 
   // ========== إدارة التقويم ==========
@@ -144,7 +143,7 @@ function Settings() {
   };
   const deleteSchedule = async (id) => { await runQuery("DELETE FROM schedules WHERE id = ?", [id]); await loadSchedules(); showMessage('🗑️ تم حذف المحاضرة'); };
 
-  // ========== صلاحيات الكادر (تأمين طوق النجاة لمنع الشاشة السوداء) ==========
+  // ========== صلاحيات الكادر ==========
   const loadUsers = () => { 
     try {
       const fetchedUsers = getAllUsers(); 
@@ -218,18 +217,6 @@ function Settings() {
     </div>
   );
 
-  const renderWhatsapp = () => (
-    <div className="settings-section">
-      <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)', margin: '0 0 5px 0' }}>💬 WhatsApp Cloud API</h3>
-      <div className="form-card-lux" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.01), rgba(0,0,0,0.2))', border: '1px solid var(--glass-border)', padding: '25px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        <div><label style={{ color: 'var(--gold-light)', fontWeight: 700 }}>🔐 مفتاح API</label><input type="password" value={whatsappConfig.api_key || ''} onChange={e => setWhatsappConfig({ ...whatsappConfig, api_key: e.target.value })} placeholder="EAAWxxxxx..." className="glass-input" style={{ width: '100%', marginTop: '6px', fontFamily: 'monospace', background: 'rgba(0,0,0,0.3)', color: '#fff' }} /></div>
-        <div><label style={{ color: 'var(--gold-light)', fontWeight: 700 }}>🆔 Phone Number ID</label><input type="text" value={whatsappConfig.phone_number_id || ''} onChange={e => setWhatsappConfig({ ...whatsappConfig, phone_number_id: e.target.value })} placeholder="رقم معرّف الهاتف الفعلي" className="glass-input" style={{ width: '100%', marginTop: '6px', background: 'rgba(0,0,0,0.3)', color: '#fff' }} /></div>
-        <label style={{ color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 600 }}><input type="checkbox" checked={whatsappConfig.enabled || false} onChange={e => setWhatsappConfig({ ...whatsappConfig, enabled: e.target.checked })} style={{ width: '18px', height: '18px', accentColor: 'var(--gold-main)' }} />تفعيل الإشعارات التلقائية لأولياء الأمور</label>
-        <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} onClick={saveWhatsappConfig} style={{ background: 'linear-gradient(135deg, var(--emerald-light), #047857)', color: '#fff', border: 'none', padding: '14px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-start', minWidth: '200px' }}>💾 حفظ التحقق</motion.button>
-      </div>
-    </div>
-  );
-
   const renderCalendar = () => (
     <div className="settings-section">
       <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)', margin: '0 0 5px 0' }}>📅 التقويم الأكاديمي الفصلي</h3>
@@ -292,7 +279,7 @@ function Settings() {
       )}
       <div className="data-table" style={{ border: '1px solid var(--glass-border)', borderRadius: '14px', overflow: 'hidden', marginBottom: '35px' }}>
         <table><thead><tr style={{ background: 'linear-gradient(135deg, #041d14, #083d2b)' }}><th>المستخدم للكادر</th><th>الدور والترخيص</th><th>تاريخ الإنشاء</th><th>سحب الصلاحية</th></tr></thead>
-          <tbody>{Array.isArray(users) && users.map(u => (<tr key={u.id}><td>👤 {u.username}</td><td>{u.role}</td><td>{u.created_at || 'غير محدد'}</td><td>{u.username !== 'admin' && isAdmin() && u.username !== currentUser.username ? <button onClick={() => handleDeleteUser(u.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>🛑</button> : <span>🔒 محمي</span>}</td></tr>))}{(!users || users.length === 0) && <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px' }}>📭 لم يتم تهيئة مستخدمين آخرين</td></tr>}</tbody></table>
+          <tbody>{Array.isArray(users) && users.map(u => (<tr key={u.id}><td>👤 {u.username}</td><td>{u.role}</td><td>{u.created_at || 'غير مححدد'}</td><td>{u.username !== 'admin' && isAdmin() && u.username !== currentUser.username ? <button onClick={() => handleDeleteUser(u.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>🛑</button> : <span>🔒 محمي</span>}</td></tr>))}{(!users || users.length === 0) && <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px' }}>📭 لم يتم تهيئة مستخدمين آخرين</td></tr>}</tbody></table>
       </div>
       <h4 style={{ fontFamily: 'Amiri, serif', color: 'var(--gold-light)' }}>🔒 تغيير كلمة المرور الشخصية للحساب الحالي</h4>
       <div className="form-card-lux" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.01), rgba(0,0,0,0.15))', border: '1px solid var(--glass-border)', padding: '20px', borderRadius: '14px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '15px' }}>
@@ -332,7 +319,6 @@ function Settings() {
         {[
           { id: 'devices', label: '🖐️ البصمة' },
           { id: 'schedules', label: '📚 الجدول الدراسي' },
-          { id: 'whatsapp', label: '💬 الواتساب' },
           { id: 'ai', label: '🧠 المستشار الذكي' },
           { id: 'calendar', label: '📅 التقويم' },
           { id: 'users', label: '👥 الصلاحيات والكوادر' },
@@ -349,7 +335,6 @@ function Settings() {
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
         {tab === 'devices' && renderDevices()}
         {tab === 'schedules' && renderSchedules()}
-        {tab === 'whatsapp' && renderWhatsapp()}
         {tab === 'ai' && renderAI()}
         {tab === 'calendar' && renderCalendar()}
         {tab === 'users' && renderUsers()}
