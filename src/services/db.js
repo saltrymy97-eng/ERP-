@@ -1,127 +1,84 @@
-// src/services/db.js – محرك إدارة قاعدة البيانات السيادية للمنظومة البيومترية
-// مطور النظام: المهندس سالم فهمي التريمي
-import initSqlJs from 'sql.js';
+// src/services/db.js – SQLite حقيقية محلية احترافية (نسخة الديسكتوب النقية)
+// الإصدار 5.0 – دعم كامل ومباشر لـ Electron فقط لضمان الاستقرار الحقيقي
 
-let db = null;
+let getQuery, runQuery, initDatabase, closeDatabase, exportDatabase, importDatabase, getSystemStatsForAI;
 
-// دالة تهيئة قاعدة بيانات SQLite محلياً
-export const initDatabase = async () => {
-  if (db) return db;
+// ========== الاتصال المباشر بجسر الـ Electron ==========
+
+getQuery = async (sql, params = []) => {
+  return await window.electronAPI.getQuery(sql, params);
+};
+
+runQuery = async (sql, params = []) => {
+  return await window.electronAPI.runQuery(sql, params);
+};
+
+initDatabase = async () => {
+  console.log('✅ SQLite حقيقية جاهزة ومستقرة (Electron Desktop Only)');
+  return true;
+};
+
+closeDatabase = () => {
+  console.log('🔒 إشارة إغلاق قاعدة البيانات');
+};
+
+exportDatabase = async () => {
   try {
-    const SQL = await initSqlJs({
-      locateFile: file => `https://sql.js.org/dist/${file}`
+    const data = await window.electronAPI.exportDB();
+    if (!data) throw new Error('لم يتم إرجاع بيانات من قاعدة البيانات');
+    
+    const blob = new Blob([data]);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `backup_${new Date().toISOString().split('T')[0]}.db`;
+    a.click();
+    URL.revokeObjectURL(url);
+    console.log('📥 تم تصدير نسخة احتياطية بنجاح');
+  } catch (e) {
+    console.error('❌ فشل تصدير قاعدة البيانات:', e);
+  }
+};
+
+importDatabase = async (file) => {
+  try {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    return new Promise((resolve, reject) => {
+      reader.onload = async () => {
+        try {
+          const base64Data = reader.result.split(',')[1];
+          const result = await window.electronAPI.importDB(base64Data);
+          console.log('✅ تم استيراد قاعدة البيانات بنجاح');
+          resolve(result);
+        } catch (err) {
+          reject(err);
+        }
+      };
+      reader.onerror = (error) => reject(error);
     });
-    
-    // محاولة استعادة قاعدة البيانات المخزنة في الجهاز أو إنشاء واحدة جديدة
-    const savedDb = localStorage.getItem('biometric_attendance_db');
-    if (savedDb) {
-      const u8arr = new Uint8Array(JSON.parse(savedDb));
-      db = new SQL.Database(u8arr);
-      console.log("🏛️ تم تحميل قاعدة بيانات SQLite السيادية بنجاح.");
-    } else {
-      db = new SQL.Database();
-      createTables();
-      saveDatabase();
-      console.log("✨ تم إنشاء قاعدة بيانات SQLite جديدة وتأسيس الجداول.");
-    }
-    return db;
-  } catch (error) {
-    console.error("❌ فشل في تهيئة قاعدة بيانات SQLite:", error);
-    throw error;
-  }
-};
-
-// إنشاء الجداول الأساسية للنظام الإمبراطوري
-const createTables = () => {
-  if (!db) return;
-  
-  // جدول الطلاب
-  db.run(`
-    CREATE TABLE IF NOT EXISTS students (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      academic_id TEXT UNIQUE NOT NULL,
-      college TEXT,
-      department TEXT,
-      level TEXT,
-      biometric_template TEXT
-    );
-  `);
-
-  // جدول الحضور والغياب
-  db.run(`
-    CREATE TABLE IF NOT EXISTS attendance (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      student_id INTEGER,
-      date TEXT NOT NULL,
-      time TEXT,
-      status TEXT NOT NULL,
-      FOREIGN KEY(student_id) REFERENCES students(id)
-    );
-  `);
-
-  // جدول كادر هيئة التدريس
-  db.run(`
-    CREATE TABLE IF NOT EXISTS teachers (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      department TEXT,
-      activity_status TEXT
-    );
-  `);
-};
-
-// دالة حفظ التغييرات محلياً في المتصفح/إلكترون
-export const saveDatabase = () => {
-  if (!db) return;
-  const data = db.export();
-  const array = Array.from(data);
-  localStorage.setItem('biometric_attendance_db', JSON.stringify(array));
-};
-
-/**
- * 👑 دالة الاستعلام الأساسية الحاكمة والمصّدورة (المفقودة التي تسببت في خطأ البورشيل)
- * مخصصة لتحويل نتائج sql.js إلى مصفوفة كائنات (Key-Value Objects) لخدمة شاشات النظام
- */
-export const getQuery = async (sql, params = []) => {
-  if (!db) {
-    console.warn("⚠️ قاعدة البيانات غير مهيأة بعد.");
-    return [];
-  }
-  try {
-    const stmt = db.prepare(sql);
-    stmt.bind(params);
-    
-    const results = [];
-    while (stmt.step()) {
-      results.push(stmt.getAsObject());
-    }
-    stmt.free();
-    return results;
-  } catch (error) {
-    console.error(`❌ خطأ أثناء تنفيذ الاستعلام [ ${sql} ] في SQLite:`, error);
-    throw error;
+  } catch (e) {
+    console.error('❌ فشل استيراد قاعدة البيانات:', e);
+    return false;
   }
 };
 
 // =========================================================
-// 🌟 الدالة الإمبراطورية المطورة لجلب كافة التفاصيل بدقة للذكاء الاصطناعي 🌟
+// 🔮 الدالة المطورة لجلب كافة التفاصيل بدقة للذكاء الاصطناعي عبر الجسر الأصلي 🔮
 // =========================================================
-export const getSystemStatsForAI = async () => {
-  if (!db) {
-    return "تنبيه: قاعدة البيانات غير متصلة حالياً.";
-  }
-
+getSystemStatsForAI = async () => {
   try {
-    // 1. جلب إجمالي الأعداد العامة للسيطرة
-    const resStudentsCount = db.exec("SELECT COUNT(*) as count FROM students;");
-    const totalStudents = resStudentsCount[0]?.values[0]?.[0] || 0;
+    const today = new Date().toISOString().slice(0, 10);
 
-    const resTeachersCount = db.exec("SELECT COUNT(*) as count FROM teachers;");
-    const totalTeachers = resTeachersCount[0]?.values[0]?.[0] || 0;
+    // 1. جلب إجمالي الأعداد العامة للسيطرة عبر الجسر النقي
+    const resStudentsCount = await getQuery("SELECT COUNT(*) as count FROM students;");
+    const totalStudents = resStudentsCount[0]?.count || 0;
+
+    const resTeachersCount = await getQuery("SELECT COUNT(*) as count FROM teachers;");
+    const totalTeachers = resTeachersCount[0]?.count || 0;
 
     // 2. جلب كشف تفصيلي وشامل بأسماء كافة الطلاب وحالة حضورهم اليوم عبر LEFT JOIN
-    const resFullKashf = db.exec(`
+    const studentsFullKashf = await getQuery(`
       SELECT 
         s.name, 
         s.academic_id, 
@@ -130,28 +87,29 @@ export const getSystemStatsForAI = async () => {
         s.level,
         COALESCE(a.status, 'لم يرصد (غائب)') as today_status
       FROM students s
-      LEFT JOIN attendance a ON s.id = a.student_id AND a.date = date('now', 'localtime');
-    `);
+      LEFT JOIN attendance a ON s.id = a.student_id AND a.date = ?;
+    `, [today]);
 
     let studentsDetailsText = "لا يوجد طلاب مسجلين في الكشوفات حالياً.";
-    if (resFullKashf[0] && resFullKashf[0].values) {
-      studentsDetailsText = resFullKashf[0].values
-        .map((row, idx) => `${idx + 1}. الاسم: ${row[0]} | الرقم الأكاديمي: ${row[1]} | الكلية: ${row[2]} | القسم: ${row[3]} | المستوى: ${row[4]} | حالة اليوم: ${row[5] === 'present' ? 'حاضر ✅' : row[5] === 'absent' ? 'غائب ❌' : row[5]}`)
+    if (studentsFullKashf && studentsFullKashf.length > 0) {
+      studentsDetailsText = studentsFullKashf
+        .map((row, idx) => `${idx + 1}. الاسم: ${row.name} | الرقم الأكاديمي: ${row.academic_id} | الكلية: ${row.college} | القسم: ${row.department} | المستوى: ${row.level} | حالة اليوم: ${row.today_status === 'present' ? 'حاضر ✅' : row.today_status === 'absent' ? 'غائب ❌' : row.today_status}`)
         .join("\n");
     }
 
     // 3. جلب قائمة كادر هيئة التدريس المسجلين
-    const resTeachersList = db.exec("SELECT name, department, activity_status FROM teachers;");
+    const teachersList = await getQuery("SELECT name, department, activity_status FROM teachers;");
     let teachersDetailsText = "لا يوجد دكاترة أو معلمين مسجلين حالياً.";
-    if (resTeachersList[0] && resTeachersList[0].values) {
-      teachersDetailsText = resTeachersList[0].values
-        .map((row, idx) => `${idx + 1}. المحاضر: ${row[0]} | القسم: ${row[1]} | الحالة: ${row[2]}`)
+    if (teachersList && teachersList.length > 0) {
+      teachersDetailsText = teachersList
+        .map((row, idx) => `${idx + 1}. المحاضر: ${row.name} | القسم: ${row.department} | الحالة: ${row.activity_status}`)
         .join("\n");
     }
 
-    // 4. صياغة بنية المعطيات السيادية الكاملة ليتغذى عليها نموذج Llama 3.3
+    // 4. صياغة بنية المعطيات السيادية الكاملة ليتغذى عليها نموذج الذكاء الاصطناعي
     const megaContextReport = `
 --- سجلات ومعطيات منظومة SQLITE السيادية الحية ---
+[تاريخ الكشف الحي]: ${today}
 [الأرقام الإجمالية]:
 * إجمالي الطلاب المقيدين: ${totalStudents} طالب.
 * إجمالي الكادر التدريسي: ${totalTeachers} محاضر.
@@ -167,6 +125,16 @@ ${teachersDetailsText}
     return megaContextReport;
   } catch (error) {
     console.error("❌ فشل الاستعلام الشامل من الـ SQLite لصالح الـ AI:", error);
-    return "تنبيه: فشل استخراج كشوفات وجداول الـ SQLite بسبب عارض تقني في استعلامات الربط.";
+    return "تنبيه: فشل استخراج كشوفات وجداول الـ SQLite الحية بسبب عارض تقني في استعلامات الربط.";
   }
+};
+
+export { 
+  getQuery, 
+  runQuery, 
+  initDatabase, 
+  closeDatabase, 
+  exportDatabase, 
+  importDatabase,
+  getSystemStatsForAI // تصدير الدالة الجديدة ليقرأها ملف الـ AI
 };
