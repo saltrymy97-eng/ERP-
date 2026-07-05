@@ -91,7 +91,7 @@ async function callCloudGroq(messages) {
   const apiKey = await getApiKey();
   if (!apiKey) {
     updateSystemState(AI_STATES.ERROR);
-    return '⚠️ خطأ أمني: مفتاح الـ Groq API فارغ أو غير مضبوط، يرجى إدخاله في وحدة الإعدادات.';
+    return '⚠️ خطأ أمني: مفتاح الـ Groq API فارغ أو غير مضبوط، يرجى إدخاله in وحدة الإعدادات.';
   }
 
   const controller = new AbortController();
@@ -142,22 +142,25 @@ async function callCloudGroq(messages) {
   }
 }
 
+// 🔮 تعديل دالة الاستقبال والتحقق النهائي للمطابقة التامة مع صيغة الـ db.js 🔮
 export async function askAI(question, context = '') {
   if (!question || question.trim() === '') return 'عذراً مدير النظام الموقر، حقل الاستفسار الأكاديمي فارغ حالياً.';
   
-  // 🛡️ تفعيل الاحتياط: إذا لم يمرر ملف App.js البيانات أو أرسلها فارغة، يتم سحبها فوراً من المصدر
   let finalContext = context;
-  if (!finalContext || finalContext.trim() === '' || finalContext.includes('لا توجد بيانات')) {
+  
+  // فحص صارم ودقيق: إذا كان المتغير فارغاً، أو نصاً قصيراً تالفاً، أو يحتوي على دلالة عدم التمرير
+  if (!finalContext || typeof finalContext !== 'string' || finalContext.trim() === '' || finalContext.includes('لا توجد بيانات') || finalContext.length < 50) {
     try {
+      // سحب مباشر لتقرير megaContextReport من ملف الـ db.js دون الحاجة لتوسيط ملف الـ App.js
       finalContext = await getSystemStatsForAI();
     } catch (e) {
-      finalContext = 'تعذر سحب كشوفات الـ SQLite الحية تلقائياً من نظام المزامنة.';
+      finalContext = 'تنبيه: تعذر سحب كشوفات الـ SQLite الحية بسبب عارض تقني في استعلامات الربط.';
     }
   }
 
   const messages = [
     { role: 'system', content: SYSTEM_PROMPT },
-    { role: 'user', content: `بيانات النظام الحالية المتاحة للتحليل:\n"""\n${finalContext}\n"""\n\nالسؤال الإداري الحالي: ${question}` }
+    { role: 'user', content: `إليك كشوفات وقاعدة بيانات النظام الحية والمعتمدة حالياً للتحليل والفحص:\n\n${finalContext}\n\nبناءً على المعطيات السابقة، أجب على هذا السؤال الإداري: ${question}` }
   ];
   return await callCloudGroq(messages);
 }
