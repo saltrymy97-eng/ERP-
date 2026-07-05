@@ -85,22 +85,20 @@ function AIChatModal({ onClose, aiState }) {
     setInputMessage('');
 
     try {
-      // 🌟 التعديل الإمبراطوري لربط البيانات الحية الحقيقية من الـ SQLite تلقائياً 🌟
-      let systemContext = "أنت المستشار الأكاديمي الذكي للمنظومة الإمبراطورية المعتمدة.";
+      // 🌟 الربط الإمبراطوري الصحيح والمفصل لـ Groq السحابي المطور 🌟
+      let systemContext = "";
       
       try {
-        // سحب إحصائيات النظام الحالية الحية والمباشرة من الـ SQLite فورا عند الضغط
-        const systemStats = await getSystemStatsForAI();
-        systemContext += `\n${systemStats}`;
+        // سحب كشوفات وسجلات قاعدة بيانات SQLite الحية والشاملة تلقائياً
+        systemContext = await getSystemStatsForAI();
       } catch (dbErr) {
-        console.log("فشل جلب سياق قاعدة بيانات SQLite الحية:", dbErr);
-        systemContext += "\nتنبيه: تعذر سحب جداول الـ SQLite الحالية في هذه اللحظة.";
+        console.error("فشل جلب سياق قاعدة بيانات SQLite الحية:", dbErr);
+        systemContext = "تنبيه: تعذر سحب كشوفات الـ SQLite الحالية في هذه اللحظة.";
       }
 
-      // دمج سياق النظام والبيانات الحية مع سؤالك الفعلي في حزمة واحدة متكاملة لتغذية الـ Groq API
-      const fullPrompt = `${systemContext}\n\nبناءً على هذه المعطيات الحية، أجب على الاستفسار التالي بدقة إدارية: ${userQuery}`;
-
-      const answer = await askAI(fullPrompt);
+      // 🛠️ التمرير الاحترافي النظيف: المعامل الأول هو السؤال، والمعامل الثاني هو الكشوفات الحية (Context)
+      const answer = await askAI(userQuery, systemContext);
+      
       setChatHistory(prev => [...prev, { role: 'bot', text: answer }]);
       speakText(answer);
     } catch (error) {
@@ -188,7 +186,7 @@ function AIChatModal({ onClose, aiState }) {
             style={{ alignSelf: 'flex-end', background: 'rgba(212,175,55,0.04)', padding: '12px 20px', borderRadius: '22px 22px 22px 0px', border: '1px solid rgba(212,175,55,0.2)' }}
           >
             <span style={{ color: 'var(--gold-light)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              🤖 تفكير عميق: جاري سحب الجداول وحساب نسب الحضور والغياب محلياً عبر Llama...
+              🤖 تحليل سيادي عميق: جاري فحص كشوفات الـ SQLite واستدعاء مستشار Groq...
             </span>
           </motion.div>
         )}
@@ -431,7 +429,7 @@ function App() {
       title: 'مركز التقارير',
       icon: '📄',
       color: '#fb923c',
-      desc: 'تصدير كشوفات وصكوك PDF و Excel ذكية بنقرة واحدة',
+      desc: 'تدارس كشوفات وصكوك PDF و Excel ذكية بنقرة واحدة',
       subItems: [
         { title: '📈 التقارير اليومية الإجمالية للكليات', screen: 'reports' },
         { title: '📅 التقارير الدورية والشهرية للمواد', screen: 'reports' },
