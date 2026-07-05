@@ -145,9 +145,19 @@ async function callCloudGroq(messages) {
 export async function askAI(question, context = '') {
   if (!question || question.trim() === '') return 'عذراً مدير النظام الموقر، حقل الاستفسار الأكاديمي فارغ حالياً.';
   
+  // 🛡️ تفعيل الاحتياط: إذا لم يمرر ملف App.js البيانات أو أرسلها فارغة، يتم سحبها فوراً من المصدر
+  let finalContext = context;
+  if (!finalContext || finalContext.trim() === '' || finalContext.includes('لا توجد بيانات')) {
+    try {
+      finalContext = await getSystemStatsForAI();
+    } catch (e) {
+      finalContext = 'تعذر سحب كشوفات الـ SQLite الحية تلقائياً من نظام المزامنة.';
+    }
+  }
+
   const messages = [
     { role: 'system', content: SYSTEM_PROMPT },
-    { role: 'user', content: `بيانات النظام الحالية المتاحة للتحليل:\n"""\n${context || 'لا توجد بيانات حالية ممررة.'}\n"""\n\nالسؤال الإداري الحالي: ${question}` }
+    { role: 'user', content: `بيانات النظام الحالية المتاحة للتحليل:\n"""\n${finalContext}\n"""\n\nالسؤال الإداري الحالي: ${question}` }
   ];
   return await callCloudGroq(messages);
 }
@@ -185,49 +195,22 @@ export function speakText(text, options = {}) {
 // ٦. الدوال المساعدة الإحصائية المربوطة مباشرة بقواعد البيانات
 // =========================================================
 export async function analyzeDailyAttendance() {
-  // استخدام التقرير السيادي الشامل لضمان دقة التحليل
   const context = await getSystemStatsForAI();
   return await askAI('حلل حالة الحضور اليوم باختصار وأعطِ التوصية الأهم وفقط.', context);
 }
 
 export async function predictAtRiskStudents() {
-  const students = await getQuery("SELECT * FROM students") || [];
-  const attendance = await getQuery("SELECT * FROM attendance") || [];
-
-  const analysis = [];
-  for (const s of students) {
-    const sA = attendance.filter(a => a.student_id === s.id);
-    if (sA.length === 0) continue;
-    const absences = sA.filter(a => a.student_id === s.id && a.status === 'absent').length;
-    const rate = Math.round((absences / sA.length) * 100);
-
-    if (rate >= 10) {
-      analysis.push({ الاسم: s.name, نسبة_الغياب: `${rate}%`, مستوى_الخطر: rate >= 30 ? '🔴 خطر' : '🟡 إنذار' });
-    }
-  }
-
-  if (analysis.length === 0) return '✅ جميع الطلاب منتظمون ونسبة غيابهم آمنة أقل من 10%.';
-  analysis.sort((a, b) => parseInt(b.نسبة_الغياب) - parseInt(a.نسبة_الغياب));
-  return await askAI('اذكر الطلاب المعرضين للخطر وتوصية سريعة لهم.', JSON.stringify(analysis.slice(0, 5)));
+  const context = await getSystemStatsForAI();
+  return await askAI('اذكر الطلاب المعرضين للخطر وتوصية سريعة لهم.', context);
 }
 
 export async function detectAnomalies() {
-  const today = new Date().toISOString().slice(0, 10);
-  const todayData = await getQuery("SELECT * FROM attendance WHERE date = ?", [today]) || [];
-  const context = `إجمالي عمليات اليوم: ${todayData.length}`;
+  const context = await getSystemStatsForAI();
   return await askAI('هل هناك أنماط غير طبيعية اليوم؟ أجب بوضوح واختصار.', context);
 }
 
 export async function getWeeklyRecommendations() {
-  const weekStart = new Date();
-  weekStart.setDate(weekStart.getDate() - 7);
-  const startDate = weekStart.toISOString().slice(0, 10);
-  const weekData = await getQuery("SELECT * FROM attendance WHERE date >= ?", [startDate]) || [];
-  
-  const absences = weekData.filter(a => a.status === 'absent').length;
-  const present = weekData.filter(a => a.status === 'present').length;
-  const context = `إحصائيات الأسبوع: حضور ${present} | غياب ${absences}`;
-
+  const context = await getSystemStatsForAI();
   return await askAI('أعطني 3 توصيات استراتيجية سريعة ومباشرة بناءً على الحضور الأسبوعي.', context);
 }
 
