@@ -1,5 +1,6 @@
 // src/services/ai.js – المستشار الأكاديمي الذكي الفخم | إصدار الـ Cloud API السحابي المطور كلياً
-import { getQuery } from './db';
+// مطور النظام: المهندس سالم فهمي التريمي
+import { getQuery, getSystemStatsForAI } from './db';
 
 let isLoaded = true; 
 let totalRequests = 0;
@@ -72,7 +73,7 @@ export async function loadMobileModel(onProgress) {
   const apiKey = await getApiKey();
   
   if (!apiKey || apiKey.trim() === '' || apiKey.startsWith('gsk_YOUR_DEFAULT')) {
-    if (onProgress) onProgress('❌ لم يتم تفعيل مفتاح Groq API بنجاح؛ يرجى تهيئته في لوحة الإعدادات أولاً.');
+    if (onProgress) onProgress('❌ لم يتم تفعيل مفتاح Groq API بنجاح؛ يرجى تهيئته in لوحة الإعدادات أولاً.');
     updateSystemState(AI_STATES.ERROR);
     return false;
   }
@@ -184,15 +185,8 @@ export function speakText(text, options = {}) {
 // ٦. الدوال المساعدة الإحصائية المربوطة مباشرة بقواعد البيانات
 // =========================================================
 export async function analyzeDailyAttendance() {
-  const today = new Date().toISOString().slice(0, 10);
-  const students = await getQuery("SELECT * FROM students") || [];
-  const todayData = await getQuery("SELECT * FROM attendance WHERE date = ?", [today]) || [];
-
-  const present = todayData.filter(a => a.status === 'present').length;
-  const absent = todayData.filter(a => a.status === 'absent').length;
-  const rate = students.length > 0 ? Math.round((present / students.length) * 100) : 0;
-
-  const context = `حاضر: ${present} (${rate}%)، غائب: ${absent}، إجمالي المسجلين: ${students.length}`;
+  // استخدام التقرير السيادي الشامل لضمان دقة التحليل
+  const context = await getSystemStatsForAI();
   return await askAI('حلل حالة الحضور اليوم باختصار وأعطِ التوصية الأهم وفقط.', context);
 }
 
@@ -238,8 +232,7 @@ export async function getWeeklyRecommendations() {
 }
 
 export async function comprehensiveAnalysis() {
-  const students = await getQuery("SELECT * FROM students") || [];
-  const context = `تقرير شامل سيادي: إجمالي الطلاب النشطين حالياً ${students.length}`;
+  const context = await getSystemStatsForAI();
   return await askAI('قدم خلاصة سريعة جداً عن حالة النظام بنقاط رصاصية واضحة.', context);
 }
 
