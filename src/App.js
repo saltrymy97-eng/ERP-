@@ -3,7 +3,8 @@
 // مطور النظام الإمبراطوري: المهندس سالم فهمي التريمي
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { initDatabase } from './services/db';
+// 🌟 استدعاء دالة جلب الإحصائيات الحية الفورية من الـ SQLite
+import { initDatabase, getSystemStatsForAI } from './services/db';
 import { login, logout, restoreSession } from './services/auth';
 import { askAI, speakText, subscribeToAIState, AI_STATES } from './services/ai';
 import Dashboard from './components/Dashboard';
@@ -84,19 +85,20 @@ function AIChatModal({ onClose, aiState }) {
     setInputMessage('');
 
     try {
-      // 🌟 التعديل الإمبراطوري لربط البيانات الحية تلقائياً 🌟
+      // 🌟 التعديل الإمبراطوري لربط البيانات الحية الحقيقية من الـ SQLite تلقائياً 🌟
       let systemContext = "أنت المستشار الأكاديمي الذكي للمنظومة الإمبراطورية المعتمدة.";
       
       try {
-        // سحب إحصائيات النظام الحالية المخزنة محلياً لتمريرها مع الطلب
-        const systemStats = localStorage.getItem('dashboard_stats_summary') || 'متوفرة في الـ SQLite محلياً وجاري جردها من الكشوفات';
-        systemContext += `\nمعطيات النظام الحالية المستخرجة من قاعدة البيانات الحية: ${systemStats}`;
+        // سحب إحصائيات النظام الحالية الحية والمباشرة من الـ SQLite فورا عند الضغط
+        const systemStats = await getSystemStatsForAI();
+        systemContext += `\n${systemStats}`;
       } catch (dbErr) {
-        console.log("فشل جلب سياق قاعدة البيانات الحية:", dbErr);
+        console.log("فشل جلب سياق قاعدة بيانات SQLite الحية:", dbErr);
+        systemContext += "\nتنبيه: تعذر سحب جداول الـ SQLite الحالية في هذه اللحظة.";
       }
 
-      // دمج سياق النظام والبيانات مع سؤالك الفعلي في حزمة واحدة
-      const fullPrompt = `${systemContext}\n\nبناءً على هذه المعطيات، أجب على الاستفسار التالي بدقة إدارية: ${userQuery}`;
+      // دمج سياق النظام والبيانات الحية مع سؤالك الفعلي في حزمة واحدة متكاملة لتغذية الـ Groq API
+      const fullPrompt = `${systemContext}\n\nبناءً على هذه المعطيات الحية، أجب على الاستفسار التالي بدقة إدارية: ${userQuery}`;
 
       const answer = await askAI(fullPrompt);
       setChatHistory(prev => [...prev, { role: 'bot', text: answer }]);
