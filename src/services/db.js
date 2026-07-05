@@ -80,7 +80,7 @@ export const saveDatabase = () => {
 };
 
 // =========================================================
-// 🌟 الدالة الإمبراطورية المضافة لخدمة المستشار الذكي 🌟
+// 🌟 الدالة الإمبراطورية المطورة لجلب كافة التفاصيل بدقة للذكاء الاصطناعي 🌟
 // =========================================================
 export const getSystemStatsForAI = async () => {
   if (!db) {
@@ -88,41 +88,60 @@ export const getSystemStatsForAI = async () => {
   }
 
   try {
-    // 1. جلب إجمالي الطلاب
-    const resStudents = db.exec("SELECT COUNT(*) as count FROM students;");
-    const totalStudents = resStudents[0]?.values[0]?.[0] || 0;
+    // 1. جلب إجمالي الأعداد العامة للسيطرة
+    const resStudentsCount = db.exec("SELECT COUNT(*) as count FROM students;");
+    const totalStudents = resStudentsCount[0]?.values[0]?.[0] || 0;
 
-    // 2. جلب إجمالي الكادر التعليمي
-    const resTeachers = db.exec("SELECT COUNT(*) as count FROM teachers;");
-    const totalTeachers = resTeachers[0]?.values[0]?.[0] || 0;
+    const resTeachersCount = db.exec("SELECT COUNT(*) as count FROM teachers;");
+    const totalTeachers = resTeachersCount[0]?.values[0]?.[0] || 0;
 
-    // 3. جلب إحصائيات حضور اليوم (حاضر / غائب)
-    const resAttendance = db.exec(`
-      SELECT status, COUNT(*) as count 
-      FROM attendance 
-      WHERE date = date('now', 'localtime') 
-      GROUP BY status;
+    // 2. جلب كشف تفصيلي وشامل بأسماء كافة الطلاب وحالة حضورهم اليوم عبر LEFT JOIN
+    const resFullKashf = db.exec(`
+      SELECT 
+        s.name, 
+        s.academic_id, 
+        s.college, 
+        s.department, 
+        s.level,
+        COALESCE(a.status, 'لم يرصد (غائب)') as today_status
+      FROM students s
+      LEFT JOIN attendance a ON s.id = a.student_id AND a.date = date('now', 'localtime');
     `);
 
-    let attendanceSummary = "لم يتم رصد عمليات حضور أو غياب لليوم حتى الآن.";
-    if (resAttendance[0] && resAttendance[0].values) {
-      attendanceSummary = resAttendance[0].values
-        .map(row => `${row[0] === 'present' ? 'حاضر' : 'غائب'}: ${row[1]}`)
-        .join(' | ');
+    let studentsDetailsText = "لا يوجد طلاب مسجلين في الكشوفات حالياً.";
+    if (resFullKashf[0] && resFullKashf[0].values) {
+      studentsDetailsText = resFullKashf[0].values
+        .map((row, idx) => `${idx + 1}. الاسم: ${row[0]} | الرقم الأكاديمي: ${row[1]} | الكلية: ${row[2]} | القسم: ${row[3]} | المستوى: ${row[4]} | حالة اليوم: ${row[5] === 'present' ? 'حاضر ✅' : row[5] === 'absent' ? 'غائب ❌' : row[5]}`)
+        .join("\n");
     }
 
-    // 4. بناء خلاصة نصية احترافية لتقديمها للموديل Llama
-    const reportSummary = `
---- معطيات منظومة SQLite الحية الحالية ---
-* إجمالي الطلاب المسجلين بالنظام: ${totalStudents} طالب.
-* إجمالي أعضاء هيئة التدريس: ${totalTeachers} محاضر.
-* حالة رصد الحضور والغياب ليومنا هذا: [ ${attendanceSummary} ].
----------------------------------------
+    // 3. جلب قائمة كادر هيئة التدريس المسجلين
+    const resTeachersList = db.exec("SELECT name, department, activity_status FROM teachers;");
+    let teachersDetailsText = "لا يوجد دكاترة أو معلمين مسجلين حالياً.";
+    if (resTeachersList[0] && resTeachersList[0].values) {
+      teachersDetailsText = resTeachersList[0].values
+        .map((row, idx) => `${idx + 1}. المحاضر: ${row[0]} | القسم: ${row[1]} | الحالة: ${row[2]}`)
+        .join("\n");
+    }
+
+    // 4. صياغة بنية المعطيات السيادية الكاملة ليتغذى عليها نموذج Llama 3.3
+    const megaContextReport = `
+--- سجلات ومعطيات منظومة SQLITE السيادية الحية ---
+[الأرقام الإجمالية]:
+* إجمالي الطلاب المقيدين: ${totalStudents} طالب.
+* إجمالي الكادر التدريسي: ${totalTeachers} محاضر.
+
+[كشف الطلاب التفصيلي وحالة حضورهم اليوم]:
+${studentsDetailsText}
+
+[سجل كادر هيئة التدريس]:
+${teachersDetailsText}
+--------------------------------------------------
     `;
     
-    return reportSummary;
+    return megaContextReport;
   } catch (error) {
-    console.error("فشل الاستعلام من الـ SQLite لصالح الـ AI:", error);
-    return "تنبيه: فشل استخراج جداول الإحصائيات الحية من الـ SQLite بسبب عارض تقني في الاستعلام.";
+    console.error("❌ فشل الاستعلام الشامل من الـ SQLite لصالح الـ AI:", error);
+    return "تنبيه: فشل استخراج كشوفات وجداول الـ SQLite بسبب عارض تقني في استعلامات الربط.";
   }
 };
