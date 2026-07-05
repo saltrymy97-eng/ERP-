@@ -79,6 +79,31 @@ export const saveDatabase = () => {
   localStorage.setItem('biometric_attendance_db', JSON.stringify(array));
 };
 
+/**
+ * 👑 دالة الاستعلام الأساسية الحاكمة والمصّدورة (المفقودة التي تسببت في خطأ البورشيل)
+ * مخصصة لتحويل نتائج sql.js إلى مصفوفة كائنات (Key-Value Objects) لخدمة شاشات النظام
+ */
+export const getQuery = async (sql, params = []) => {
+  if (!db) {
+    console.warn("⚠️ قاعدة البيانات غير مهيأة بعد.");
+    return [];
+  }
+  try {
+    const stmt = db.prepare(sql);
+    stmt.bind(params);
+    
+    const results = [];
+    while (stmt.step()) {
+      results.push(stmt.getAsObject());
+    }
+    stmt.free();
+    return results;
+  } catch (error) {
+    console.error(`❌ خطأ أثناء تنفيذ الاستعلام [ ${sql} ] في SQLite:`, error);
+    throw error;
+  }
+};
+
 // =========================================================
 // 🌟 الدالة الإمبراطورية المطورة لجلب كافة التفاصيل بدقة للذكاء الاصطناعي 🌟
 // =========================================================
