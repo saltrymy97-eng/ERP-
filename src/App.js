@@ -84,11 +84,25 @@ function AIChatModal({ onClose, aiState }) {
     setInputMessage('');
 
     try {
-      const answer = await askAI(userQuery);
+      // 🌟 التعديل الإمبراطوري لربط البيانات الحية تلقائياً 🌟
+      let systemContext = "أنت المستشار الأكاديمي الذكي للمنظومة الإمبراطورية المعتمدة.";
+      
+      try {
+        // سحب إحصائيات النظام الحالية المخزنة محلياً لتمريرها مع الطلب
+        const systemStats = localStorage.getItem('dashboard_stats_summary') || 'متوفرة في الـ SQLite محلياً وجاري جردها من الكشوفات';
+        systemContext += `\nمعطيات النظام الحالية المستخرجة من قاعدة البيانات الحية: ${systemStats}`;
+      } catch (dbErr) {
+        console.log("فشل جلب سياق قاعدة البيانات الحية:", dbErr);
+      }
+
+      // دمج سياق النظام والبيانات مع سؤالك الفعلي في حزمة واحدة
+      const fullPrompt = `${systemContext}\n\nبناءً على هذه المعطيات، أجب على الاستفسار التالي بدقة إدارية: ${userQuery}`;
+
+      const answer = await askAI(fullPrompt);
       setChatHistory(prev => [...prev, { role: 'bot', text: answer }]);
       speakText(answer);
     } catch (error) {
-      setChatHistory(prev => [...prev, { role: 'bot', text: '❌ واجه المستشار عارضاً تقنياً أثناء الاتصال بالخادم المحلي.' }]);
+      setChatHistory(prev => [...prev, { role: 'bot', text: '❌ واجه المستشار عارضاً تقنياً أثناء تحليل المعطيات أو الاتصال بالخادم السحابي.' }]);
     }
   };
 
@@ -172,7 +186,7 @@ function AIChatModal({ onClose, aiState }) {
             style={{ alignSelf: 'flex-end', background: 'rgba(212,175,55,0.04)', padding: '12px 20px', borderRadius: '22px 22px 22px 0px', border: '1px solid rgba(212,175,55,0.2)' }}
           >
             <span style={{ color: 'var(--gold-light)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              🤖 تفكير عميق: جاري سحب الجداول وحساب نسب الحضور والغياب محلياً عبر Qwen...
+              🤖 تفكير عميق: جاري سحب الجداول وحساب نسب الحضور والغياب محلياً عبر Llama...
             </span>
           </motion.div>
         )}
@@ -290,7 +304,7 @@ function IconCard({ icon, index, openMenu, onIconClick, setScreen, setOpenMenu, 
                   key={`${sub.title}-${subIndex}`}
                   className="dropdown-item"
                   onClick={(e) => {
-                    e.stopPropagation(); // منع ارتداد الحدث وإغلاق القائمة بشكل عشوائي
+                    e.stopPropagation();
                     setScreen(sub.screen);
                     setOpenMenu(null);
                   }}
@@ -545,7 +559,6 @@ function App() {
           ))}
         </div>
 
-        {/* كبسولة التحكم الإمبراطورية المتمركزة بدقة هندسية فائقة الفخامة في منتصف الشاشة السفلي */}
         <div className="user-bar">
           <div className="user-info-block" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
             <span style={{ color: '#ffffff', fontSize: '0.95rem' }}>👤 السحابة الأمنية: <strong style={{ color: '#d4af37' }}>{user?.username}</strong></span>
