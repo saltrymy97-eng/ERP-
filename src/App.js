@@ -89,7 +89,7 @@ function AIChatModal({ onClose, aiState }) {
       let systemContext = "";
       
       try {
-        // سحب كشوفات وسجلات قاعدة بيانات SQLite الحية والشاملة تلقائياً
+        // سحب كشوفات وسجلات قاعدة بيانات SQLite الحية والشاملة تلقائياً عبر الجسر النقي
         systemContext = await getSystemStatsForAI();
       } catch (dbErr) {
         console.error("فشل جلب سياق قاعدة بيانات SQLite الحية:", dbErr);
@@ -174,7 +174,7 @@ function AIChatModal({ onClose, aiState }) {
             }}
           >
             <strong style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: msg.role === 'user' ? 'var(--gold-light)' : '#34d399', marginBottom: '6px' }}>
-              {msg.role === 'user' ? '👤 الاستفسار الإداري السيادي:' : '🤖 المستشار التحليلي للمنظومة:'}
+              {msg.role === 'user' ? '👤 can الاستفسار الإداري السيادي:' : '🤖 المستشار التحليلي للمنظومة:'}
             </strong>
             <span style={{ lineHeight: '1.7', fontSize: '1rem', color: '#e2e8f0' }}>{msg.text}</span>
           </motion.div>
