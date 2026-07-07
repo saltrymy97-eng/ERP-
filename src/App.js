@@ -85,9 +85,7 @@ function AIChatModal({ onClose, aiState }) {
     setInputMessage('');
 
     try {
-      // 🌟 الربط الإمبراطوري الصحيح والمفصل لـ Groq السحابي المطور 🌟
       let systemContext = "";
-      
       try {
         // سحب كشوفات وسجلات قاعدة بيانات SQLite الحية والشاملة تلقائياً عبر الجسر النقي
         systemContext = await getSystemStatsForAI();
@@ -96,12 +94,22 @@ function AIChatModal({ onClose, aiState }) {
         systemContext = "تنبيه: تعذر سحب كشوفات الـ SQLite الحالية في هذه اللحظة.";
       }
 
-      // 🛠️ التمرير الاحترافي النظيف: المعامل الأول هو السؤال، والمعامل الثاني هو الكشوفات الحية (Context)
-      const answer = await askAI(userQuery, systemContext);
+      // 🔥 الإصلاح الحاسم: دمج الاستفسار مع كشوفات الـ SQLite الحية في برومبت واحد موحد
+      // لضمان إجبار نموذج الذكاء الاصطناعي على قراءة تفاصيل الأسماء الخمسة المخزنة بالكامل.
+      const unifiedPrompt = `
+${systemContext}
+
+[استفسار المستخدم الحالي للرد عليه بناءً على السجلات أعلاه]:
+${userQuery}
+      `;
+
+      // تمرير البرومبت الموحد والكامل في المعامل الأول لضمان ثبات القراءة
+      const answer = await askAI(unifiedPrompt);
       
       setChatHistory(prev => [...prev, { role: 'bot', text: answer }]);
       speakText(answer);
     } catch (error) {
+      console.error("❌ خطأ أثناء معالجة رد الـ AI:", error);
       setChatHistory(prev => [...prev, { role: 'bot', text: '❌ واجه المستشار عارضاً تقنياً أثناء تحليل المعطيات أو الاتصال بالخادم السحابي.' }]);
     }
   };
@@ -578,7 +586,7 @@ function App() {
       'students': '👥 إدارة سجلات القبض البيومتري وشؤون الطلاب',
       'teachers': '👨‍🏫 إدارة هيئة التدريس والكادر الأكاديمي',
       'attendance': '🧬 منظومة الرصد الاستراتيجي والمطابقة الفورية',
-      'reports': '📄 مركز استخراج الصكوك والبيانات التحليلية للغياب',
+      'reports': '📄 centre استخراج الصكوك والبيانات التحليلية للغياب',
       'settings': '⚙️ المركز السيادي لإدارة الصلاحيات والنسخ الاحتياطي'
     };
     return titles[screen] || 'المنظومة الرقمية السيادية للجامعة';
