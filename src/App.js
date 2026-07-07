@@ -182,7 +182,7 @@ ${userQuery}
             }}
           >
             <strong style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: msg.role === 'user' ? 'var(--gold-light)' : '#34d399', marginBottom: '6px' }}>
-              {msg.role === 'user' ? '👤 can الاستفسار الإداري السيادي:' : '🤖 المستشار التحليلي للمنظومة:'}
+              {msg.role === 'user' ? '👤 الاستفسار الإداري السيادي:' : '🤖 المستشار التحليلي للمنظومة:'}
             </strong>
             <span style={{ lineHeight: '1.7', fontSize: '1rem', color: '#e2e8f0' }}>{msg.text}</span>
           </motion.div>
@@ -540,9 +540,9 @@ function App() {
             animate={{ 
               y: [0, -12, 0],
               filter: [
-                'drop-shadow(0 0 15px rgba(214, 175, 55, 0.4)) border-shadow(0 0 5px rgba(214,175,55,0.2))',
-                'drop-shadow(0 0 35px rgba(214, 175, 55, 0.8)) border-shadow(0 0 15px rgba(214,175,55,0.5))',
-                'drop-shadow(0 0 15px rgba(214, 175, 55, 0.4)) border-shadow(0 0 5px rgba(214,175,55,0.2))'
+                'drop-shadow(0 0 15px rgba(214, 175, 55, 0.4))',
+                'drop-shadow(0 0 35px rgba(214, 175, 55, 0.8))',
+                'drop-shadow(0 0 15px rgba(214, 175, 55, 0.4))'
               ]
             }}
             transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
@@ -586,7 +586,7 @@ function App() {
       'students': '👥 إدارة سجلات القبض البيومتري وشؤون الطلاب',
       'teachers': '👨‍🏫 إدارة هيئة التدريس والكادر الأكاديمي',
       'attendance': '🧬 منظومة الرصد الاستراتيجي والمطابقة الفورية',
-      'reports': '📄 centre استخراج الصكوك والبيانات التحليلية للغياب',
+      'reports': '📄 مركز استخراج الصكوك والبيانات التحليلية للغياب',
       'settings': '⚙️ المركز السيادي لإدارة الصلاحيات والنسخ الاحتياطي'
     };
     return titles[screen] || 'المنظومة الرقمية السيادية للجامعة';
