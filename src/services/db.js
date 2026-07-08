@@ -1,5 +1,5 @@
 // src/services/db.js – SQLite حقيقية محلية احترافية (نسخة الديسكتوب النقية)
-// الإصدار 5.0 – دعم كامل ومباشر لـ Electron فقط لضمان الاستقرار الحقيقي
+// الإصدار 5.1 المطور – حل مشكلة قيد التاريخ ودعم الربط الذكي الشامل مع المستشار
 
 let getQuery, runQuery, initDatabase, closeDatabase, exportDatabase, importDatabase, getSystemStatsForAI;
 
@@ -64,32 +64,39 @@ importDatabase = async (file) => {
 };
 
 // =========================================================
-// 🔮 الدالة المطورة لجلب كافة التفاصيل بدقة للذكاء الاصطناعي عبر الجسر الأصلي 🔮
+// 🔮 الدالة المحصنة والمعدلة جذرياً لمنع فقدان الحضور وإيقاف الهلوسة 🔮
 // =========================================================
 getSystemStatsForAI = async () => {
   try {
-    // تنسيق التاريخ الافتراضي للنظام بصيغة YYYY-MM-DD
-    const today = new Date().toISOString().slice(0, 10);
+    // استخراج التاريخ المحلي الصحيح لجهاز الكمبيوتر لتفادي فارق توقيت UTC
+    const localDate = new Date();
+    const offset = localDate.getTimezoneOffset();
+    const adjustedDate = new Date(localDate.getTime() - (offset * 60 * 1000));
+    const todayStr = adjustedDate.toISOString().split('T')[0];
 
-    // 1. جلب إجمالي الأعداد العامة للسيطرة الإدارية
+    // 1. جلب إجمالي الأعداد العامة للسيطرة الإدارية العليا
     const resStudentsCount = await getQuery("SELECT COUNT(*) as count FROM students;");
     const totalStudents = resStudentsCount[0]?.count || 0;
 
     const resTeachersCount = await getQuery("SELECT COUNT(*) as count FROM teachers;");
     const totalTeachers = resTeachersCount[0]?.count || 0;
 
-    // 2. جلب كشف الطلاب الصافي مباشرة من جدول الطلاب لمنع الاختفاء بسب الـ JOIN
+    // 2. جلب كشف الطلاب الصافي مباشرة من جدول الطلاب لمنع الاختفاء
     const studentsList = await getQuery("SELECT id, name, academic_id, college, department, level FROM students;");
     
-    // 3. جلب سجلات الحضور اليومية بشكل مرن ومستقل
-    const attendanceToday = await getQuery("SELECT student_id, status FROM attendance WHERE date LIKE ?;", [`%${today}%`]);
+    // 3. الحل الحاسم: جلب سجلات الحضور الأخيرة بنمط مرن وشامل (ترتيب تنازلي لضمان قراءة البيانات المضافة حديثاً)
+    const attendanceRecords = await getQuery("SELECT student_id, status, date, time FROM attendance ORDER BY id DESC LIMIT 200;");
     
-    // رسم خريطة مطابقة (Map) في الذاكرة لربط الحالات بالطلاب
+    // رسم خريطة مطابقة (Map) ذكية مبنية على أحدث العمليات المسجلة للطلاب في قاعدة البيانات
     const attendanceMap = {};
-    if (attendanceToday && attendanceToday.length > 0) {
-      attendanceToday.forEach(record => {
-        if (record.student_id) {
-          attendanceMap[record.student_id] = record.status;
+    if (attendanceRecords && attendanceRecords.length > 0) {
+      attendanceRecords.forEach(record => {
+        if (record.student_id && !attendanceMap[record.student_id]) {
+          attendanceMap[record.student_id] = {
+            status: record.status,
+            date: record.date || todayStr,
+            time: record.time || ''
+          };
         }
       });
     }
@@ -98,11 +105,17 @@ getSystemStatsForAI = async () => {
     if (studentsList && studentsList.length > 0) {
       studentsDetailsText = studentsList
         .map((row, idx) => {
-          // استخراج الحالة أو إعطاؤه القيمة الافتراضية إذا لم يتم رصد البصمة بعد اليوم
-          const rawStatus = attendanceMap[row.id] || 'لم يرصد (غائب)';
-          const formattedStatus = rawStatus === 'present' ? 'حاضر ✅' : rawStatus === 'absent' ? 'غائب ❌' : rawStatus;
+          const studentAttendance = attendanceMap[row.id];
+          let formattedStatus = "⏳ لم ترصد له أي عملية حضور أو غياب بعد في هذه الجلسة.";
           
-          return `${idx + 1}. الاسم: ${row.name} | الرقم الأكاديمي: ${row.academic_id} | الكلية: ${row.college} | القسم: ${row.department} | المستوى: ${row.level} | حالة اليوم: ${formattedStatus}`;
+          if (studentAttendance) {
+            const rawStatus = studentAttendance.status;
+            const statusText = rawStatus === 'present' ? 'حاضر ✅' : rawStatus === 'absent' ? 'غائب ❌' : rawStatus;
+            const timeInfo = studentAttendance.time ? ` الساعة ${studentAttendance.time}` : '';
+            formattedStatus = `${statusText} (تم الرصد بتاريخ: ${studentAttendance.date}${timeInfo})`;
+          }
+          
+          return `${idx + 1}. الاسم: ${row.name} | الرقم الأكاديمي: ${row.academic_id} | الكلية: ${row.college} | القسم: ${row.department} | المستوى: ${row.level} | حالة السجل الحالية: ${formattedStatus}`;
         })
         .join("\n");
     }
@@ -112,19 +125,19 @@ getSystemStatsForAI = async () => {
     let teachersDetailsText = "لا يوجد دكاترة أو معلمين مسجلين حالياً.";
     if (teachersList && teachersList.length > 0) {
       teachersDetailsText = teachersList
-        .map((row, idx) => `${idx + 1}. المحاضر: ${row.name} | القسم: ${row.department} | الحالة: ${row.activity_status}`)
+        .map((row, idx) => `${idx + 1}. المحاضر: ${row.name} | القسم: ${row.department} | الحالة العامة: ${row.activity_status}`)
         .join("\n");
     }
 
     // 5. صياغة بنية المعطيات السيادية الكاملة ليتغذى عليها نموذج الذكاء الاصطناعي
     const megaContextReport = `
 --- سجلات ومعطيات منظومة SQLITE السيادية الحية ---
-[تاريخ الكشف الحي]: ${today}
-[الأرقام الإجمالية]:
-* إجمالي الطلاب المقيدين: ${totalStudents} طالب.
-* إجمالي الكادر التدريسي: ${totalTeachers} محاضر.
+[تاريخ الاستعلام الحالي من جهاز الإدارة]: ${todayStr}
+[الأرقام الإجمالية المقيدة]:
+* إجمالي الطلاب المقيدين في جداول النظام: ${totalStudents} طالب مسجل.
+* إجمالي الكادر التدريسي المقيد في جداول النظام: ${totalTeachers} محاضر مسجل.
 
-[كشف الطلاب التفصيلي وحالة حضورهم اليوم]:
+[كشف الطلاب التفصيلي والبيانات المكتشفة في جداول الحضور]:
 ${studentsDetailsText}
 
 [سجل كادر هيئة التدريس]:
