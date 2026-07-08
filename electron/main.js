@@ -1,5 +1,5 @@
 // electron/main.js – تطبيق Electron مع SQLite حقيقية محلية احترافية
-// الإصدار 6.0 – الحل النهائي لربط الجسر البرمجي بمجلد البناء وتجاوز أخطاء قراءة البيانات
+// الإصدار 6.1 – المطور لحل مشكلة قراءة البيانات والتوافق الكامل مع دالة المستشار الذكي
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const Database = require('better-sqlite3');
@@ -179,14 +179,17 @@ if (!adminExists) {
 
 console.log('✅ جميع الجداول جاهزة (14 جدول)');
 
-// ========== IPC: استعلام SELECT ==========
+// ========== IPC: استعلام SELECT المحمي والمطور لفك البارامترات ==========
 ipcMain.handle('getQuery', (event, sql, params = []) => {
   try {
     const stmt = db.prepare(sql);
-    const rows = stmt.all(params);
+    // تفكيك المصفوفات المزدوجة إذا أرسلها الـ React أو نظام الربط بشكل غريب
+    const safeParams = Array.isArray(params) && params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
+    
+    const rows = stmt.all(safeParams);
     return rows || [];
   } catch (e) {
-    console.error('❌ خطأ في الاستعلام:', e.message);
+    console.error('❌ خطأ في استعلام الـ SQLite للـ AI:', e.message);
     return [];
   }
 });
@@ -248,20 +251,15 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      
-      // 🚀 تم التعديل الجذري هنا لتقرأ البيئتان من مجلد البناء المشترك مباشرة وتختفي أخطاء undefined واختفاء الجسر
       preload: path.join(__dirname, '../build/preload.js')
     }
   });
 
-  // 🚀 الفحص الديناميكي والذكي لتحميل واجهة المستخدم
   if (app.isPackaged) {
-    // كود الـ EXE: يفتح ملف الـ index.html من المسار الصحيح والمحمي داخل الحزمة المضغوطة
     mainWindow.loadFile(path.join(__dirname, '../build/index.html'));
   } else {
-    // كود وضع التطوير: يفتح من السيرفر المحلي السريع
     mainWindow.loadURL('http://localhost:3000');
-    mainWindow.webContents.openDevTools(); // يفتح أدوات المطورين تلقائياً في التطوير فقط
+    mainWindow.webContents.openDevTools();
   }
 
   mainWindow.setMenuBarVisibility(false);
