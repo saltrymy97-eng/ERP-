@@ -42,8 +42,8 @@ function CrystalOrbIcon({ icon, orbClass, aiState }) {
         scale: isThinking ? [1, 1.12, 1] : isTyping ? [1, 1.04, 1] : [1, 1.03, 1],
         rotate: isThinking ? 360 : 0,
         boxShadow: isThinking 
-          ? '0 0 40px rgba(0, 168, 150, 0.6), inset 0 0 20px rgba(0, 168, 150, 0.4)' 
-          : isTyping ? '0 0 40px rgba(167, 201, 87, 0.5), inset 0 0 20px rgba(167, 201, 87, 0.3)' : '0 15px 30px rgba(0, 168, 150, 0.15)'
+          ? '0 0 40px rgba(214, 175, 55, 0.6), inset 0 0 20px rgba(214, 175, 55, 0.4)' 
+          : isTyping ? '0 0 40px rgba(0, 255, 136, 0.5), inset 0 0 20px rgba(0, 255, 136, 0.3)' : '0 15px 30px rgba(0,0,0,0.5)'
       }}
       transition={{ 
         scale: { repeat: Infinity, duration: isThinking ? 1.5 : 3, ease: "easeInOut" },
@@ -51,10 +51,10 @@ function CrystalOrbIcon({ icon, orbClass, aiState }) {
       }}
     >
       <div className="icon-3d-aura" style={{
-        background: isThinking ? 'radial-gradient(circle, rgba(0,168,150,0.4) 0%, transparent 70%)' : isTyping ? 'radial-gradient(circle, rgba(167,201,87,0.3) 0%, transparent 70%)' : ''
+        background: isThinking ? 'radial-gradient(circle, rgba(212,175,55,0.4) 0%, transparent 70%)' : isTyping ? 'radial-gradient(circle, rgba(0,255,136,0.3) 0%, transparent 70%)' : ''
       }}></div>
       <div className="icon-3d-liquid">
-        <span className="icon-3d-fallback" style={{ filter: 'drop-shadow(0 4px 8px rgba(0,168,150,0.15))' }}>
+        <span className="icon-3d-fallback" style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.5))' }}>
           {isThinking ? '🔮' : isTyping ? '✍️' : icon}
         </span>
       </div>
@@ -87,12 +87,15 @@ function AIChatModal({ onClose, aiState }) {
     try {
       let systemContext = "";
       try {
+        // سحب كشوفات وسجلات قاعدة بيانات SQLite الحية والشاملة تلقائياً عبر الجسر النقي
         systemContext = await getSystemStatsForAI();
       } catch (dbErr) {
         console.error("فشل جلب سياق قاعدة بيانات SQLite الحية:", dbErr);
         systemContext = "تنبيه: تعذر سحب كشوفات الـ SQLite الحالية في هذه اللحظة.";
       }
 
+      // 🔥 الإصلاح الحاسم: دمج الاستفسار مع كشوفات الـ SQLite الحية في برومبت واحد موحد
+      // لضمان إجبار نموذج الذكاء الاصطناعي على قراءة تفاصيل الأسماء الخمسة المخزنة بالكامل.
       const unifiedPrompt = `
 ${systemContext}
 
@@ -100,6 +103,7 @@ ${systemContext}
 ${userQuery}
       `;
 
+      // تمرير البرومبت الموحد والكامل في المعامل الأول لضمان ثبات القراءة
       const answer = await askAI(unifiedPrompt);
       
       setChatHistory(prev => [...prev, { role: 'bot', text: answer }]);
@@ -117,9 +121,9 @@ ${userQuery}
       animate="visible"
       exit="exit"
       style={{
-        background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, #f1f5f9 100%)',
-        border: '1px solid rgba(0, 168, 150, 0.3)',
-        boxShadow: '0 40px 100px rgba(0, 168, 150, 0.15), inset 0 1px 2px rgba(255,255,255,0.8), 0 0 50px rgba(0, 168, 150, 0.05)',
+        background: 'linear-gradient(145deg, rgba(3, 18, 11, 0.98) 0%, rgba(1, 7, 4, 0.99) 100%)',
+        border: '1px solid linear-gradient(to bottom, var(--gold-main), transparent)',
+        boxShadow: '0 40px 100px rgba(0,0,0,0.9), inset 0 1px 2px rgba(255,255,255,0.1), 0 0 50px rgba(212, 175, 55, 0.1)',
         borderRadius: '32px',
         padding: '30px',
         direction: 'rtl',
@@ -133,18 +137,18 @@ ${userQuery}
         overflow: 'hidden'
       }}
     >
-      <div style={{ position: 'absolute', top: '-10%', left: '50%', transform: 'translateX(-50%)', width: '300px', height: '150px', background: 'radial-gradient(circle, rgba(0,168,150,0.08) 0%, transparent 80%)', pointerEvents: 'none' }}></div>
+      <div style={{ position: 'absolute', top: '-10%', left: '50%', transform: 'translateX(-50%)', width: '300px', height: '150px', background: 'radial-gradient(circle, rgba(212,175,55,0.08) 0%, transparent 80%)', pointerEvents: 'none' }}></div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid rgba(0,168,150,0.15)', paddingBottom: '15px', zIndex: 2 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid rgba(212,175,55,0.15)', paddingBottom: '15px', zIndex: 2 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ fontSize: '1.7rem', filter: 'drop-shadow(0 0 10px var(--teal-main))' }}>🤖</span>
-          <h3 style={{ fontFamily: 'Amiri, serif', color: 'var(--teal-dark)', fontSize: '1.5rem', margin: 0, letterSpacing: '0.5px' }}>جناح التوجيه الاستراتيجي والذكاء الاصطناعي</h3>
+          <span style={{ fontSize: '1.7rem', filter: 'drop-shadow(0 0 10px var(--gold-main))' }}>🤖</span>
+          <h3 style={{ fontFamily: 'Amiri, serif', color: 'var(--gold-light)', fontSize: '1.5rem', margin: 0, letterSpacing: '0.5px' }}>جناح التوجيه الاستراتيجي والذكاء الاصطناعي</h3>
         </div>
         <motion.button 
           whileHover={{ scale: 1.15, rotate: 90 }}
           whileTap={{ scale: 0.95 }}
           onClick={onClose} 
-          style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.5rem', padding: '5px' }}
+          style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: '1.5rem', padding: '5px' }}
         >✕</motion.button>
       </div>
 
@@ -155,10 +159,10 @@ ${userQuery}
         flexDirection: 'column', 
         gap: '16px', 
         padding: '15px 10px',
-        background: 'rgba(0,0,0,0.02)',
+        background: 'rgba(0,0,0,0.2)',
         borderRadius: '20px',
-        border: '1px solid rgba(0,168,150,0.05)',
-        boxShadow: 'inset 0 10px 30px rgba(0,0,0,0.03)'
+        border: '1px solid rgba(255,255,255,0.02)',
+        boxShadow: 'inset 0 10px 30px rgba(0,0,0,0.5)'
       }}>
         {chatHistory.map((msg, idx) => (
           <motion.div 
@@ -168,28 +172,28 @@ ${userQuery}
             transition={{ duration: 0.3 }}
             style={{ 
               alignSelf: msg.role === 'user' ? 'flex-start' : 'flex-end',
-              background: msg.role === 'user' ? 'linear-gradient(135deg, rgba(0,168,150,0.08) 0%, rgba(0,168,150,0.02) 100%)' : 'var(--white)',
-              border: msg.role === 'user' ? '1px solid rgba(0,168,150,0.2)' : '1px solid rgba(0,0,0,0.05)',
+              background: msg.role === 'user' ? 'linear-gradient(135deg, rgba(212,175,55,0.12) 0%, rgba(212,175,55,0.03) 100%)' : 'linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%)',
+              border: msg.role === 'user' ? '1px solid rgba(212,175,55,0.25)' : '1px solid rgba(255,255,255,0.06)',
               padding: '14px 20px',
               borderRadius: msg.role === 'user' ? '22px 22px 0px 22px' : '22px 22px 22px 0px',
               maxWidth: '80%',
-              boxShadow: '0 4px 15px rgba(0,0,0,0.02)',
+              boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
               backdropFilter: 'blur(5px)'
             }}
           >
-            <strong style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: msg.role === 'user' ? 'var(--teal-dark)' : 'var(--teal-main)', marginBottom: '6px' }}>
+            <strong style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: msg.role === 'user' ? 'var(--gold-light)' : '#34d399', marginBottom: '6px' }}>
               {msg.role === 'user' ? '👤 الاستفسار الإداري السيادي:' : '🤖 المستشار التحليلي للمنظومة:'}
             </strong>
-            <span style={{ lineHeight: '1.7', fontSize: '1rem', color: 'var(--text-primary)' }}>{msg.text}</span>
+            <span style={{ lineHeight: '1.7', fontSize: '1rem', color: '#e2e8f0' }}>{msg.text}</span>
           </motion.div>
         ))}
         {aiState === AI_STATES.THINKING && (
           <motion.div 
             animate={{ opacity: [0.5, 1, 0.5] }}
             transition={{ repeat: Infinity, duration: 1.5 }}
-            style={{ alignSelf: 'flex-end', background: 'rgba(0,168,150,0.04)', padding: '12px 20px', borderRadius: '22px 22px 22px 0px', border: '1px solid rgba(0,168,150,0.15)' }}
+            style={{ alignSelf: 'flex-end', background: 'rgba(212,175,55,0.04)', padding: '12px 20px', borderRadius: '22px 22px 22px 0px', border: '1px solid rgba(212,175,55,0.2)' }}
           >
-            <span style={{ color: 'var(--teal-dark)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ color: 'var(--gold-light)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
               🤖 تحليل سيادي عميق: جاري فحص كشوفات الـ SQLite واستدعاء مستشار Groq...
             </span>
           </motion.div>
@@ -204,24 +208,37 @@ ${userQuery}
           onChange={(e) => setInputMessage(e.target.value)}
           placeholder={aiState === AI_STATES.THINKING ? "جاري تحليل المعطيات الإحصائية..." : "اكتب أمرك أو استفسارك الأكاديمي هنا..."}
           disabled={aiState === AI_STATES.THINKING}
-          className="glass-input"
-          style={{ flexGrow: 1 }}
+          style={{ 
+            flexGrow: 1, 
+            background: 'rgba(1, 10, 5, 0.6)', 
+            border: '1px solid rgba(212,175,55,0.3)', 
+            borderRadius: '16px', 
+            padding: '15px 20px', 
+            color: '#ffffff', 
+            outline: 'none',
+            fontSize: '1rem',
+            transition: 'border-color 0.3s',
+            boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+          }}
+          onFocus={(e) => e.target.style.borderColor = 'var(--gold-main)'}
+          onBlur={(e) => e.target.style.borderColor = 'rgba(212,175,55,0.3)'}
         />
         <motion.button 
-          whileHover={{ scale: 1.03, boxShadow: '0 0 20px rgba(0,168,150,0.2)' }}
+          whileHover={{ scale: 1.03, boxShadow: '0 0 20px rgba(212,175,55,0.4)' }}
           whileTap={{ scale: 0.97 }}
           type="submit" 
           disabled={!inputMessage.trim() || aiState === AI_STATES.THINKING} 
           style={{ 
-            background: 'linear-gradient(135deg, var(--teal-dark) 0%, var(--teal-main) 100%)', 
-            border: 'none', 
+            background: 'linear-gradient(135deg, var(--gold-dark) 0%, var(--emerald-dark) 100%)', 
+            border: '1px solid var(--gold-main)', 
             borderRadius: '16px', 
             color: '#ffffff', 
             padding: '0 35px', 
             cursor: 'pointer',
             fontSize: '1.05rem',
             fontWeight: 'bold',
-            fontFamily: 'Amiri, serif'
+            fontFamily: 'Amiri, serif',
+            textShadow: '0 2px 4px rgba(0,0,0,0.5)'
           }}
         >
           تحليل سيادي
@@ -258,9 +275,12 @@ function IconCard({ icon, index, openMenu, onIconClick, setScreen, setOpenMenu, 
       style={{ zIndex: isMenuOpen ? 999999 : 10 }}
     >
       <div
-        className={`icon-card ${isMenuOpen ? 'active' : ''}`}
+        className={`icon-card ${isMenuOpen ? 'active' : ''} ${icon.id === 'settings' ? 'settings-card' : ''}`}
         onClick={() => onIconClick(icon)}
-        style={{ position: 'relative' }}
+        style={{
+          position: 'relative',
+          transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
+        }}
       >
         <CrystalOrbIcon icon={icon.icon} orbClass={getOrbClass(icon.id)} aiState={icon.id === 'ai_advisor' ? aiState : null} />
 
@@ -270,7 +290,7 @@ function IconCard({ icon, index, openMenu, onIconClick, setScreen, setOpenMenu, 
         {icon.subItems.length > 0 && (
           <motion.span
             className="dropdown-arrow"
-            style={{ display: 'inline-block', marginTop: '10px', color: 'var(--teal-main)' }}
+            style={{ display: 'inline-block', marginTop: '10px', color: icon.color }}
             animate={{ rotate: isMenuOpen ? 180 : 0 }}
           >
             ▼
@@ -285,6 +305,7 @@ function IconCard({ icon, index, openMenu, onIconClick, setScreen, setOpenMenu, 
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 10 }}
               onClick={(e) => e.stopPropagation()}
+              style={{ position: 'absolute', top: '102%', left: 0, right: 0 }}
             >
               {icon.subItems.map((sub, subIndex) => (
                 <button
@@ -371,7 +392,7 @@ function App() {
       id: 'dashboard',
       title: 'لوحة التحكم',
       icon: '📊',
-      color: '#00a896',
+      color: '#D4AF37',
       desc: 'الإحصائيات المتقدمة والتحليلات البيومترية الحية للكليات',
       subItems: []
     },
@@ -379,7 +400,7 @@ function App() {
       id: 'attendance',
       title: 'الحضور والغياب',
       icon: '🧬', 
-      color: '#00a896',
+      color: '#38bdf8',
       desc: 'رصد الحضور ومطابقة البصمة السحابية الفورية وتتبع الغياب',
       subItems: [
         { title: '⚡ تسجيل الحضور المباشر الآن', screen: 'attendance' },
@@ -391,7 +412,7 @@ function App() {
       id: 'students',
       title: 'الطلاب والكليات',
       icon: '🎓',
-      color: '#a7c957',
+      color: '#34d399',
       desc: 'إدارة الكليات، الأقسام، والتصنيفات الأكاديمية والطلاب',
       subItems: [
         { title: '🏫 الكليات والأقسام الأكاديمية', screen: 'students' },
@@ -403,7 +424,7 @@ function App() {
       id: 'teachers',
       title: 'هيئة التدريس',
       icon: '👨‍🏫',
-      color: '#8b5cf6',
+      color: '#f472b6',
       desc: 'إدارة أعضاء هيئة التدريس والمحاضرين للكادر الأكاديمي',
       subItems: [
         { title: '👨‍🏫 قائمة المعلمين والكادر', screen: 'teachers' },
@@ -415,7 +436,7 @@ function App() {
       id: 'reports',
       title: 'مركز التقارير',
       icon: '📄',
-      color: '#f59e0b',
+      color: '#fb923c',
       desc: 'تدارس كشوفات وصكوك PDF و Excel ذكية بنقرة واحدة',
       subItems: [
         { title: '📈 التقارير اليومية الإجمالية للكليات', screen: 'reports' },
@@ -427,7 +448,7 @@ function App() {
       id: 'ai_advisor', 
       title: 'المستشار الذكي',
       icon: '🤖', 
-      color: '#00a896',
+      color: '#D4AF37',
       desc: 'محرك التحليل الاستراتيجي التوليدي المحلي الفوري للمنظومة',
       subItems: []
     },
@@ -435,7 +456,7 @@ function App() {
       id: 'settings',
       title: 'إعدادات النظام',
       icon: '⚙️',
-      color: '#64748b',
+      color: '#94a3b8',
       desc: 'لوحة السيادة العليا وإدارة صلاحيات الموظفين والنسخ الاحتياطي',
       subItems: [
         { title: '🔌 إعدادات ربط أجهزة البصمة', screen: 'settings' },
@@ -460,17 +481,20 @@ function App() {
   if (loading) {
     return (
       <div className="splash-screen">
-        <div className="splash-content">
+        <div className="splash-content" style={{ textAlign: 'center' }}>
           <motion.img 
             src={universityLogo} 
             alt="University Logo"
             className="uni-logo-3d" 
-            animate={{ scale: [1, 1.05, 1], y: [0, -10, 0] }} 
+            animate={{ 
+              scale: [1, 1.05, 1], 
+              y: [0, -10, 0]
+            }} 
             transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }} 
             style={{ width: '150px', height: '150px', borderRadius: '50%' }}
           />
-          <h3 style={{ fontFamily: 'Amiri, serif', fontWeight: 'bold', color: 'var(--teal-dark)', marginTop: '25px', fontSize: '1.4rem' }}>جاري تفويض الصلاحيات وتحديث الأجرام الكريستالية...</h3>
-          <div className="splash-loader"></div>
+          <h3 style={{ fontFamily: 'Amiri, serif', fontWeight: 500, color: '#f3e5ab', marginTop: '25px', letterSpacing: '0.5px' }}>جاري تفويض الصلاحيات وتحديث الأجرام الكريستالية...</h3>
+          <div className="splash-loader" style={{ margin: '20px auto' }}></div>
         </div>
       </div>
     );
@@ -488,12 +512,12 @@ function App() {
             transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
             style={{ width: '130px', height: '130px', marginBottom: '15px', borderRadius: '50%' }}
           />
-          <h1 style={{ fontFamily: 'Amiri, serif', fontSize: '2.5rem', color: 'var(--teal-dark)', margin: '0 0 10px 0', fontWeight: 'bold' }}>بوابة السيطرة المركزية</h1>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: '30px', fontSize: '0.95rem', fontWeight: '500' }}>يرجى إدخال شيفرة التصديق لتفويض الدخول للمنظومة</p>
+          <h1 style={{ fontFamily: 'Amiri, serif', fontSize: '2.5rem', color: '#f3e5ab', margin: '0 0 10px 0' }}>بوابة السيطرة المركزية</h1>
+          <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: '30px', fontSize: '0.95rem' }}>يرجى إدخال شيفرة التصديق لتفويض الدخول للمنظومة</p>
           <div className="login-input-group" style={{ marginBottom: '25px' }}>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="رمز المرور الأمني للمنصة" onKeyPress={e => e.key === 'Enter' && handleLogin()} autoFocus className="glass-input" style={{ width: '100%', textAlign: 'center' }} />
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="رمز المرور الأمني للمنصة" onKeyPress={e => e.key === 'Enter' && handleLogin()} autoFocus />
           </div>
-          {loginError && <p style={{ color: '#ef4444', margin: '10px 0', fontSize: '0.95rem', fontWeight: 'bold' }}>⚠️ {loginError}</p>}
+          {loginError && <p style={{ color: '#ff4d4d', margin: '10px 0', fontSize: '0.95rem' }}>⚠️ {loginError}</p>}
           <button className="login-btn" onClick={handleLogin} disabled={!password.trim()}>🔐 تصديق الدخول الآمن</button>
         </motion.div>
       </div>
@@ -508,33 +532,32 @@ function App() {
           <div className="bg-orb bg-orb-2"></div>
         </div>
 
-        <header className="home-header" style={{ padding: '20px 20px 20px 20px', position: 'relative', textAlign: 'center' }}>
+        <header className="home-header" style={{ padding: '40px 20px 20px 20px', position: 'relative' }}>
           <motion.img 
             src={universityLogo} 
             alt="University Logo"
             className="uni-logo-3d"
-            animate={{ y: [0, -12, 0] }}
+            animate={{ 
+              y: [0, -12, 0],
+              filter: [
+                'drop-shadow(0 0 15px rgba(214, 175, 55, 0.4))',
+                'drop-shadow(0 0 35px rgba(214, 175, 55, 0.8))',
+                'drop-shadow(0 0 15px rgba(214, 175, 55, 0.4))'
+              ]
+            }}
             transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
             style={{ width: '140px', height: '140px', borderRadius: '50%', objectFit: 'cover' }}
           />
           
-          {/* ✨ الملكي اللامع ثلاثي الأبعاد المدمج بنجاح ✨ */}
-          <h1 className="text-royal-shimmer" style={{ 
-            fontFamily: 'Amiri, serif', 
-            fontSize: '3.4rem', 
-            fontWeight: 'bold',
-            margin: '20px 0 15px 0',
-            letterSpacing: '0.5px'
-          }}>
+          <h1 style={{ fontFamily: 'Amiri, serif', fontSize: '2.8rem', color: '#ffffff', margin: '15px 0 10px 0' }}>
             نظام إدارة الحضور والغياب البيومتري
           </h1>
-
-          <p style={{ fontSize: '1.2rem', color: 'var(--text-secondary)', maxWidth: '700px', margin: '0 auto 15px auto', fontWeight: '700' }}>
+          <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,0.6)', maxWidth: '700px', margin: '0 auto 10px auto' }}>
             البوابة الأكاديمية السيادية للتوجيه الفوري والربط الذكي للكليات
           </p>
 
-          <div className="developer-signature" style={{ fontFamily: 'Tajawal', fontWeight: '700' }}>
-            مطور النظام: <span style={{ color: 'var(--teal-dark)', fontWeight: '900' }}>سالم التريمي</span>
+          <div className="developer-signature" style={{ fontFamily: 'Amiri, serif', color: 'var(--gold-light)', fontSize: '1.1rem', opacity: 0.9, letterSpacing: '0.5px' }}>
+            مطور النظام: <span style={{ color: '#ffffff', fontWeight: 'bold', textShadow: '0 0 10px var(--gold-main)' }}>سالم فهمي التريمي</span>
           </div>
         </header>
 
@@ -546,12 +569,12 @@ function App() {
 
         <div className="user-bar">
           <div className="user-info-block" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            <span style={{ color: 'var(--teal-dark)', fontSize: '1rem', fontWeight: 'bold' }}> السحابة الأمنية: <strong style={{ color: 'var(--teal-main)' }}>{user?.username}</strong></span>
+            <span style={{ color: '#ffffff', fontSize: '0.95rem' }}>👤 السحابة الأمنية: <strong style={{ color: '#d4af37' }}>{user?.username}</strong></span>
             <span className="user-role-badge">
               {user?.role === 'admin' ? 'السيادة الإدارية العليا' : 'مسؤول رصد'}
             </span>
           </div>
-          <button className="btn-logout" onClick={handleLogout}>تسجيل الخروج الآمن</button>
+          <button className="btn-logout" onClick={handleLogout}>🚪 تسجيل الخروج الآمن</button>
         </div>
       </div>
     );
@@ -570,15 +593,15 @@ function App() {
   };
 
   return (
-    <div className="app-layout" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-light-cream)' }}>
-      <header className="top-bar">
+    <div className="app-layout" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#010704' }}>
+      <header className="top-bar" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.4)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(212,175,55,0.15)' }}>
         <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="back-btn" onClick={() => setScreen('home')}>
           🏠 البوابة الرئيسية
         </motion.button>
-        <h2 style={{ fontFamily: 'Amiri, serif', color: 'var(--teal-dark)', fontSize: '1.7rem', margin: 0, fontWeight: 'bold' }}>{getTitle()}</h2>
-        <div className="header-status" style={{ marginRight: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: dbReady ? '#00a896' : '#ef4444', boxShadow: dbReady ? '0 0 12px rgba(0, 168, 150, 0.6)' : '0 0 12px #ef4444' }}></span>
-          <span style={{ fontSize: '1rem', color: 'var(--teal-dark)', fontWeight: '700' }}>{dbReady ? 'SQLite نشطة | الأجرام جاهزة' : 'جاري التهيئة...'}</span>
+        <h2 style={{ fontFamily: 'Amiri, serif', color: '#ffffff', fontSize: '1.6rem', margin: 0 }}>{getTitle()}</h2>
+        <div className="header-status" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ width: '11px', height: '11px', borderRadius: '50%', backgroundColor: dbReady ? '#00ff88' : '#ff3366', boxShadow: dbReady ? '0 0 12px #00ff88' : '0 0 12px #ff3366' }}></span>
+          <span style={{ fontSize: '0.95rem', color: '#cbd5e1', fontWeight: '500' }}>{dbReady ? 'SQLite نشطة | الأجرام جاهزة' : 'جاري التهيئة...'}</span>
         </div>
       </header>
 
