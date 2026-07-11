@@ -2,10 +2,10 @@
 /* 👑 المتغيرات الإمبراطورية المحدثة بالتوهج ثلاثي الأبعاد الفاخر 👑 */
 /* ========================================================= */
 :root {
-  --emerald-dark: #010805;
-  --emerald-deep: #02140e;
-  --emerald-main: #04261a;
-  --emerald-light: #084730;
+  --emerald-dark: #00362f;       /* تم تفتيحه من #010805 */
+  --emerald-deep: #004d43;       /* تم تفتيحه من #02140e */
+  --emerald-main: #007a6b;       /* تم تفتيحه من #04261a ليطابق لون الشعار */
+  --emerald-light: #00a894;      /* تم تفتيحه من #084730 ليمنح العناصر حيوية واضحة */
   --gold-dark: #84620b;
   --gold-main: #D4AF37;
   --gold-light: #fdf2be;
@@ -192,7 +192,7 @@ select:focus {
   width: 100%; 
   height: 100%; 
   background: var(--glass-bg);
-  backdrop-filter: blur(20px); /* تنعيم التمويه لتقليل حدة المربعات الشفافة واستقرار الأداء */
+  backdrop-filter: blur(20px); 
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--glass-border); 
   border-radius: 38px;
@@ -280,7 +280,7 @@ select:focus {
 }
 
 .icon-wrapper:nth-child(6) .icon-card {
-  border-color: rgba(214, 175, 55, 0.15); /* تلطيف الحدود هنا أيضاً لكارت المستشار */
+  border-color: rgba(214, 175, 55, 0.15); 
   background: linear-gradient(145deg, rgba(2, 24, 16, 0.3) 0%, rgba(214, 175, 55, 0.03) 100%);
 }
 
