@@ -1,5 +1,5 @@
 // electron/main.js – تطبيق Electron مع SQLite حقيقية محلية احترافية
-// الإصدار 6.1 – المطور لحل مشكلة قراءة البيانات والتوافق الكامل مع دالة المستشار الذكي
+// الإصدار المطور كلياً والمكمل للجداول الـ 14 لمنظومة الحضور الأكاديمي والطباعة الفاخرة
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const Database = require('better-sqlite3');
@@ -7,20 +7,20 @@ const Database = require('better-sqlite3');
 // ========== إعداد قاعدة البيانات ==========
 const userDataPath = app.getPath('userData');
 const dbPath = path.join(userDataPath, 'attendance_system.db');
-console.log('📁 مسار قاعدة البيانات:', dbPath);
+console.log('📁 مسار قاعدة البيانات المعتمد:', dbPath);
 
 let db;
 try {
   db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
-  console.log('✅ تم فتح قاعدة البيانات بنجاح');
+  console.log('✅ تم فتح قاعدة البيانات بنجاح في المسار الآمن');
 } catch (e) {
-  console.error('❌ فشل فتح قاعدة البيانات:', e);
+  console.error('❌ فشل فتح قاعدة البيانات الملحقة:', e);
   app.quit();
 }
 
-// ========== إنشاء جميع الجداول (14 جدول) ==========
+// ========== إنشاء جميع الجداول (14 جدول متطابق) ==========
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -111,6 +111,23 @@ db.exec(`
     UNIQUE(student_id, date)
   );
 
+  -- [الجدول الـ 14 المنقذ لمتطلبات حضور كادر التدريس]
+  CREATE TABLE IF NOT EXISTS teacher_attendance (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    teacher_id INTEGER NOT NULL,
+    date TEXT NOT NULL,
+    time_in TEXT,
+    time_out TEXT,
+    status TEXT DEFAULT 'present',
+    lesson_title TEXT DEFAULT '',
+    completion_rate INTEGER DEFAULT 0,
+    total_hours REAL DEFAULT 0.0,
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now', 'localtime')),
+    FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE CASCADE,
+    UNIQUE(teacher_id, date)
+  );
+
   CREATE TABLE IF NOT EXISTS devices (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -174,22 +191,21 @@ db.exec(`
 const adminExists = db.prepare("SELECT id FROM users WHERE username = 'admin'").get();
 if (!adminExists) {
   db.prepare("INSERT INTO users (username, password, role) VALUES (?, ?, ?)").run('admin', 'admin123', 'admin');
-  console.log('👑 تم إنشاء حساب المدير الافتراضي');
+  console.log('👑 تم إنشاء حساب المدير الافتراضي بنجاح');
 }
 
-console.log('✅ جميع الجداول جاهزة (14 جدول)');
+console.log('✅ جميع الجداول السيادية جاهزة ومؤمنة (14 جدولاً متكاملة مع جدول حضور المحاضرين)');
 
 // ========== IPC: استعلام SELECT المحمي والمطور لفك البارامترات ==========
 ipcMain.handle('getQuery', (event, sql, params = []) => {
   try {
     const stmt = db.prepare(sql);
-    // تفكيك المصفوفات المزدوجة إذا أرسلها الـ React أو نظام الربط بشكل غريب
     const safeParams = Array.isArray(params) && params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
     
     const rows = stmt.all(safeParams);
     return rows || [];
   } catch (e) {
-    console.error('❌ خطأ في استعلام الـ SQLite للـ AI:', e.message);
+    console.error('❌ خطأ في استعلام الـ SQLite:', e.message);
     return [];
   }
 });
@@ -205,7 +221,7 @@ ipcMain.handle('runQuery', (event, sql, params = []) => {
       changes: result.changes 
     };
   } catch (e) {
-    console.error('❌ خطأ في التنفيذ:', e.message);
+    console.error('❌ خطأ في تنفيذ الاستعلام التعديلي:', e.message);
     return null;
   }
 });
@@ -216,7 +232,7 @@ ipcMain.handle('exportDB', () => {
     const data = db.serialize();
     return Buffer.from(data).toString('base64');
   } catch (e) {
-    console.error('❌ خطأ في التصدير:', e);
+    console.error('❌ خطأ في تصدير النسخة الاحتياطية للـ DB:', e);
     return null;
   }
 });
@@ -233,7 +249,7 @@ ipcMain.handle('importDB', (event, data) => {
     db.pragma('foreign_keys = ON');
     return { success: true };
   } catch (e) {
-    console.error('❌ خطأ في الاستيراد:', e);
+    console.error('❌ خطأ في استيراد قاعدة البيانات الفاخرة:', e);
     return { success: false, error: e.message };
   }
 });
@@ -245,8 +261,8 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 850,
-    minWidth: 900,
-    minHeight: 600,
+    minWidth: 1000,
+    minHeight: 700,
     icon: path.join(__dirname, '../public/logo.png'),
     webPreferences: {
       nodeIntegration: false,
@@ -261,6 +277,21 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:3000');
     mainWindow.webContents.openDevTools();
   }
+
+  // السماح بنوافذ الطباعة والتقارير المنبثقة من React دون حظرها أمنياً
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    return {
+      action: 'allow',
+      overrideBrowserWindowOptions: {
+        autoHideMenuBar: true,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+          preload: path.join(__dirname, '../build/preload.js')
+        }
+      }
+    };
+  });
 
   mainWindow.setMenuBarVisibility(false);
 
@@ -283,7 +314,7 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     if (db) {
       db.close();
-      console.log('🔒 تم إغلاق قاعدة البيانات');
+      console.log('🔒 تم إغلاق قاعدة البيانات بأمان');
     }
     app.quit();
   }
@@ -292,6 +323,6 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   if (db) {
     db.close();
-    console.log('🔒 تم إغلاق قاعدة البيانات');
+    console.log('🔒 تم إغلاق قاعدة البيانات قبل الإغلاق الكلي للبرنامج');
   }
 });
