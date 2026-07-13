@@ -1,7 +1,7 @@
 // src/App.js – نظام إدارة الحضور والغياب البيومتري الإمبراطوري المطور
 // هندسة بصرية فائقة الفخامة + جناح التوجيه الاستراتيجي المحلي وعقدة الأجرام السبعة السيادية
 // مطور النظام الإمبراطوري: المهندس سالم فهمي التريمي
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 // 🌟 استدعاء دالة جلب الإحصائيات الحية الفورية من الـ SQLite
 import { initDatabase, getSystemStatsForAI } from './services/db';
@@ -62,12 +62,11 @@ function CrystalOrbIcon({ icon, orbClass, aiState }) {
   );
 }
 
-// ========== مكون جناح الحوار الاستراتيجي للمستشار الأكاديمي المحلي ==========
-function AIChatModal({ onClose, aiState }) {
+// ========== مكون جناح الحوار الاستراتيجي - معزول لمنع خنق الأداء ومشاكل الكتابة ==========
+const AIChatModal = memo(function AIChatModal({ onClose, aiState }) {
   const [inputMessage, setInputMessage] = useState('');
   const [chatHistory, setChatHistory] = useState([
-    { role: 'bot', text: 'مرحباً بك في المنظومة الرقمية السيادية للمستشار الأكاديمي الذكي. اكتب استفسارك الإداري هنا وسأقوم بتحليل قاعدة البيانات فوراً ومحلياً 100% وبدون إنترنت.' }
-  ]);
+    { role: 'bot', text: 'مرحباً بك في المنظومة الرقمية السيادية للمستشار الأكاديمي الذكي. اكتب استفسارك الإداري هنا وسأقوم بتحليل قاعدة البيانات فوراً 
   const chatBottomRef = useRef(null);
 
   useEffect(() => {
@@ -87,15 +86,12 @@ function AIChatModal({ onClose, aiState }) {
     try {
       let systemContext = "";
       try {
-        // سحب كشوفات وسجلات قاعدة بيانات SQLite الحية والشاملة تلقائياً عبر الجسر النقي
         systemContext = await getSystemStatsForAI();
       } catch (dbErr) {
         console.error("فشل جلب سياق قاعدة بيانات SQLite الحية:", dbErr);
         systemContext = "تنبيه: تعذر سحب كشوفات الـ SQLite الحالية في هذه اللحظة.";
       }
 
-      // 🔥 الإصلاح الحاسم: دمج الاستفسار مع كشوفات الـ SQLite الحية في برومبت واحد موحد
-      // لضمان إجبار نموذج الذكاء الاصطناعي على قراءة تفاصيل الأسماء الخمسة المخزنة بالكامل.
       const unifiedPrompt = `
 ${systemContext}
 
@@ -103,14 +99,13 @@ ${systemContext}
 ${userQuery}
       `;
 
-      // تمرير البرومبت الموحد والكامل في المعامل الأول لضمان ثبات القراءة
       const answer = await askAI(unifiedPrompt);
       
       setChatHistory(prev => [...prev, { role: 'bot', text: answer }]);
       speakText(answer);
     } catch (error) {
       console.error("❌ خطأ أثناء معالجة رد الـ AI:", error);
-      setChatHistory(prev => [...prev, { role: 'bot', text: '❌ واجه المستشار عارضاً تقنياً أثناء تحليل المعطيات أو الاتصال بالخادم السحابي.' }]);
+      setChatHistory(prev => [...prev, { role: 'bot', text: '❌ واجه المستشار عارضاً تقنياً أثناء تحليل المعطيات أو الاتصال بالخادم.' }]);
     }
   };
 
@@ -246,7 +241,7 @@ ${userQuery}
       </form>
     </motion.div>
   );
-}
+});
 
 // ========== مكون بطاقة الأيقونة الرئيسية المطور بصرياً وهندسياً ==========
 function IconCard({ icon, index, openMenu, onIconClick, setScreen, setOpenMenu, aiState }) {
@@ -329,12 +324,45 @@ function IconCard({ icon, index, openMenu, onIconClick, setScreen, setOpenMenu, 
   );
 }
 
+// ========== المكون الفرعي الآمن والمستقل لتسجيل الدخول ==========
+const LoginCardComponent = memo(function LoginCardComponent({ onLogin, loginError }) {
+  const [passVal, setPassVal] = useState('');
+
+  return (
+    <div className="login-screen">
+      <motion.div className="login-card" initial={{ opacity: 0, y: 60 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', damping: 20 }}>
+        <motion.img 
+          src={universityLogo} 
+          alt="University Logo"
+          className="uni-logo-3d"
+          animate={{ rotateY: 360 }}
+          transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+          style={{ width: '130px', height: '130px', marginBottom: '15px', borderRadius: '50%' }}
+        />
+        <h1 style={{ fontFamily: 'Amiri, serif', fontSize: '2.5rem', color: '#f3e5ab', margin: '0 0 10px 0' }}>بوابة السيطرة المركزية</h1>
+        <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: '30px', fontSize: '0.95rem' }}>يرجى إدخال شيفرة التصديق لتفويض الدخول للمنظومة</p>
+        <div className="login-input-group" style={{ marginBottom: '25px' }}>
+          <input 
+            type="password" 
+            value={passVal} 
+            onChange={e => setPassVal(e.target.value)} 
+            placeholder="رمز المرور الأمني للمنصة" 
+            onKeyPress={e => e.key === 'Enter' && onLogin(passVal)} 
+            autoFocus 
+          />
+        </div>
+        {loginError && <p style={{ color: '#ff4d4d', margin: '10px 0', fontSize: '0.95rem' }}>⚠️ {loginError}</p>}
+        <button className="login-btn" onClick={() => onLogin(passVal)} disabled={!passVal.trim()}>🔐 تصديق الدخول الآمن</button>
+      </motion.div>
+    </div>
+  );
+});
+
 // ========== التطبيق الرئيسي للنظام الأكاديمي البيومتري ==========
 function App() {
   const [screen, setScreen] = useState('home');
   const [openMenu, setOpenMenu] = useState(null);
   const [user, setUser] = useState(null);
-  const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loading, setLoading] = useState(false);
   const [dbReady, setDbReady] = useState(false);
@@ -365,16 +393,14 @@ function App() {
     };
   }, []);
 
-  const handleLogin = async () => {
-    if (!password.trim()) return;
+  const handleLogin = async (passwordValue) => {
     setLoginError('');
     setLoading(true);
-    const result = await login(password.trim());
+    const result = await login(passwordValue.trim());
     setLoading(false);
     if (result.success) {
       setUser(result.user);
       setScreen('home');
-      setPassword('');
     } else {
       setLoginError(result.message);
     }
@@ -384,7 +410,6 @@ function App() {
     logout();
     setUser(null);
     setScreen('login');
-    setPassword('');
   };
 
   const mainIcons = [
@@ -501,27 +526,7 @@ function App() {
   }
 
   if (!user) {
-    return (
-      <div className="login-screen">
-        <motion.div className="login-card" initial={{ opacity: 0, y: 60 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', damping: 20 }}>
-          <motion.img 
-            src={universityLogo} 
-            alt="University Logo"
-            className="uni-logo-3d"
-            animate={{ rotateY: 360 }}
-            transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-            style={{ width: '130px', height: '130px', marginBottom: '15px', borderRadius: '50%' }}
-          />
-          <h1 style={{ fontFamily: 'Amiri, serif', fontSize: '2.5rem', color: '#f3e5ab', margin: '0 0 10px 0' }}>بوابة السيطرة المركزية</h1>
-          <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: '30px', fontSize: '0.95rem' }}>يرجى إدخال شيفرة التصديق لتفويض الدخول للمنظومة</p>
-          <div className="login-input-group" style={{ marginBottom: '25px' }}>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="رمز المرور الأمني للمنصة" onKeyPress={e => e.key === 'Enter' && handleLogin()} autoFocus />
-          </div>
-          {loginError && <p style={{ color: '#ff4d4d', margin: '10px 0', fontSize: '0.95rem' }}>⚠️ {loginError}</p>}
-          <button className="login-btn" onClick={handleLogin} disabled={!password.trim()}>🔐 تصديق الدخول الآمن</button>
-        </motion.div>
-      </div>
-    );
+    return <LoginCardComponent onLogin={handleLogin} loginError={loginError} />;
   }
 
   if (screen === 'home') {
@@ -574,7 +579,7 @@ function App() {
               {user?.role === 'admin' ? 'السيادة الإدارية العليا' : 'مسؤول رصد'}
             </span>
           </div>
-          <button className="btn-logout" onClick={handleLogout}>🚪 تسجيل الخروج الآمن</button>
+          <button className="btn-logout" onClick={handleLogout}>تسجيل الخروج الآمن</button>
         </div>
       </div>
     );
