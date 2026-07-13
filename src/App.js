@@ -66,7 +66,7 @@ function CrystalOrbIcon({ icon, orbClass, aiState }) {
 const AIChatModal = memo(function AIChatModal({ onClose, aiState }) {
   const [inputMessage, setInputMessage] = useState('');
   const [chatHistory, setChatHistory] = useState([
-    { role: 'bot', text: 'مرحباً بك في المنظومة الرقمية السيادية للمستشار الأكاديمي الذكي. اكتب استفسارك الإداري هنا وسأقوم بتحليل قاعدة البيانات فوراً 
+        { role: 'bot', text: 'مرحباً بك في المنظومة الرقمية السيادية للمستشار الأكاديمي الذكي. اكتب استفسارك الإداري هنا وسأقوم بتحليل قاعدة البيانات فوراً.' }]); 
   const chatBottomRef = useRef(null);
 
   useEffect(() => {
