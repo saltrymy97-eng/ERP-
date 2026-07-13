@@ -1,4 +1,4 @@
-// src/services/db.js – الإصدار المتوافق كلياً مع الجداول الـ 14 لمنظومة Electron
+// src/services/db.js – الإصدار المتوافق كلياً مع الجداول الـ 14 لمنظومة Electron + دعم حضور الأكاديميين لـ AI
 let getQuery, runQuery, initDatabase, closeDatabase, exportDatabase, importDatabase, getSystemStatsForAI;
 
 getQuery = async (sql, params = []) => {
@@ -46,7 +46,7 @@ importDatabase = async (file) => {
   } catch (e) { return false; }
 };
 
-// الدالة السيادية الكبرى بعد مطابقتها مع جداول main.js الحقيقية
+// الدالة السيادية الكبرى بعد مطابقتها مع جداول الحضور الأكاديمي والطلاب
 getSystemStatsForAI = async () => {
   try {
     const localDate = new Date();
@@ -54,17 +54,17 @@ getSystemStatsForAI = async () => {
     const adjustedDate = new Date(localDate.getTime() - (offset * 60 * 1000));
     const todayStr = adjustedDate.toISOString().split('T')[0];
 
-    // 1. جلب الأعداد الإجمالية
+    // 1. جلب الأعداد الإجمالية من الجداول الحية
     const resStudentsCount = await getQuery("SELECT COUNT(*) as count FROM students;");
     const totalStudents = resStudentsCount[0]?.count || 0;
 
-    const resTeachersCount = await getQuery("SELECT COUNT(*) as count FROM teachers;");
+    const resTeachersCount = await getQuery("SELECT COUNT(*) as count FROM teachers WHERE status = 'active';");
     const totalTeachers = resTeachersCount[0]?.count || 0;
 
-    // 2. جلب كشف الطلاب بالأسماء الحقيقية للمطابقة (full_name & university_id)
+    // 2. جلب كشف الطلاب بالأسماء الحقيقية للمطابقة
     const studentsList = await getQuery("SELECT id, university_id, full_name, level, group_name FROM students;");
     
-    // 3. جلب سجلات الحضور الأخيرة
+    // 3. جلب سجلات حضور الطلاب الأخيرة
     const attendanceRecords = await getQuery("SELECT student_id, status, date, time_in FROM attendance ORDER BY id DESC LIMIT 200;");
     
     const attendanceMap = {};
@@ -99,12 +99,48 @@ getSystemStatsForAI = async () => {
         .join("\n");
     }
 
-    // 4. جلب قائمة كادر هيئة التدريس بالاسم الحقيقي (full_name)
-    const teachersList = await getQuery("SELECT full_name, speciality, status FROM teachers;");
+    // 4. جلب قائمة كادر هيئة التدريس وسجلات حضورهم الأخيرة متضمنة متطلبات الأستاذ سعيد
+    const teachersList = await getQuery("SELECT id, teacher_id, full_name, speciality, status FROM teachers WHERE status = 'active';");
+    
+    // جلب آخر عمليات حضور للمعلمين متضمنة الدرس ونسبة الإنجاز وإجمالي الساعات
+    const teacherAttendanceRecords = await getQuery(`
+      SELECT ta.*, t.full_name 
+      FROM teacher_attendance ta 
+      INNER JOIN teachers t ON ta.teacher_id = t.id 
+      ORDER BY ta.date DESC, ta.time_in DESC LIMIT 100
+    `);
+
+    const teacherAttendanceMap = {};
+    if (teacherAttendanceRecords && teacherAttendanceRecords.length > 0) {
+      teacherAttendanceRecords.forEach(rec => {
+        if (rec.teacher_id && !teacherAttendanceMap[rec.teacher_id]) {
+          teacherAttendanceMap[rec.teacher_id] = {
+            status: rec.status,
+            date: rec.date,
+            time_in: rec.time_in || '—',
+            time_out: rec.time_out || '—',
+            lesson_title: rec.lesson_title || '—',
+            completion_rate: rec.completion_rate || 0,
+            total_hours: rec.total_hours || 0
+          };
+        }
+      });
+    }
+
     let teachersDetailsText = "لا يوجد دكاترة أو معلمين مسجلين حالياً.";
     if (teachersList && teachersList.length > 0) {
       teachersDetailsText = teachersList
-        .map((row, idx) => `${idx + 1}. المحاضر: ${row.full_name} | التخصص: ${row.speciality} | الحالة: ${row.status}`)
+        .map((row, idx) => {
+          const tAtt = teacherAttendanceMap[row.id];
+          let attStatusText = "⏳ لم يتم تسجيل حضور/انصراف له اليوم.";
+          
+          if (tAtt) {
+            const state = tAtt.status === 'present' ? 'حاضر ✅' : 'غائب ❌';
+            attStatusText = `${state} بتاريخ ${tAtt.date} (دخول: ${tAtt.time_in} | خروج: ${tAtt.time_out}) | الدرس: "${tAtt.lesson_title}" | الإنجاز: ${tAtt.completion_rate}% | الساعات المنجزة: ${tAtt.total_hours} ساعة`;
+          }
+
+          return `${idx + 1}. المحاضر: ${row.full_name} | التخصص: ${row.speciality} | آخر حالة حضور: ${attStatusText}`;
+        })
         .join("\n");
     }
 
@@ -113,12 +149,12 @@ getSystemStatsForAI = async () => {
 [تاريخ الاستعلام الحالي من جهاز الإدارة]: ${todayStr}
 [الأرقام الإجمالية المقيدة]:
 * إجمالي الطلاب المقيدين في جداول النظام: ${totalStudents} طالب مسجل.
-* إجمالي الكادر التدريسي المقيد في جداول النظام: ${totalTeachers} محاضر مسجل.
+* إجمالي الكادر التدريسي الفعال المقيد: ${totalTeachers} محاضر مسجل.
 
 [كشف الطلاب التفصيلي والبيانات المكتشفة في جداول الحضور]:
 ${studentsDetailsText}
 
-[سجل كادر هيئة التدريس]:
+[سجل كادر هيئة التدريس التفصيلي وحالة الحضور والدروس ونسب الإنجاز (طلب الأستاذ سعيد)]:
 ${teachersDetailsText}
 --------------------------------------------------
     `;
