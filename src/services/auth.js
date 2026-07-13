@@ -1,19 +1,31 @@
-// src/services/auth.js – نظام المصادقة والأمان (SQLite محلية حقيقية)
+// src/services/auth.js – نظام المصادقة والأمان المطور لحل مشكلة تجمّد الواجهة
 import { getQuery, runQuery } from './db';
 
 // ========== متغيرات الجلسة ==========
 let currentUser = null;
 let sessionTimer = null;
-const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 دقيقة
+const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 دقيقة صريحة
+
+// ذاكرة مؤقتة للمستخدمين لمنع خنق قاعدة البيانات مع كل حركة
+let cachedUsers = null;
+let lastCacheTime = 0;
+const CACHE_DURATION = 10000; // 10 ثوانٍ
 
 // ==========================================
 // ١. الطبقة الأساسية (Core) – SQLite
 // ==========================================
 
 async function getUsers() {
+  const now = Date.now();
+  // إذا كانت البيانات المؤقتة موجودة ولم تمر 10 ثوانٍ، أرجعها فوراً دون الذهاب لقاعدة البيانات
+  if (cachedUsers && (now - lastCacheTime < CACHE_DURATION)) {
+    return cachedUsers;
+  }
   try {
     const users = await getQuery("SELECT * FROM users ORDER BY id");
-    return users || [];
+    cachedUsers = users || [];
+    lastCacheTime = now;
+    return cachedUsers;
   } catch (e) {
     console.error('❌ فشل قراءة المستخدمين:', e);
     return [];
@@ -45,9 +57,9 @@ export async function login(password) {
     return { success: false, message: '❌ الرجاء إدخال كلمة المرور' };
   }
 
+  cachedUsers = null; // تفريغ الكاش عند تسجيل الدخول
   let users = await getUsers();
 
-  // إذا لم يوجد مستخدمين... أنشئ مدير افتراضي
   if (users.length === 0) {
     await runQuery(
       "INSERT INTO users (username, password, role, created_at) VALUES (?, ?, ?, ?)",
@@ -56,14 +68,12 @@ export async function login(password) {
     users = await getUsers();
   }
 
-  // البحث عن المستخدم
   const user = users.find(u => u.password === password.trim());
 
   if (!user) {
     return { success: false, message: '❌ كلمة المرور غير صحيحة' };
   }
 
-  // إنشاء الجلسة
   currentUser = {
     id: user.id,
     username: user.username,
@@ -87,13 +97,16 @@ export async function logout() {
 }
 
 // ==========================================
-// ٣. الجلسة (Session)
+// ٣. الجلسة الذكية الصامتة (Session)
 // ==========================================
 
 function startSession() {
   clearSession();
+  // معالج آمن يمنع التداخل مع كود الكتابة في الواجهات
   sessionTimer = setTimeout(() => {
     logout();
+    // بدلاً من عمل Reload قسري ومفاجئ يسبب تعليق، نوجه المستخدم لصفحة القفل بمرونة
+    window.location.hash = '/login'; 
     window.location.reload();
   }, SESSION_TIMEOUT);
 }
@@ -105,8 +118,12 @@ function clearSession() {
   }
 }
 
+// تحسين الأداء: تقليل عدد مرات عمل الـ Refresh أثناء الكتابة المستمرة
+let lastRefresh = 0;
 export function refreshSession() {
-  if (currentUser) {
+  const now = Date.now();
+  if (currentUser && (now - lastRefresh > 5000)) { // لا تحدث الجلسة إلا إذا مرت 5 ثوانٍ على الأقل من آخر تحديث
+    lastRefresh = now;
     clearSession();
     startSession();
   }
@@ -185,6 +202,7 @@ export async function changePassword(username, oldPassword, newPassword) {
 
   await addAuditEntry(username, 'تغيير كلمة المرور', 'تم بنجاح');
   saveSession(newPassword);
+  cachedUsers = null; // تصفير الكاش للتحديث
 
   return { success: true, message: '✅ تم تغيير كلمة المرور بنجاح' };
 }
@@ -210,6 +228,7 @@ export async function addUser(username, password, role = 'staff') {
   );
 
   await addAuditEntry(currentUser.username, 'إضافة مستخدم', `${username} بدور ${role}`);
+  cachedUsers = null; 
 
   return { success: true, message: '✅ تم إضافة المستخدم بنجاح' };
 }
@@ -232,6 +251,7 @@ export async function deleteUser(userId) {
 
   await runQuery("DELETE FROM users WHERE id = ?", [userId]);
   await addAuditEntry(currentUser.username, 'حذف مستخدم', `رقم ${userId}`);
+  cachedUsers = null;
 
   return { success: true, message: '✅ تم حذف المستخدم بنجاح' };
 }
@@ -263,36 +283,13 @@ export async function getAuditLog(limit = 100) {
 }
 
 // ==========================================
-// ٧. الصلاحيات (Permissions)
+// ٧. الصلاحيات وقفل الشاشة
 // ==========================================
 
 export const PERMISSIONS = {
-  admin: [
-    'view_dashboard',
-    'manage_colleges',
-    'manage_students',
-    'manage_schedules',
-    'view_attendance',
-    'send_notifications',
-    'view_reports',
-    'manage_devices',
-    'manage_calendar',
-    'manage_users',
-    'export_data',
-    'ai_analysis'
-  ],
-  manager: [
-    'view_dashboard',
-    'view_attendance',
-    'send_notifications',
-    'view_reports',
-    'ai_analysis'
-  ],
-  staff: [
-    'view_dashboard',
-    'view_attendance',
-    'send_notifications'
-  ]
+  admin: ['view_dashboard', 'manage_colleges', 'manage_students', 'manage_schedules', 'view_attendance', 'send_notifications', 'view_reports', 'manage_devices', 'manage_calendar', 'manage_users', 'export_data', 'ai_analysis'],
+  manager: ['view_dashboard', 'view_attendance', 'send_notifications', 'view_reports', 'ai_analysis'],
+  staff: ['view_dashboard', 'view_attendance', 'send_notifications']
 };
 
 export function hasPermission(permission) {
@@ -300,10 +297,6 @@ export function hasPermission(permission) {
   const rolePermissions = PERMISSIONS[currentUser.role] || [];
   return rolePermissions.includes(permission);
 }
-
-// ==========================================
-// ٨. قفل الشاشة (Screen Lock)
-// ==========================================
 
 export function lockScreen() {
   clearSession();
