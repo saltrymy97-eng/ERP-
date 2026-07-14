@@ -1,4 +1,5 @@
-// electron/preload.js – الجسر الآمن بين React وقاعدة البيانات SQLite المحلية
+// electron/preload.js – الجسر الآمن المحدث لدعم البصمة الحقيقية ZD-K وقاعدة البيانات SQLite
+// مطور النظام: المهندس سالم فهمي التريمي
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -13,6 +14,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // استيراد قاعدة البيانات من Base64
   importDB: (data) => ipcRenderer.invoke('importDB', data),
+
+  // =========================================================
+  // 🖐️ جسور العبور الخاصة بجهاز البصمة الحقيقي ZD-K (ZKTeco)
+  // =========================================================
+  
+  // فحص الاتصال الحقيقي والفعلي بجهاز البصمة عبر الشبكة
+  testDevicePing: (ip, port) => ipcRenderer.invoke('testDevicePing', ip, port),
+
+  // إرسال أمر بدء تسجيل إحدى البصمات الـ 5 الاحتياطية للطالب أو المدرس
+  enrollFinger: (options) => ipcRenderer.invoke('enrollFinger', options),
   
   // معلومات النظام
   platform: process.platform,
