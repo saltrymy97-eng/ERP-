@@ -1,4 +1,5 @@
-// src/components/Settings.js – المركز السيادي واللوحة القيادية العليا للنظام (نسخة مؤمنة ومحدثة بالكامل)
+// src/components/Settings.js – المركز السيادي واللوحة القيادية العليا للنظام (نسخة مؤمنة ومحدثة بالكامل لدعم البصمة الحقيقية)
+// مطور النظام: المهندس سالم فهمي التريمي
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery, initDatabase, exportDatabase, importDatabase } from '../services/db';
@@ -15,6 +16,15 @@ function Settings() {
   const [devices, setDevices] = useState([]);
   const [deviceForm, setDeviceForm] = useState({ name: '', ip_address: '', port: 4370 });
   const [isTestingId, setIsTestingId] = useState(null);
+
+  // وحدة تسجيل البصمات الـ 5 الاحتياطية (طلب الأستاذ سعيد)
+  const [enrollTarget, setEnrollTarget] = useState('student'); // student أو teacher
+  const [peopleList, setPeopleList] = useState([]);
+  const [selectedPersonId, setSelectedPersonId] = useState('');
+  const [activeDeviceIp, setActiveDeviceIp] = useState('');
+  const [enrollingFinger, setEnrollingFinger] = useState(null); // رقم الإصبع الحالي قيد التسجيل (0 إلى 4)
+  const [fingerTemplates, setFingerTemplates] = useState([null, null, null, null, null]); // مصفوفة الـ 5 بصمات
+  const [enrollStatusText, setEnrollStatusText] = useState('');
 
   // إعدادات الذكاء الاصطناعي
   const [aiConfig, setAiConfig] = useState({ api_key: '', enabled: false, model: 'gpt-oss-20b' }); 
@@ -52,7 +62,7 @@ function Settings() {
             setAiConfig({
               api_key: parsedAI.api_key || '',
               enabled: parsedAI.enabled ?? false,
-              model: 'gpt-oss-20b' // الحفاظ على اسم النموذج ثابتاً في الإعدادات كما أردت
+              model: 'gpt-oss-20b'
             });
           } catch (e) {
             console.error("Error parsing AI config on load:", e);
@@ -65,13 +75,25 @@ function Settings() {
     setup();
   }, []);
 
+  // تحديث قائمة الأشخاص عند تغيير الهدف (طالب/مدرس) في واجهة التسجيل
+  useEffect(() => {
+    loadPeopleForEnroll();
+  }, [enrollTarget, dbReady]);
+
   const showMessage = (msg, type = 'success') => {
     setMessage(msg); setMessageType(type);
     setTimeout(() => setMessage(''), 3500);
   };
 
-  // ========== إدارة البوابات ==========
-  const loadDevices = async () => { const data = await getQuery("SELECT * FROM devices ORDER BY name"); setDevices(data || []); };
+  // ========== إدارة البوابات وفحص الاتصال الحقيقي ==========
+  const loadDevices = async () => { 
+    const data = await getQuery("SELECT * FROM devices ORDER BY name"); 
+    setDevices(data || []); 
+    if (data && data.length > 0) {
+      // تعيين أول جهاز نشط كخيار تلقائي لعملية تسجيل البصمات
+      setActiveDeviceIp(data[0].ip_address);
+    }
+  };
   
   const addDevice = async () => {
     if (!deviceForm.name || !deviceForm.ip_address) { showMessage('❌ يرجى ملء اسم البوابة وعنوان IP', 'error'); return; }
@@ -83,17 +105,122 @@ function Settings() {
     if (window.confirm("⚠️ إلغاء قيد هذا الجهاز؟")) { await runQuery("DELETE FROM devices WHERE id = ?", [id]); await loadDevices(); showMessage('🗑️ تم إلغاء الجهاز'); }
   };
 
+  // دالة فحص الاتصال الحقيقية بجهاز البصمة الفعلي عبر الجسر البرمجي
   const testConnection = async (device) => {
-    setIsTestingId(device.id); showMessage(`🔌 فحص ${device.name}...`, 'info');
+    setIsTestingId(device.id); 
+    showMessage(`🔌 جاري فحص الاتصال الحقيقي بـ ${device.name} عبر الشبكة...`, 'info');
+    
     try {
-      await new Promise(r => setTimeout(r, 1800));
-      await runQuery("UPDATE devices SET status = 'online', last_sync = ? WHERE id = ?", [new Date().toISOString(), device.id]);
-      await loadDevices(); showMessage(`✅ ${device.name} متصل`);
-    } catch { await runQuery("UPDATE devices SET status = 'offline' WHERE id = ?", [device.id]); await loadDevices(); showMessage(`❌ فشل اتصال ${device.name}`, 'error'); }
-    finally { setIsTestingId(null); }
+      if (window.electronAPI && typeof window.electronAPI.testDevicePing === 'function') {
+        const isOnline = await window.electronAPI.testDevicePing(device.ip_address, device.port);
+        
+        if (isOnline) {
+          await runQuery("UPDATE devices SET status = 'online', last_sync = ? WHERE id = ?", [new Date().toISOString(), device.id]);
+          await loadDevices(); 
+          showMessage(`🟢 تم الاتصال بنجاح! جهاز ${device.name} معلق ونشط على الجدار.`);
+        } else {
+          throw new Error("Device offline");
+        }
+      } else {
+        throw new Error("Electron API context missing");
+      }
+    } catch (err) {
+      await runQuery("UPDATE devices SET status = 'offline' WHERE id = ?", [device.id]);
+      await loadDevices(); 
+      showMessage(`❌ فشل الاتصال الحقيقي بـ ${device.name}. تأكد من كابل الشبكة وتيار الكهرباء.`, 'error');
+    } finally {
+      setIsTestingId(null);
+    }
   };
 
-  // ========== دالة حفظ إعدادات المستشار الذكي المتوافقة بالكامل والمربوطة بالخدمة السحابية ==========
+  // ========== نظام تسجيل البصمات الخمس المطور (طلب الأستاذ سعيد) ==========
+  const loadPeopleForEnroll = async () => {
+    if (!dbReady) return;
+    if (enrollTarget === 'student') {
+      const data = await getQuery("SELECT id, name FROM students ORDER BY name");
+      setPeopleList(data || []);
+    } else {
+      const data = await getQuery("SELECT id, name FROM teachers ORDER BY name");
+      setPeopleList(data || []);
+    }
+    setSelectedPersonId('');
+    setFingerTemplates([null, null, null, null, null]);
+  };
+
+  // استعلام البصمات المسجلة مسبقاً للشخص المحدد
+  const checkExistingFingerprints = async (personId) => {
+    if (!personId) return;
+    const table = enrollTarget === 'student' ? 'student_fingerprints' : 'teacher_fingerprints';
+    const foreignKey = enrollTarget === 'student' ? 'student_id' : 'teacher_id';
+    
+    const existing = await getQuery(`SELECT finger_index, template FROM ${table} WHERE ${foreignKey} = ?`, [personId]);
+    const templatesMap = [null, null, null, null, null];
+    if (existing) {
+      existing.forEach(f => {
+        if (f.finger_index >= 0 && f.finger_index < 5) {
+          templatesMap[f.finger_index] = f.template || "saved_template";
+        }
+      });
+    }
+    setFingerTemplates(templatesMap);
+  };
+
+  const handlePersonChange = (e) => {
+    const id = e.target.value;
+    setSelectedPersonId(id);
+    checkExistingFingerprints(id);
+  };
+
+  // إرسال أمر للجهاز الفعلي لسحب بصمة لإصبع معين
+  const enrollFingerprintDevice = async (fingerIndex) => {
+    if (!activeDeviceIp) { showMessage('❌ يرجى إضافة جهاز بصمة وتفعيله أولاً', 'error'); return; }
+    if (!selectedPersonId) { showMessage('❌ يرجى اختيار الشخص (طالب/مدرس) أولاً', 'error'); return; }
+    
+    setEnrollingFinger(fingerIndex);
+    setEnrollStatusText(`⏳ يرجى وضع الإصبع رقم ${fingerIndex + 1} على قارئ البصمة الآن...`);
+    
+    try {
+      if (window.electronAPI && typeof window.electronAPI.enrollFinger === 'function') {
+        // إرسال أمر لـ Electron للتواصل مع جهاز ZK وسحب البصمة
+        const result = await window.electronAPI.enrollFinger({
+          ip: activeDeviceIp,
+          port: 4370,
+          userId: parseInt(selectedPersonId),
+          fingerId: fingerIndex
+        });
+
+        if (result && result.success) {
+          // حفظ البصمة في قاعدة البيانات المحلية SQLite
+          const table = enrollTarget === 'student' ? 'student_fingerprints' : 'teacher_fingerprints';
+          const foreignKey = enrollTarget === 'student' ? 'student_id' : 'teacher_id';
+          
+          // مسح البصمة القديمة لنفس الإصبع إن وجدت لتجنب التكرار
+          await runQuery(`DELETE FROM ${table} WHERE ${foreignKey} = ? AND finger_index = ?`, [selectedPersonId, fingerIndex]);
+          // إدراج البصمة الجديدة
+          await runQuery(`INSERT INTO ${table} (${foreignKey}, finger_index, template) VALUES (?, ?, ?)`, 
+            [selectedPersonId, fingerIndex, result.template || 'template_placeholder']);
+          
+          const newTemplates = [...fingerTemplates];
+          newTemplates[fingerIndex] = result.template || 'template_placeholder';
+          setFingerTemplates(newTemplates);
+          
+          setEnrollStatusText(`✅ تم تسجيل وتحفيظ الإصبع رقم ${fingerIndex + 1} بنجاح في النظام!`);
+          showMessage(`✨ تم تسجيل البصمة الاحتياطية رقم ${fingerIndex + 1}`);
+        } else {
+          throw new Error(result.error || "Enrollment failed");
+        }
+      } else {
+        throw new Error("تطبيق الـ Electron غير مهيأ لدعم الميزة حالياً.");
+      }
+    } catch (err) {
+      setEnrollStatusText(`❌ فشل التسجيل: ${err.message}`);
+      showMessage(`❌ فشل التقاط البصمة: ${err.message}`, 'error');
+    } finally {
+      setEnrollingFinger(null);
+    }
+  };
+
+  // ========== دالة حفظ إعدادات المستشار الذكي ==========
   const saveAiConfig = async () => {
     if (!aiConfig.api_key || !aiConfig.api_key.trim()) {
       showMessage('❌ لا يمكن الحفظ! يرجى كتابة مفتاح الـ API الخاص بـ Groq أولاً', 'error');
@@ -103,18 +230,15 @@ function Settings() {
     const updatedConfig = { 
       api_key: aiConfig.api_key.trim(), 
       enabled: aiConfig.enabled, 
-      model: 'gpt-oss-20b' // بقاء اسم النموذج دون تغيير كما هو مطلوب في ملف الواجهة
+      model: 'gpt-oss-20b'
     }; 
 
-    // 1. المزامنة والتخزين الفوري للـ localStorage لاسترجاعه برمجياً عبر ملف الذكاء الاصطناعي
     localStorage.setItem('ai_config', JSON.stringify(updatedConfig));
-    // مزامنة مفتاح الجلب المباشر أيضاً للتأكيد المتكامل مع الخدمة
     localStorage.setItem('GROQ_API_KEY', updatedConfig.api_key);
     setAiConfig(updatedConfig);
     
     showMessage('⏳ جاري التحقق من صحة المفتاح وبناء قنوات الاتصال السحابي...', 'info');
 
-    // 2. اختبار الربط عبر المنظومة السحابية الخارجية دون فك تحميل الواجهة
     const isReady = await loadMobileModel();
     if (isReady) {
       showMessage('🧠 تم ترقية وحفظ وتأمين إعدادات المستشار الذكي بنجاح، والقنوات متصلة!');
@@ -184,7 +308,7 @@ function Settings() {
   const renderAI = () => (
     <div className="settings-section">
       <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)', margin: '0 0 5px 0' }}>🧠 المستشار الأكاديمي الذكي (Groq Inference Engine)</h3>
-      <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginBottom: '20px' }}>مفتاح الربط السحابي لـ Groq LPU</p>
+      <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginBottom: '20px' }}>مفتاح الارتكاز السحابي لـ Groq LPU</p>
       <div className="form-card-lux" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.01), rgba(0,0,0,0.2))', border: '1px solid var(--glass-border)', padding: '25px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         <div>
           <label style={{ color: 'var(--gold-light)', fontWeight: 700 }}>🔑 مفتاح API</label>
@@ -210,10 +334,79 @@ function Settings() {
         <input type="number" placeholder="منفذ" value={deviceForm.port || ''} onChange={e => setDeviceForm({ ...deviceForm, port: parseInt(e.target.value) || 4370 })} className="glass-input" />
         <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={addDevice} style={{ background: 'linear-gradient(135deg, var(--gold-main), #b89324)', color: '#062b1e', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}>➕ تعميد</motion.button>
       </div>
-      <div className="data-table" style={{ border: '1px solid var(--glass-border)', borderRadius: '14px', overflow: 'hidden' }}>
-        <table><thead><tr style={{ background: 'linear-gradient(135deg, #041d14, #083d2b)' }}><th>البوابة</th><th>IP</th><th>منفذ</th><th>حالة</th><th>آخر مزامنة</th><th>تحكم</th></tr></thead>
-          <tbody>{devices.map(d => (<tr key={d.id}><td>🔹 {d.name}</td><td>{d.ip_address}</td><td>{d.port}</td><td><span style={{ color: d.status === 'online' ? 'var(--green-bright)' : '#ef4444' }}>{d.status === 'online' ? '🟢 متصل' : '🔴 غير متصل'}</span></td><td>{d.last_sync ? new Date(d.last_sync).toLocaleString('ar-SA') : '—'}</td><td style={{ display: 'flex', gap: '8px' }}><motion.button whileTap={{ scale: 0.95 }} disabled={isTestingId !== null} onClick={() => testConnection(d)} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', color: 'var(--gold-main)', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer' }}>{isTestingId === d.id ? '⏳' : '🔌'}</motion.button><button onClick={() => deleteDevice(d.id)} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444', padding: '6px 10px', borderRadius: '8px', cursor: 'pointer' }}>🗑️</button></td></tr>))}{devices.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', padding: '35px' }}>📭 لا توجد أجهزة</td></tr>}</tbody></table>
+      
+      <div className="data-table" style={{ border: '1px solid var(--glass-border)', borderRadius: '14px', overflow: 'hidden', marginBottom: '35px' }}>
+        <table><thead><tr style={{ background: 'linear-gradient(135deg, #041d14, #083d2b)' }}><th>البوابة</th><th>IP</th><th>منفذ</th><th>حالة الحائط</th><th>آخر فحص حقيقي</th><th>فحص / حذف</th></tr></thead>
+          <tbody>{devices.map(d => (<tr key={d.id}><td>🔹 {d.name}</td><td>{d.ip_address}</td><td>{d.port}</td><td><span style={{ color: d.status === 'online' ? 'var(--green-bright)' : '#ef4444', fontWeight: 'bold' }}>{d.status === 'online' ? '🟢 متصل حقيقياً' : '🔴 غير متصل'}</span></td><td>{d.last_sync ? new Date(d.last_sync).toLocaleString('ar-SA') : '—'}</td><td style={{ display: 'flex', gap: '8px' }}><motion.button whileTap={{ scale: 0.95 }} disabled={isTestingId !== null} onClick={() => testConnection(d)} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', color: 'var(--gold-main)', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer' }}>{isTestingId === d.id ? '⏳' : '🔌 افحص الاتصال الحقيقي'}</motion.button><button onClick={() => deleteDevice(d.id)} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444', padding: '6px 10px', borderRadius: '8px', cursor: 'pointer' }}>🗑️</button></td></tr>))}{devices.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', padding: '35px' }}>📭 لا توجد أجهزة بصمة معرفة</td></tr>}</tbody></table>
       </div>
+
+      {/* 🔮 لوحة تسجيل الـ 5 بصمات الاحتياطية للطالب / المدرس (طلب الأستاذ سعيد) 🔮 */}
+      {devices.length > 0 && (
+        <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--gold-main)', borderRadius: '16px', padding: '25px', marginTop: '20px' }}>
+          <h4 style={{ fontFamily: 'Amiri, serif', fontSize: '1.4rem', color: 'var(--gold-light)', margin: '0 0 10px 0' }}>🖐️ وحدة تسجيل الـ 5 بصمات الاحتياطية (قيد وحفظ مسبق)</h4>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px' }}>حدد الهدف الأكاديمي، ثم قم بسحب وحفظ 5 بصمات تأمينية من الجهاز المعلق بالجدار مباشرة.</p>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 2fr', gap: '15px', marginBottom: '20px' }}>
+            <div>
+              <label style={{ color: 'var(--gold-light)', fontSize: '0.85rem', display: 'block', marginBottom: '6px' }}>فئة التسجيل</label>
+              <select value={enrollTarget} onChange={e => setEnrollTarget(e.target.value)} style={{ background: '#041d14', border: '1px solid var(--glass-border)', padding: '12px', borderRadius: '10px', color: '#fff', width: '100%' }}>
+                <option value="student">🎓 كشوفات الطلاب</option>
+                <option value="teacher">👨‍🏫 هيئة التدريس والأكاديميين</option>
+              </select>
+            </div>
+            
+            <div>
+              <label style={{ color: 'var(--gold-light)', fontSize: '0.85rem', display: 'block', marginBottom: '6px' }}>اختر الاسم المستهدف</label>
+              <select value={selectedPersonId} onChange={handlePersonChange} style={{ background: '#041d14', border: '1px solid var(--glass-border)', padding: '12px', borderRadius: '10px', color: '#fff', width: '100%' }}>
+                <option value="">-- اختر الاسم للربط بالبصمة --</option>
+                {peopleList.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label style={{ color: 'var(--gold-light)', fontSize: '0.85rem', display: 'block', marginBottom: '6px' }}>جهاز البصمة الحركي</label>
+              <select value={activeDeviceIp} onChange={e => setActiveDeviceIp(e.target.value)} style={{ background: '#041d14', border: '1px solid var(--glass-border)', padding: '12px', borderRadius: '10px', color: '#fff', width: '100%' }}>
+                {devices.map(d => <option key={d.id} value={d.ip_address}>{d.name} ({d.ip_address})</option>)}
+              </select>
+            </div>
+          </div>
+
+          {selectedPersonId && (
+            <div style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '20px', borderRadius: '12px' }}>
+              <h5 style={{ color: '#fff', margin: '0 0 15px 0', fontSize: '1rem' }}>📌 خريطة الأصابع الخمسة الاحتياطية المعتمدة للربط:</h5>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '20px' }}>
+                {[0, 1, 2, 3, 4].map(idx => {
+                  const fingerNames = ["الإبهام الأيمن", "السبابة اليمنى", "الوسطى اليمنى", "الإبهام الأيسر", "السبابة اليسرى"];
+                  const isRegistered = fingerTemplates[idx] !== null;
+                  return (
+                    <div key={idx} style={{ background: isRegistered ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255,255,255,0.02)', border: isRegistered ? '1.5px solid var(--green-bright)' : '1px solid var(--glass-border)', borderRadius: '10px', padding: '15px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '10px', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: isRegistered ? 'var(--green-bright)' : '#aaa' }}>
+                        {fingerNames[idx]} {isRegistered ? '✅' : '💤'}
+                      </span>
+                      <motion.button 
+                        whileHover={{ scale: 1.05 }} 
+                        whileTap={{ scale: 0.95 }}
+                        disabled={enrollingFinger !== null}
+                        onClick={() => enrollFingerprintDevice(idx)}
+                        style={{ background: isRegistered ? 'rgba(16, 185, 129, 0.2)' : 'linear-gradient(135deg, var(--gold-main), #b89324)', color: isRegistered ? '#fff' : '#062b1e', border: 'none', padding: '8px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 'bold', cursor: 'pointer' }}
+                      >
+                        {enrollingFinger === idx ? '⚡ جاري التقاط...' : isRegistered ? 'تحديث البصمة' : '➕ التقاط وقيد'}
+                      </motion.button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {enrollStatusText && (
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '10px 15px', borderRadius: '8px', color: 'var(--gold-light)', fontSize: '0.85rem', fontWeight: 700, textAlign: 'center' }}>
+                  📢 {enrollStatusText}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 
@@ -279,7 +472,7 @@ function Settings() {
       )}
       <div className="data-table" style={{ border: '1px solid var(--glass-border)', borderRadius: '14px', overflow: 'hidden', marginBottom: '35px' }}>
         <table><thead><tr style={{ background: 'linear-gradient(135deg, #041d14, #083d2b)' }}><th>المستخدم للكادر</th><th>الدور والترخيص</th><th>تاريخ الإنشاء</th><th>سحب الصلاحية</th></tr></thead>
-          <tbody>{Array.isArray(users) && users.map(u => (<tr key={u.id}><td>👤 {u.username}</td><td>{u.role}</td><td>{u.created_at || 'غير مححدد'}</td><td>{u.username !== 'admin' && isAdmin() && u.username !== currentUser.username ? <button onClick={() => handleDeleteUser(u.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>🛑</button> : <span>🔒 محمي</span>}</td></tr>))}{(!users || users.length === 0) && <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px' }}>📭 لم يتم تهيئة مستخدمين آخرين</td></tr>}</tbody></table>
+          <tbody>{Array.isArray(users) && users.map(u => (<tr key={u.id}><td>👤 {u.username}</td><td>{u.role}</td><td>{u.created_at || 'غير محدد'}</td><td>{u.username !== 'admin' && isAdmin() && u.username !== currentUser.username ? <button onClick={() => handleDeleteUser(u.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>🛑</button> : <span>🔒 محمي</span>}</td></tr>))}{(!users || users.length === 0) && <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px' }}>📭 لم يتم تهيئة مستخدمين آخرين</td></tr>}</tbody></table>
       </div>
       <h4 style={{ fontFamily: 'Amiri, serif', color: 'var(--gold-light)' }}>🔒 تغيير كلمة المرور الشخصية للحساب الحالي</h4>
       <div className="form-card-lux" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.01), rgba(0,0,0,0.15))', border: '1px solid var(--glass-border)', padding: '20px', borderRadius: '14px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '15px' }}>
@@ -317,7 +510,7 @@ function Settings() {
 
       <div className="tabs" style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.02)', padding: '8px', borderRadius: '16px', border: '1px solid var(--glass-border)', marginBottom: '30px', overflowX: 'auto' }}>
         {[
-          { id: 'devices', label: '🖐️ البصمة' },
+          { id: 'devices', label: '🖐️ البصمة والتحضير' },
           { id: 'schedules', label: '📚 الجدول الدراسي' },
           { id: 'ai', label: '🧠 المستشار الذكي' },
           { id: 'calendar', label: '📅 التقويم' },
