@@ -1,6 +1,9 @@
 // src/services/fingerprint.js – ربط أجهزة بصمة ZKTeco (SQLite محلية حقيقية)
 import { getQuery, runQuery } from './db';
 
+// --- استيراد مكتبة Electron للربط بين الواجهة والخلفية ---
+const { ipcMain } = require('electron');
+
 export async function connectDevice(device) {
   try {
     const response = await fetch(`http://${device.ip_address}:${device.port}/api/connect`, {
@@ -85,5 +88,21 @@ export async function registerFingerprint(studentId, fingerprintData) {
     "UPDATE students SET fingerprint_data = ? WHERE id = ?",
     [fingerprintData, studentId]
   );
-  return { success: true, message: 'تم تسجيل البصمة' };
+  return { success: true, message: 'تم تسجيل البصمة بنجاح في قاعدة البيانات' };
 }
+
+// ==========================================
+// 🛠️ جسر الربط الاحترافي (IPC Handlers) لبيئة Electron
+// ==========================================
+
+// استمع لطلب 'enrollFinger' القادم من واجهة البرنامج (React/Frontend)
+ipcMain.handle('enrollFinger', async (event, studentId, fingerprintData) => {
+  try {
+    // استدعاء الدالة العلوية لتحديث بيانات الطالب بالبصمة الجديدة
+    const result = await registerFingerprint(studentId, fingerprintData);
+    return result;
+  } catch (error) {
+    console.error("خطأ أثناء تسجيل البصمة عبر الـ IPC:", error);
+    return { success: false, error: error.message };
+  }
+});
