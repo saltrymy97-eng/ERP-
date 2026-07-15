@@ -306,8 +306,19 @@ ipcMain.handle('testDevicePing', async (event, ip, port = 4370) => {
 });
 
 // 2. إرسال أمر لتسجيل وحفظ بصمة إصبع حقيقية (من الأصابع الـ 5)
-ipcMain.handle('enrollFinger', async (event, { ip, port = 4370, userId, fingerId }) => {
+// تم تعديل هذا الـ Handler خصيصاً ليتلقى الكائن (data) ويفككه داخلياً منعاً لتضارب الأكواد مع الـ React والـ Preload
+ipcMain.handle('enrollFinger', async (event, data) => {
   return new Promise((resolve) => {
+    // تفكيك المتغيرات القادمة من الـ React بأمان
+    const ip = data.ip;
+    const port = data.port || 4370;
+    const userId = data.userId;
+    const fingerId = data.fingerId;
+
+    if (!ip || !userId) {
+      return resolve({ success: false, error: "معلومات الجهاز أو معرّف المستخدم غير مكتملة." });
+    }
+
     const client = new net.Socket();
     client.setTimeout(10000); // 10 ثوانٍ كحد أقصى للمستخدم لوضع إصبعه على المستشعر
 
@@ -318,10 +329,10 @@ ipcMain.handle('enrollFinger', async (event, { ip, port = 4370, userId, fingerId
       client.write(enrollCommand);
     });
 
-    client.on('data', (data) => {
+    client.on('data', (incomingData) => {
       // استقبال حزمة البيانات والـ Template المشفرة من مستشعر الجهاز
-      if (data && data.length > 4) {
-        const hexTemplate = data.toString('hex'); // تحويل بيانات البصمة الثنائية لنص للتخزين الآمن
+      if (incomingData && incomingData.length > 4) {
+        const hexTemplate = incomingData.toString('hex'); // تحويل بيانات البصمة الثنائية لنص للتخزين الآمن
         client.destroy();
         resolve({ success: true, template: hexTemplate });
       } else {
