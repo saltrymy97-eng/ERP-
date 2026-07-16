@@ -51,7 +51,6 @@
     "files": [
       "build/**/*",
       "electron/**/*",
-      "node_modules/**/*",
       "package.json"
     ]
   },
