@@ -6,6 +6,9 @@ const path = require('path');
 const Database = require('better-sqlite3');
 const net = require('net'); // للاتصال الشبكي المباشر بجهاز ZD-K عبر منفذ 4370
 
+// استدعاء ملف البصمة من نفس المجلد المحلي بعد نقله لمجلد public
+require('./fingerprint');
+
 // ========== إعداد قاعدة البيانات ==========
 const userDataPath = app.getPath('userData');
 const dbPath = path.join(userDataPath, 'attendance_system.db');
@@ -445,16 +448,16 @@ function createWindow() {
     height: 850,
     minWidth: 1000,
     minHeight: 700,
-    icon: path.join(__dirname, '../public/logo.png'),
+    icon: path.join(__dirname, 'logo.png'), // مسار محلي مباشر داخل public بعد التغليف
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, '../build/preload.js')
+      preload: path.join(__dirname, 'preload.js') // مسار محلي مباشر داخل public بعد التغليف
     }
   });
 
   if (app.isPackaged) {
-    mainWindow.loadFile(path.join(__dirname, '../build/index.html'));
+    mainWindow.loadFile(path.join(__dirname, 'index.html')); // مسار محلي مباشر داخل الحزمة بعد التغليف
   } else {
     mainWindow.loadURL('http://localhost:3000');
     mainWindow.webContents.openDevTools();
@@ -469,7 +472,7 @@ function createWindow() {
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true,
-          preload: path.join(__dirname, '../build/preload.js')
+          preload: path.join(__dirname, 'preload.js') // مسار محلي مباشر داخل public بعد التغليف
         }
       }
     };
