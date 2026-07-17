@@ -5,9 +5,17 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const Database = require('better-sqlite3');
 const net = require('net'); // للاتصال الشبكي المباشر بجهاز ZD-K عبر منفذ 4370
+const fs = require('fs');
 
-// استدعاء ملف البصمة من نفس المجلد المحلي بعد نقله لمجلد public
-require('./fingerprint');
+// تحديد مسار الجذر الأساسي للملفات لضمان التوافق قبل وبعد التغليف بالكامل
+const baseDir = app.isPackaged ? path.join(app.getAppPath(), 'public') : __dirname;
+
+// استدعاء ملف البصمة من نفس المجلد المحلي بعد نقله لمجلد public بشكل آمن
+try {
+  require(path.join(baseDir, 'fingerprint'));
+} catch (err) {
+  console.error('⚠️ تحذير: ملف fingerprint.js غير موجود في المسار المحدد:', err.message);
+}
 
 // ========== إعداد قاعدة البيانات ==========
 const userDataPath = app.getPath('userData');
@@ -267,7 +275,6 @@ ipcMain.handle('importDB', (event, data) => {
   try {
     const buffer = Buffer.from(data, 'base64');
     db.close();
-    const fs = require('fs');
     fs.writeFileSync(dbPath, buffer);
     db = new Database(dbPath);
     db.pragma('journal_mode = WAL');
@@ -332,36 +339,39 @@ function startRealtimeAttendanceListener() {
 
       client.on('data', async (data) => {
         client.destroy();
-        // نقوم بفك ترميز البيانات المستلمة لمعرفة رقم الـ ID المستشعر
-        // لنفترض أن الـ ID المستخرج هو userId
-        const userId = extractUserIdFromZKPacket(data); 
-        if (!userId) return;
+        
+        // 1. استخراج الرقم الخام من الجهاز
+        const rawId = extractUserIdFromZKPacket(data); 
+        if (!rawId) return;
+
+        // 2. تحديد نوع الشخص وأسماء الجداول ديناميكيًا بناءً على حجم الرقم
+        const isTeacher = rawId > 50000;
+        const targetTable = isTeacher ? 'teachers' : 'students';
+        const attendanceTable = isTeacher ? 'teacher_attendance' : 'attendance';
+        const foreignKey = isTeacher ? 'teacher_id' : 'student_id';
+        
+        // 3. تصغير الرقم ليعود لأصله في قاعدة البيانات
+        const userId = isTeacher ? rawId - 50000 : rawId;
 
         const currentDate = new Date().toISOString().split('T')[0];
         const currentTime = new Date().toLocaleTimeString('ar-SA', { hour12: false });
 
-        // 1. هل صاحب البصمة طالب؟
-        const student = db.prepare("SELECT id FROM students WHERE id = ?").get(userId);
-        if (student) {
-          const exists = db.prepare("SELECT id FROM attendance WHERE student_id = ? AND date = ?").get(userId, currentDate);
+        // 4. استعلام موحد وذكي يخدم الطرفين تلقائيًا
+        const person = db.prepare(`SELECT id FROM ${targetTable} WHERE id = ?`).get(userId);
+        if (person) {
+          const exists = db.prepare(`SELECT id FROM ${attendanceTable} WHERE ${foreignKey} = ? AND date = ?`).get(userId, currentDate);
           if (!exists) {
-            db.prepare("INSERT INTO attendance (student_id, date, time_in, status, method) VALUES (?, ?, ?, 'present', 'fingerprint')")
-              .run(userId, currentDate, currentTime);
-            console.log(`✅ تم تسجيل حضور الطالب رقم ${userId} تلقائياً عبر جهاز الجدار.`);
-            if (mainWindow) mainWindow.webContents.send('attendance-updated', { type: 'student', id: userId });
-          }
-          return;
-        }
-
-        // 2. هل صاحب البصمة مدرس؟
-        const teacher = db.prepare("SELECT id FROM teachers WHERE id = ?").get(userId);
-        if (teacher) {
-          const exists = db.prepare("SELECT id FROM teacher_attendance WHERE teacher_id = ? AND date = ?").get(userId, currentDate);
-          if (!exists) {
-            db.prepare("INSERT INTO teacher_attendance (teacher_id, date, time_in, status) VALUES (?, ?, ?, 'present')")
-              .run(userId, currentDate, currentTime);
-            console.log(`✅ تم تسجيل حضور المحاضر رقم ${userId} تلقائياً عبر جهاز الجدار.`);
-            if (mainWindow) mainWindow.webContents.send('attendance-updated', { type: 'teacher', id: userId });
+            // صياغة أمر الإدخال حسب نوع الجدول (جدول الطلاب يحتوي على حقل method إضافي)
+            if (!isTeacher) {
+              db.prepare(`INSERT INTO ${attendanceTable} (${foreignKey}, date, time_in, status, method) VALUES (?, ?, ?, 'present', 'fingerprint')`)
+                .run(userId, currentDate, currentTime);
+            } else {
+              db.prepare(`INSERT INTO ${attendanceTable} (${foreignKey}, date, time_in, status) VALUES (?, ?, ?, 'present')`)
+                .run(userId, currentDate, currentTime);
+            }
+            
+            console.log(`✅ تم تسجيل حضور (${isTeacher ? 'محاضر' : 'طالب'}) رقم ${userId} تلقائياً.`);
+            if (mainWindow) mainWindow.webContents.send('attendance-updated', { type: isTeacher ? 'teacher' : 'student', id: userId });
           }
         }
       });
@@ -376,10 +386,11 @@ function startRealtimeAttendanceListener() {
   }, checkInterval);
 }
 
-// دالة فك حزمة بروتوكول ZD-K لاستخراج معرّف الشخص
+// دالة فك حزمة بروتوكول ZD-K لاستخراج معرّف الشخص بشكل آمن
 function extractUserIdFromZKPacket(data) {
   if (data && data.length >= 6) {
-    return (data[4] << 8) | data[5];
+    // استخدام الـ Bitwise Unsigned Shift لضمان عدم خروج قيم سالبة
+    return ((data[4] << 8) | data[5]) >>> 0;
   }
   return null;
 }
@@ -398,22 +409,22 @@ function createWindow() {
     height: 850,
     minWidth: 1000,
     minHeight: 700,
-    icon: path.join(__dirname, 'logo.png'), // مسار محلي مباشر داخل public بعد التغليف
+    icon: path.join(baseDir, 'logo.png'), // استخدام مسار الجذر الديناميكي المتوافق مع التغليف
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js') // مسار محلي مباشر داخل public بعد التغليف
+      preload: path.join(baseDir, 'preload.js') // استخدام مسار الجذر الديناميكي المتوافق مع التغليف
     }
   });
 
   if (app.isPackaged) {
-    mainWindow.loadFile(path.join(__dirname, 'index.html')); // مسار محلي مباشر داخل الحزمة بعد التغليف
+    mainWindow.loadFile(path.join(baseDir, 'index.html')); // مسار محلي متوافق مع بيئة الإنتاج المغلّفة
   } else {
     mainWindow.loadURL('http://localhost:3000');
     mainWindow.webContents.openDevTools();
   }
 
-  // السماح بنوافذ الطباعة والتقارير المنبثقة من React دون حظرها أمنياً
+  // السماح بنوافذ الطباعة والتقارير المنبثقة من React دون حظرها أمنياً ومعالجة مسار preload
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     return {
       action: 'allow',
@@ -422,7 +433,7 @@ function createWindow() {
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true,
-          preload: path.join(__dirname, 'preload.js') // مسار محلي مباشر داخل public بعد التغليف
+          preload: path.join(baseDir, 'preload.js')
         }
       }
     };
