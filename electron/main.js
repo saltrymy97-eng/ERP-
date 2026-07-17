@@ -308,56 +308,6 @@ ipcMain.handle('testDevicePing', async (event, ip, port = 4370) => {
   });
 });
 
-// 2. إرسال أمر لتسجيل وحفظ بصمة إصبع حقيقية (من الأصابع الـ 5)
-// تم تعديل هذا الـ Handler خصيصاً ليتلقى الكائن (data) ويفككه داخلياً منعاً لتضارب الأكواد مع الـ React والـ Preload
-ipcMain.handle('enrollFinger', async (event, data) => {
-  return new Promise((resolve) => {
-    // تفكيك المتغيرات القادمة من الـ React بأمان
-    const ip = data.ip;
-    const port = data.port || 4370;
-    const userId = data.userId;
-    const fingerId = data.fingerId;
-
-    if (!ip || !userId) {
-      return resolve({ success: false, error: "معلومات الجهاز أو معرّف المستخدم غير مكتملة." });
-    }
-
-    const client = new net.Socket();
-    client.setTimeout(10000); // 10 ثوانٍ كحد أقصى للمستخدم لوضع إصبعه على المستشعر
-
-    client.on('connect', () => {
-      // إرسال الحزمة القياسية لبدء وضع التسجيل (Enroll CMD) لأجهزة ZD-K (بروتوكول الـ SDK الأساسي)
-      // نقوم بإرسال حزمة الأوامر المخصصة لطلب الـ Template
-      const enrollCommand = Buffer.from([0x5a, 0x4b, 0x01, fingerId, (userId >> 8) & 0xff, userId & 0xff]);
-      client.write(enrollCommand);
-    });
-
-    client.on('data', (incomingData) => {
-      // استقبال حزمة البيانات والـ Template المشفرة من مستشعر الجهاز
-      if (incomingData && incomingData.length > 4) {
-        const hexTemplate = incomingData.toString('hex'); // تحويل بيانات البصمة الثنائية لنص للتخزين الآمن
-        client.destroy();
-        resolve({ success: true, template: hexTemplate });
-      } else {
-        client.destroy();
-        resolve({ success: false, error: "جودة التقاط غير كافية، أعد المحاولة." });
-      }
-    });
-
-    client.on('timeout', () => {
-      client.destroy();
-      resolve({ success: false, error: "انتهت المهلة ولم يتم تحسس أي إصبع على المستشعر." });
-    });
-
-    client.on('error', (err) => {
-      client.destroy();
-      resolve({ success: false, error: `خطأ اتصال شبكي: ${err.message}` });
-    });
-
-    client.connect(port, ip);
-  });
-});
-
 // =========================================================================
 // 🔄 مستمع الوقت الفعلي (Background Attendance Listener)
 // يستمع لجهاز البصمة في الممر ويسجل الحضور فوراً للطالب أو المدرس
