@@ -6,10 +6,6 @@ const path = require('path');
 const Database = require('better-sqlite3');
 const net = require('net'); // للاتصال الشبكي المباشر بجهاز ZD-K عبر منفذ 4370
 const fs = require('fs');
-const serve = require('electron-serve'); // 🔥 [تعديل احترافي]: استدعاء المكتبة الجديدة للمسارات
-
-// 🔥 [تعديل احترافي]: إعداد المكتبة لتقرأ من مجلد الـ build وتصلح المسارات والـ CSS تلقائياً
-const loadURL = serve({ directory: path.join(__dirname, '../build') });
 
 // استدعاء ملف البصمة من الجذر مباشرة داخل التغليف
 try {
@@ -405,9 +401,9 @@ function createWindow() {
     }
   });
 
-  // 🔥 [تعديل سحري]: توجيه إلكترون لقراءة الواجهة عبر المكتبة في وضع التغليف لضبط المسارات والـ CSS تلقائياً
+  // 🔥 [الحل الجذري الاحترافي المستقر]: استدعاء ملف index.html مباشرة من مجلد البناء عند التغليف لإنهاء أزمة الرابط الوهمي
   if (app.isPackaged) {
-    loadURL(mainWindow); // تشغيل السيرفر الداخلي الذكي للملفات المخرجة والمفصولة
+    mainWindow.loadFile(path.join(__dirname, '../build/index.html'));
   } else {
     mainWindow.loadFile(path.join(__dirname, 'index.html')); // مرحلة التطوير العادية
   }
