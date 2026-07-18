@@ -11,16 +11,18 @@
   <meta name="author" content="سالم التريمي" />
   
   <meta property="og:title" content="بوابة السيطرة المركزية | جامعة القرآن الكريم والعلوم الإسلامية" />
-  <meta property="og:description" content="المنظومة الرقمية السيادية لإدارة الرصد البيومتري، قاعدة بيانات SQLite محلية، تكامل مع محركات WhatsApp Cloud API، واستخراج الصكوك والتقارير الأكاديمية الذكية." />
+  <meta property="og:description" content="المنظومة الرقمية السيادية لإدارة الرصد البيومتري، قاعدة بيانات SQLite محلية, تكامل مع محركات WhatsApp Cloud API، واستخراج الصكوك والتقارير الأكاديمية الذكية." />
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="ar_SA" />
   <meta property="og:site_name" content="جامعة القرآن الكريم والعلوم الإسلامية" />
   
-  <link rel="icon" type="image/png" sizes="32x32" href="%PUBLIC_URL%/logo.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="%PUBLIC_URL%/logo.png" />
-  <link rel="apple-touch-icon" sizes="180x180" href="%PUBLIC_URL%/logo.png" />
+  <!-- 🛠️ تعديل مسارات الأيقونات واللوجو لوضع التغليف المباشر -->
+  <link rel="icon" type="image/png" sizes="32x32" href="logo.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="logo.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="logo.png" />
   
-  <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+  <!-- 🛠️ تعديل مسار المانيفست -->
+  <link rel="manifest" href="manifest.json" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="الرصد السيادي" />
@@ -31,7 +33,8 @@
   
   <title>بوابة السيطرة والتحكم البيومتري الموحد | جامعة القرآن الكريم والعلوم الإسلامية</title>
   
-  <link rel="stylesheet" href="%PUBLIC_URL%/app.css" />
+  <!-- 🛠️ تعديل مسار ملف الـ CSS الرئيسي -->
+  <link rel="stylesheet" href="app.css" />
   
   <style>
     * { 
@@ -42,14 +45,14 @@
       -moz-osx-font-smoothing: grayscale;
     }
 
-    /* 👑 لوحة الألوان السيادية الموحدة المأخوذة من روح الشعار (بدون أسود أغبر) */
+    /* 👑 لوحة الألوان السيادية الموحدة المأخوذة من روح الشعار */
     :root {
-      --bg-dark: #021410;            /* الفيروزي الإمبراطوري المعتم الفاخر */
-      --emerald-dark: #04261f;       /* فيروزي داكن جداً للعمق */
-      --emerald-deep: #004d43;       /* الفيروزي المتوسط المنسجم مع الشعار */
-      --emerald-main: #00a894;       /* الفيروزي الساطع المأخوذ من قوس الجامعة الأساسي */
-      --gold-main: #D4AF37;          /* الذهب الملكي المعتمد الصافي */
-      --gold-light: #fdf2be;         /* الذهب الكريستالي الخفيف للنصوص البارزة */
+      --bg-dark: #021410;            
+      --emerald-dark: #04261f;       
+      --emerald-deep: #004d43;       
+      --emerald-main: #00a894;       
+      --gold-main: #D4AF37;          
+      --gold-light: #fdf2be;         
     }
 
     body { 
@@ -163,7 +166,6 @@
       animation: dataFlow 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
     }
 
-    /* 🎭 الحركات الانسيابية المتقدمة لشاشة الإقلاع */
     @keyframes emblemGlow {
       0% { transform: scale(1); box-shadow: 0 0 30px rgba(214, 175, 55, 0.15), 0 10px 20px rgba(0,0,0,0.4); }
       100% { transform: scale(1.04); box-shadow: 0 0 60px rgba(214, 175, 55, 0.45), 0 20px 40px rgba(0,0,0,0.6); }
@@ -190,7 +192,8 @@
     <div class="loader-container">
       <div class="loader-emblem">
         <div class="quantum-ring"></div>
-        <img src="%PUBLIC_URL%/logo.png" alt="شعار الجامعة" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+        <!-- 🛠️ تعديل مسار صورة الشعار داخل الـ Splash Screen -->
+        <img src="logo.png" alt="شعار الجامعة" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
         <span style="display:none; font-size:2.5rem;">🏛️</span>
       </div>
       
