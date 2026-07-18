@@ -7,12 +7,9 @@ const Database = require('better-sqlite3');
 const net = require('net'); // للاتصال الشبكي المباشر بجهاز ZD-K عبر منفذ 4370
 const fs = require('fs');
 
-// تحديد مسار الجذر الأساسي للملفات لضمان التوافق قبل وبعد التغليف بالكامل
-const baseDir = app.isPackaged ? path.join(app.getAppPath(), 'public') : __dirname;
-
-// استدعاء ملف البصمة من نفس المجلد المحلي بعد نقله لمجلد public بشكل آمن
+// استدعاء ملف البصمة من الجذر مباشرة داخل التغليف
 try {
-  require(path.join(baseDir, 'fingerprint'));
+  require(path.join(__dirname, 'fingerprint'));
 } catch (err) {
   console.error('⚠️ تحذير: ملف fingerprint.js غير موجود في المسار المحدد:', err.message);
 }
@@ -290,25 +287,24 @@ ipcMain.handle('importDB', (event, data) => {
 // 🖐️ قنوات الاتصال والتحكم بجهاز البصمة الحقيقي ZD-K (بروتوكول TCP/IP للشبكة)
 // =========================================================================
 
-// 1. فحص اتصال حقيقي ونزيه بجهاز ZD-K الحائطي عبر الشبكة
 ipcMain.handle('testDevicePing', async (event, ip, port = 4370) => {
   return new Promise((resolve) => {
     const client = new net.Socket();
-    client.setTimeout(2500); // مهلة اتصال حقيقية 2.5 ثانية
+    client.setTimeout(2500);
 
     client.on('connect', () => {
       client.destroy();
-      resolve(true); // متصل حقيقي وبجهاز فعلي على الشبكة ✅
+      resolve(true);
     });
 
     client.on('timeout', () => {
       client.destroy();
-      resolve(false); // انقطاع الاتصال ❌
+      resolve(false);
     });
 
     client.on('error', () => {
       client.destroy();
-      resolve(false); // غير متصل أو الـ IP خاطئ ❌
+      resolve(false);
     });
 
     client.connect(port, ip);
@@ -317,14 +313,12 @@ ipcMain.handle('testDevicePing', async (event, ip, port = 4370) => {
 
 // =========================================================================
 // 🔄 مستمع الوقت الفعلي (Background Attendance Listener)
-// يستمع لجهاز البصمة في الممر ويسجل الحضور فوراً للطالب أو المدرس
 // =========================================================================
 function startRealtimeAttendanceListener() {
-  const checkInterval = 5000; // التحقق من سجل الحركات كل 5 ثوانٍ تلقائياً
+  const checkInterval = 5000;
   
   setInterval(async () => {
     try {
-      // جلب عنوان الـ IP النشط لجهاز البصمة من قاعدة البيانات
       const activeDevice = db.prepare("SELECT ip_address, port FROM devices WHERE status = 'online' LIMIT 1").get();
       if (!activeDevice) return;
 
@@ -332,7 +326,6 @@ function startRealtimeAttendanceListener() {
       client.setTimeout(2000);
 
       client.on('connect', () => {
-        // إرسال طلب سحب الحركات الفورية لعمليات البصمات (Real-time Log Pull)
         const requestLogCmd = Buffer.from([0x5a, 0x4b, 0x03, 0x00, 0x00, 0x00]);
         client.write(requestLogCmd);
       });
@@ -340,28 +333,22 @@ function startRealtimeAttendanceListener() {
       client.on('data', async (data) => {
         client.destroy();
         
-        // 1. استخراج الرقم الخام من الجهاز
         const rawId = extractUserIdFromZKPacket(data); 
         if (!rawId) return;
 
-        // 2. تحديد نوع الشخص وأسماء الجداول ديناميكيًا بناءً على حجم الرقم
         const isTeacher = rawId > 50000;
         const targetTable = isTeacher ? 'teachers' : 'students';
         const attendanceTable = isTeacher ? 'teacher_attendance' : 'attendance';
         const foreignKey = isTeacher ? 'teacher_id' : 'student_id';
         
-        // 3. تصغير الرقم ليعود لأصله في قاعدة البيانات
         const userId = isTeacher ? rawId - 50000 : rawId;
-
         const currentDate = new Date().toISOString().split('T')[0];
         const currentTime = new Date().toLocaleTimeString('ar-SA', { hour12: false });
 
-        // 4. استعلام موحد وذكي يخدم الطرفين تلقائيًا
         const person = db.prepare(`SELECT id FROM ${targetTable} WHERE id = ?`).get(userId);
         if (person) {
           const exists = db.prepare(`SELECT id FROM ${attendanceTable} WHERE ${foreignKey} = ? AND date = ?`).get(userId, currentDate);
           if (!exists) {
-            // صياغة أمر الإدخال حسب نوع الجدول (جدول الطلاب يحتوي على حقل method إضافي)
             if (!isTeacher) {
               db.prepare(`INSERT INTO ${attendanceTable} (${foreignKey}, date, time_in, status, method) VALUES (?, ?, ?, 'present', 'fingerprint')`)
                 .run(userId, currentDate, currentTime);
@@ -381,26 +368,23 @@ function startRealtimeAttendanceListener() {
 
       client.connect(activeDevice.port, activeDevice.ip_address);
     } catch (e) {
-      // حماية المستمع الخلفي من التوقف الكلي
+      // حماية المستمع الخلفي
     }
   }, checkInterval);
 }
 
-// دالة فك حزمة بروتوكول ZD-K لاستخراج معرّف الشخص بشكل آمن
 function extractUserIdFromZKPacket(data) {
   if (data && data.length >= 6) {
-    // استخدام الـ Bitwise Unsigned Shift لضمان عدم خروج قيم سالبة
     return ((data[4] << 8) | data[5]) >>> 0;
   }
   return null;
 }
 
-// تشغيل مراقب الحضور الحقيقي فور إقلاع البرنامج بنجاح
 app.whenReady().then(() => {
   startRealtimeAttendanceListener();
 });
 
-// ========== النافذة الرئيسية ==========
+// ========== النافذة الرئيسية (إعدادات التغليف النقي) ==========
 let mainWindow;
 
 function createWindow() {
@@ -409,22 +393,18 @@ function createWindow() {
     height: 850,
     minWidth: 1000,
     minHeight: 700,
-    icon: path.join(baseDir, 'logo.png'), // استخدام مسار الجذر الديناميكي المتوافق مع التغليف
+    icon: path.join(__dirname, 'logo.png'), // فك التجميع الصريح والمباشر من جذر الـ ASAR
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(baseDir, 'preload.js') // استخدام مسار الجذر الديناميكي المتوافق مع التغليف
+      preload: path.join(__dirname, 'preload.js') // يتوجه مباشرة للجذر مصلحاً خطأ الـ Console تماماً
     }
   });
 
-  if (app.isPackaged) {
-    mainWindow.loadFile(path.join(baseDir, 'index.html')); // مسار محلي متوافق مع بيئة الإنتاج المغلّفة
-  } else {
-    mainWindow.loadURL('http://localhost:3000');
-    mainWindow.webContents.openDevTools();
-  }
+  // توجيه إلكترون لقراءة الواجهة محلياً من جذر الـ ASAR لرفع الحظر الأمني نهائياً
+  mainWindow.loadFile(path.join(__dirname, 'index.html'));
 
-  // السماح بنوافذ الطباعة والتقارير المنبثقة من React دون حظرها أمنياً ومعالجة مسار preload
+  // السماح بنوافذ الطباعة المنبثقة وحقن مسار الـ preload النقي من الجذر
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     return {
       action: 'allow',
@@ -433,7 +413,7 @@ function createWindow() {
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true,
-          preload: path.join(baseDir, 'preload.js')
+          preload: path.join(__dirname, 'preload.js') // جذر التغليف المباشر
         }
       }
     };
