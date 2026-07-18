@@ -6,6 +6,10 @@ const path = require('path');
 const Database = require('better-sqlite3');
 const net = require('net'); // للاتصال الشبكي المباشر بجهاز ZD-K عبر منفذ 4370
 const fs = require('fs');
+const serve = require('electron-serve'); // 🔥 [تعديل احترافي]: استدعاء المكتبة الجديدة للمسارات
+
+// 🔥 [تعديل احترافي]: إعداد المكتبة لتقرأ من مجلد الـ build وتصلح المسارات والـ CSS تلقائياً
+const loadURL = serve({ directory: path.join(__dirname, '../build') });
 
 // استدعاء ملف البصمة من الجذر مباشرة داخل التغليف
 try {
@@ -224,7 +228,7 @@ if (!adminExists) {
   console.log('👑 تم إنشاء حساب المدير الافتراضي بنجاح');
 }
 
-console.log('✅ جميع الجداول السيادية جاهزة ومؤمنة (16 جدولاً متكاملة مع جداول الـ 5 بصمات الاحتياطية)');
+console.log('%c✅ جميع الجداول السيادية جاهزة ومؤمنة (16 جدولاً متكاملة مع جداول الـ 5 بصمات الاحتياطية)', 'color: green');
 
 // ========== IPC: استعلام SELECT المحمي والمطور لفك البارامترات ==========
 ipcMain.handle('getQuery', (event, sql, params = []) => {
@@ -401,8 +405,12 @@ function createWindow() {
     }
   });
 
-  // توجيه إلكترون لقراءة الواجهة محلياً من جذر الـ ASAR لرفع الحظر الأمني نهائياً
-  mainWindow.loadFile(path.join(__dirname, 'index.html'));
+  // 🔥 [تعديل سحري]: توجيه إلكترون لقراءة الواجهة عبر المكتبة في وضع التغليف لضبط المسارات والـ CSS تلقائياً
+  if (app.isPackaged) {
+    loadURL(mainWindow); // تشغيل السيرفر الداخلي الذكي للملفات المخرجة والمفصولة
+  } else {
+    mainWindow.loadFile(path.join(__dirname, 'index.html')); // مرحلة التطوير العادية
+  }
 
   // السماح بنوافذ الطباعة المنبثقة وحقن مسار الـ preload النقي من الجذر
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
