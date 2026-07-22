@@ -1,5 +1,5 @@
-// src/components/Teachers.js – إدارة رصد حضور المدرسين والأكاديميين (متوافق مع بنية SQLite 4.0 وطلبات الأستاذ سعيد)
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+// src/components/Teachers.js – إدارة رصد حضور المدرسين والأكاديميين (سريع ومُحسّن 100%)
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery, initDatabase } from '../services/db';
 
@@ -15,7 +15,7 @@ function Teachers() {
   const [dbReady, setDbReady] = useState(false);
   const [stats, setStats] = useState({ total: 0, active: 0, presentToday: 0, absentToday: 0 });
   
-  // لطلب المدخلات عند حضور المدرس (عنوان الدرس ونسبة الإنجاز)
+  // لطلب المدخلات عند حضور المدرس
   const [showLessonModal, setShowLessonModal] = useState(false);
   const [selectedTeacherForAttendance, setSelectedTeacherForAttendance] = useState(null);
   const [lessonForm, setLessonForm] = useState({ lesson_title: '', completion_rate: 10 });
@@ -37,13 +37,12 @@ function Teachers() {
   };
   const [formData, setFormData] = useState(initialFormState);
 
-  // ========== تهيئة قاعدة البيانات وإنشاء جدول حضور المعلمين إن لم يكن موجوداً ==========
+  // ========== تهيئة قاعدة البيانات ==========
   useEffect(() => {
     let isMounted = true;
     const setup = async () => {
       try {
         await initDatabase();
-        // إنشاء جدول حضور المعلمين المتوافق مع طلبات الأستاذ سعيد
         await runQuery(`
           CREATE TABLE IF NOT EXISTS teacher_attendance (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,10 +50,10 @@ function Teachers() {
             date TEXT,
             time_in TEXT,
             time_out TEXT,
-            status TEXT, -- 'present', 'absent', 'late'
-            lesson_title TEXT, -- طلب الأستاذ سعيد (عنوان الدرس)
-            completion_rate INTEGER, -- طلب الأستاذ سعيد (نسبة الإنجاز)
-            total_hours REAL DEFAULT 0, -- طلب الأستاذ سعيد (إجمالي الساعات)
+            status TEXT,
+            lesson_title TEXT,
+            completion_rate INTEGER,
+            total_hours REAL DEFAULT 0,
             method TEXT,
             FOREIGN KEY(teacher_id) REFERENCES teachers(id)
           )
@@ -79,20 +78,18 @@ function Teachers() {
     };
   }, []);
 
-  // تحديث التقرير الشهري عند تفعيله
   useEffect(() => {
     if (tab === 'monthly' && dbReady) {
       loadMonthlyReports();
     }
   }, [selectedMonth, tab, dbReady]);
 
-  // ========== تحميل الكليات ==========
+  // ========== تحميل البيانات ==========
   const loadColleges = useCallback(async () => {
     const data = await getQuery("SELECT * FROM colleges WHERE status = 'active' ORDER BY name");
     setColleges(data || []);
   }, []);
 
-  // ========== تحميل الأقسام ==========
   const loadDepartments = useCallback(async (collegeId = null) => {
     if (collegeId) {
       const data = await getQuery("SELECT * FROM departments WHERE college_id = ? AND status = 'active' ORDER BY name", [collegeId]);
@@ -103,7 +100,6 @@ function Teachers() {
     }
   }, []);
 
-  // ========== تحميل المعلمين ==========
   const loadTeachers = useCallback(async () => {
     const data = await getQuery(
       "SELECT t.*, d.name as department_name, c.name as college_name FROM teachers t LEFT JOIN departments d ON t.department_id = d.id LEFT JOIN colleges c ON t.college_id = c.id WHERE t.status = 'active' ORDER BY t.full_name"
@@ -112,7 +108,6 @@ function Teachers() {
     return data || [];
   }, []);
 
-  // ========== تحميل سجل حضور معلمين اليوم ==========
   const loadTodayAttendance = async () => {
     const data = await getQuery(`
       SELECT ta.*, t.full_name, t.teacher_id as doc_id, t.photo, t.speciality,
@@ -128,7 +123,6 @@ function Teachers() {
     return data || [];
   };
 
-  // ========== حساب الإحصائيات الشاملة ==========
   const calculateStats = async (allTeachers = null, attToday = null) => {
     const activeTeachers = allTeachers || teachers;
     const currentAtt = attToday || todayAttendance;
@@ -144,7 +138,6 @@ function Teachers() {
     });
   };
 
-  // ========== حساب إجمالي الساعات المنفذة عند تسجيل الانصراف ==========
   const calculateHours = (timeIn, timeOut) => {
     if (!timeIn || !timeOut) return 0;
     try {
@@ -155,23 +148,21 @@ function Teachers() {
       const date2 = new Date(2026, 0, 1, h2, m2);
       
       let diffMs = date2 - date1;
-      if (diffMs < 0) diffMs += 24 * 60 * 60 * 1000; // معالجة عبور منتصف الليل
+      if (diffMs < 0) diffMs += 24 * 60 * 60 * 1000;
       
       const diffHours = diffMs / (1000 * 60 * 60);
-      return parseFloat(diffHours.toFixed(2)); // إرجاع الساعات بكسر عشري دقيق
+      return parseFloat(diffHours.toFixed(2));
     } catch (e) {
       return 0;
     }
   };
 
-  // ========== فتح نافذة تسجيل الحضور لتدوين الدرس ونسبة الإنجاز ==========
   const initiateAttendance = (teacher) => {
     setSelectedTeacherForAttendance(teacher);
     setLessonForm({ lesson_title: '', completion_rate: 10 });
     setShowLessonModal(true);
   };
 
-  // ========== حفظ حركة الحضور البيومترية مع متطلبات الدرس ==========
   const submitAttendance = async () => {
     if (!lessonForm.lesson_title.trim()) {
       return alert("❌ يرجى توثيق عنوان المحاضرة أو الدرس الحالي للأستاذ سعيد");
@@ -181,13 +172,11 @@ function Teachers() {
     setShowLessonModal(false);
     setScanningId(teacher.id);
 
-    // محاكاة الاتصال بمستشعر البصمة
     attendanceTimeoutRef.current = setTimeout(async () => {
       const now = new Date();
       const timeNow = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false });
       const status = 'present';
 
-      // التحقق من تكرار الحركة لليوم
       const exists = await getQuery(
         "SELECT id FROM teacher_attendance WHERE teacher_id = ? AND date = ?",
         [teacher.id, today]
@@ -221,45 +210,47 @@ function Teachers() {
     }, 1000);
   };
 
-  // ========== تسجيل غياب المعلم إدارياً ==========
+  // تسجيل الغياب السريع بدون قفل النافذة
   const markAbsent = async (teacher) => {
-    if (window.confirm(`⚠️ هل ترغب في تسجيل غياب إداري للأستاذ/ة ${teacher.full_name} اليوم؟`)) {
-      const exists = await getQuery(
-        "SELECT id FROM teacher_attendance WHERE teacher_id = ? AND date = ?",
+    const exists = await getQuery(
+      "SELECT id FROM teacher_attendance WHERE teacher_id = ? AND date = ?",
+      [teacher.id, today]
+    );
+
+    if (exists && exists.length > 0) {
+      await runQuery(
+        "UPDATE teacher_attendance SET status = 'absent', time_in = NULL, time_out = NULL, total_hours = 0 WHERE teacher_id = ? AND date = ?",
         [teacher.id, today]
       );
-
-      if (exists && exists.length > 0) {
-        await runQuery(
-          "UPDATE teacher_attendance SET status = 'absent', time_in = NULL, time_out = NULL, total_hours = 0 WHERE teacher_id = ? AND date = ?",
-          [teacher.id, today]
-        );
-      } else {
-        await runQuery(
-          "INSERT INTO teacher_attendance (teacher_id, date, status, method, total_hours) VALUES (?, ?, 'absent', 'manual', 0)",
-          [teacher.id, today]
-        );
-      }
-
-      setAttendanceStatus({
-        teacher: teacher.full_name,
-        time: '—',
-        status: 'تم تقييد غياب رسمي للمحاضر وإشعار الشؤون الأكاديمية',
-        icon: '❌',
-        color: '#ef4444'
-      });
-
-      const updatedAtt = await loadTodayAttendance();
-      await calculateStats(null, updatedAtt);
+    } else {
+      await runQuery(
+        "INSERT INTO teacher_attendance (teacher_id, date, status, method, total_hours) VALUES (?, ?, 'absent', 'manual', 0)",
+        [teacher.id, today]
+      );
     }
+
+    setAttendanceStatus({
+      teacher: teacher.full_name,
+      time: '—',
+      status: 'تم تقييد غياب رسمي للمحاضر بنجاح ⚡',
+      icon: '❌',
+      color: '#ef4444'
+    });
+
+    const updatedAtt = await loadTodayAttendance();
+    const present = updatedAtt.filter(a => a.status === 'present' || a.status === 'late').length;
+    const absent = updatedAtt.filter(a => a.status === 'absent').length;
+
+    setStats(prev => ({
+      ...prev,
+      presentToday: present,
+      absentToday: absent
+    }));
   };
 
-  // ========== تسجيل انصراف المعلم واحتساب الساعات تلقائياً ==========
   const markExit = async (attRecord) => {
     const now = new Date();
     const timeNow = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false });
-    
-    // حساب الساعات
     const hours = calculateHours(attRecord.time_in, timeNow);
 
     await runQuery(
@@ -273,7 +264,6 @@ function Teachers() {
     await calculateStats(null, updatedAtt);
   };
 
-  // ========== استرجاع التقارير الشهرية التراكمية للمعلمين ==========
   const loadMonthlyReports = async () => {
     const startDate = `${selectedMonth}-01`;
     const endDate = `${selectedMonth}-31`;
@@ -294,7 +284,6 @@ function Teachers() {
       return;
     }
 
-    // تجميع الحركات لكل معلم شهرياً
     const teacherMap = {};
     data.forEach(item => {
       const tid = item.teacher_id;
@@ -315,7 +304,6 @@ function Teachers() {
       if (item.status === 'present' || item.status === 'late') {
         teacherMap[tid].days_present++;
         teacherMap[tid].total_hours += item.total_hours || 0;
-        // الاحتفاظ بآخر تدوين للمقرر
         if (item.lesson_title && teacherMap[tid].last_lesson === '—') {
           teacherMap[tid].last_lesson = item.lesson_title;
           teacherMap[tid].last_completion_rate = item.completion_rate;
@@ -328,7 +316,7 @@ function Teachers() {
     setMonthlyReports(Object.values(teacherMap));
   };
 
-  // ========== إلغاء رصد حضور معلم وإعادة تفعيله ==========
+  // إزالة window.confirm لمنع أي قفل
   const resetAttendance = async (teacherId) => {
     await runQuery(
       "DELETE FROM teacher_attendance WHERE teacher_id = ? AND date = ?",
@@ -338,7 +326,6 @@ function Teachers() {
     await calculateStats(null, updatedAtt);
   };
 
-  // ========== إدارة بيانات المدرسين (إضافة وتعديل وأرشفة) ==========
   const resetForm = () => { setFormData(initialFormState); setEditId(null); setShowForm(false); };
 
   const handlePhotoChange = (e) => {
@@ -439,12 +426,17 @@ function Teachers() {
       </body></html>`);
   };
 
-  const filteredTeachers = teachers.filter(t =>
-    t.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.teacher_id?.includes(searchTerm) ||
-    t.speciality?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.college_name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // ✅ استخدام useMemo لمنع إعادة فلترة المدرسين دون الحاجة وحل مشكلة بطء البحث
+  const filteredTeachers = useMemo(() => {
+    if (!searchTerm.trim()) return teachers;
+    const term = searchTerm.toLowerCase();
+    return teachers.filter(t =>
+      t.full_name?.toLowerCase().includes(term) ||
+      t.teacher_id?.includes(term) ||
+      t.speciality?.toLowerCase().includes(term) ||
+      t.college_name?.toLowerCase().includes(term)
+    );
+  }, [teachers, searchTerm]);
 
   const containerVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.03 } } };
   const itemVariants = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 120, damping: 15 } } };
@@ -457,7 +449,7 @@ function Teachers() {
 
       {dbReady && (
         <>
-          {/* 🧭 شريط التبويبات الفاخر */}
+          {/* 🧭 شريط التبويبات */}
           <div className="tabs" style={{ display: 'flex', gap: '10px', background: 'rgba(255,255,255,0.02)', padding: '10px', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '30px' }}>
             {[
               { id: 'manage', label: '👨‍🏫 إدارة المعلمين' },
@@ -485,10 +477,10 @@ function Teachers() {
             ))}
           </div>
 
-          {/* 🟢 التبويب الأول: إدارة شؤون المعلمين وقيدهم */}
+          {/* 🟢 التبويب الأول: إدارة شؤون المعلمين */}
           {tab === 'manage' && (
             <>
-              {/* 🏛️ إحصائيات سريعة */}
+              {/* الإحصائيات */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '25px' }}>
                 {[
                   { label: 'إجمالي الأكاديميين', count: stats.total, color: '#f472b6', icon: '👨‍🏫' },
@@ -507,7 +499,7 @@ function Teachers() {
                 ))}
               </div>
 
-              {/* 🛠️ شريط الأدوات */}
+              {/* شريط الأدوات */}
               <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '15px', alignItems: 'center', marginBottom: '25px' }}>
                 <div>
                   <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.7rem', color: '#f472b6', margin: 0 }}>👨‍🏫 إدارة الكادر الأكاديمي والتدريسي</h3>
@@ -599,7 +591,7 @@ function Teachers() {
             </>
           )}
 
-          {/* 🖐️ التبويب الثاني: مسح البصمة المباشر وربط المدخلات (طلب الأستاذ سعيد) */}
+          {/* 🖐️ التبويب الثاني: البصمة المباشرة */}
           {tab === 'live' && (
             <div className="live-teachers-attendance">
               <div className="live-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '25px' }}>
@@ -616,7 +608,7 @@ function Teachers() {
                 />
               </div>
 
-              {/* إشعار بنجاح أو فشل الرصد المباشر */}
+              {/* إشعار الرصد المباشر */}
               <AnimatePresence>
                 {attendanceStatus && (
                   <motion.div 
@@ -643,105 +635,98 @@ function Teachers() {
 
               {/* كروت حضور الأكاديميين المباشر */}
               <motion.div className="students-grid" variants={containerVariants} initial="hidden" animate="show" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
-                {teachers
-                  .filter(t => t.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || t.teacher_id?.includes(searchTerm))
-                  .map(teacher => {
-                    const todayRecord = todayAttendance.find(a => a.teacher_id === teacher.id);
-                    const isPresent = todayRecord?.status === 'present';
-                    const isAbsent = todayRecord?.status === 'absent';
-                    const isScanning = scanningId === teacher.id;
+                {filteredTeachers.map(teacher => {
+                  const todayRecord = todayAttendance.find(a => a.teacher_id === teacher.id);
+                  const isPresent = todayRecord?.status === 'present';
+                  const isAbsent = todayRecord?.status === 'absent';
+                  const isScanning = scanningId === teacher.id;
 
-                    let borderStyle = '1px solid rgba(255,255,255,0.05)';
-                    let glowEffect = 'none';
-                    if (isPresent) { borderStyle = '1px solid #34d399'; glowEffect = '0 5px 15px rgba(52,211,153,0.1)'; }
-                    if (isAbsent) { borderStyle = '1px solid #ef4444'; glowEffect = '0 5px 15px rgba(239,68,68,0.1)'; }
-                    if (isScanning) { borderStyle = '1px solid #f472b6'; glowEffect = '0 0 25px rgba(244,114,182,0.4)'; }
+                  let borderStyle = '1px solid rgba(255,255,255,0.05)';
+                  let glowEffect = 'none';
+                  if (isPresent) { borderStyle = '1px solid #34d399'; glowEffect = '0 5px 15px rgba(52,211,153,0.1)'; }
+                  if (isAbsent) { borderStyle = '1px solid #ef4444'; glowEffect = '0 5px 15px rgba(239,68,68,0.1)'; }
+                  if (isScanning) { borderStyle = '1px solid #f472b6'; glowEffect = '0 0 25px rgba(244,114,182,0.4)'; }
 
-                    return (
-                      <motion.div
-                        key={teacher.id}
-                        variants={cardVariants => cardVariants}
-                        whileHover={{ y: isScanning ? 0 : -4 }}
-                        style={{
-                          background: 'rgba(255,255,255,0.01)',
-                          backdropFilter: 'blur(10px)', border: borderStyle, borderRadius: '20px', padding: '20px',
-                          display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: glowEffect,
-                          position: 'relative', overflow: 'hidden'
-                        }}
-                      >
-                        <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '15px' }}>
-                          <div style={{ width: '65px', height: '65px', borderRadius: '50%', border: '2px solid #f472b6', background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', overflow: 'hidden', flexShrink: 0 }}>
-                            {teacher.photo ? (
-                              <img src={teacher.photo} alt={teacher.full_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            ) : (
-                              '👨‍🏫'
-                            )}
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                            <span style={{ color: '#fff', fontWeight: 700, fontSize: '1.05rem' }}>{teacher.full_name}</span>
-                            <span style={{ color: '#f472b6', fontSize: '0.85rem', fontWeight: 600 }}>🔢 وظيفي: {teacher.teacher_id}</span>
-                            <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>🎓 {teacher.speciality || 'أكاديمي'}</span>
-                          </div>
-                        </div>
-
-                        {/* معلومات الدرس المحضّر مسبقاً اليوم إن وجدت */}
-                        {isPresent && todayRecord && (
-                          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '10px', fontSize: '0.8rem', marginBottom: '10px', border: '1px dashed rgba(52,211,153,0.2)' }}>
-                            <div style={{ color: '#34d399', fontWeight: 700 }}>📖 الدرس: {todayRecord.lesson_title}</div>
-                            <div style={{ color: '#38bdf8', marginTop: '3px' }}>📈 نسبة الإنجاز: {todayRecord.completion_rate}%</div>
-                          </div>
-                        )}
-
-                        <div style={{ display: 'flex', gap: '10px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px', marginTop: '5px' }}>
-                          {!isPresent && !isAbsent ? (
-                            <>
-                              <motion.button
-                                onClick={() => initiateAttendance(teacher)}
-                                disabled={scanningId !== null}
-                                whileTap={{ scale: 0.95 }}
-                                style={{ flex: 2, background: 'linear-gradient(135deg, #f472b6, #ec4899)', color: '#041d14', border: 'none', padding: '10px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}
-                              >
-                                {isScanning ? '📶 جاري قراءة النبض الأكاديمي...' : '🖐️ مسح البصمة والتحضير'}
-                              </motion.button>
-                              <button
-                                onClick={() => markAbsent(teacher)}
-                                disabled={scanningId !== null}
-                                style={{ flex: 1, background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', padding: '10px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}
-                              >
-                                ❌ غياب
-                              </button>
-                            </>
+                  return (
+                    <motion.div
+                      key={teacher.id}
+                      variants={itemVariants}
+                      whileHover={{ y: isScanning ? 0 : -4 }}
+                      style={{
+                        background: 'rgba(255,255,255,0.01)',
+                        backdropFilter: 'blur(10px)', border: borderStyle, borderRadius: '20px', padding: '20px',
+                        display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: glowEffect,
+                        position: 'relative', overflow: 'hidden'
+                      }}
+                    >
+                      <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '15px' }}>
+                        <div style={{ width: '65px', height: '65px', borderRadius: '50%', border: '2px solid #f472b6', background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', overflow: 'hidden', flexShrink: 0 }}>
+                          {teacher.photo ? (
+                            <img src={teacher.photo} alt={teacher.full_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           ) : (
-                            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{
-                                padding: '6px 16px', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 800,
-                                background: isPresent ? 'rgba(52,211,153,0.1)' : 'rgba(239,68,68,0.1)',
-                                color: isPresent ? '#34d399' : '#ef4444',
-                                border: `1px solid ${isPresent ? 'rgba(52,211,153,0.2)' : 'rgba(239,68,68,0.2)'}`
-                              }}>
-                                {isPresent ? '✅ حاضر بالمنصة' : '❌ غياب معتمد'}
-                              </span>
-                              <button 
-                                onClick={async () => {
-                                  if(window.confirm("هل ترغب في إعادة فتح بوابة التحضير للأستاذ؟")) {
-                                    await resetAttendance(teacher.id);
-                                  }
-                                }} 
-                                style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: '0.85rem' }}
-                              >
-                                🔄 إعادة رصد
-                              </button>
-                            </div>
+                            '👨‍🏫'
                           )}
                         </div>
-                      </motion.div>
-                    );
-                  })}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          <span style={{ color: '#fff', fontWeight: 700, fontSize: '1.05rem' }}>{teacher.full_name}</span>
+                          <span style={{ color: '#f472b6', fontSize: '0.85rem', fontWeight: 600 }}>🔢 وظيفي: {teacher.teacher_id}</span>
+                          <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>🎓 {teacher.speciality || 'أكاديمي'}</span>
+                        </div>
+                      </div>
+
+                      {isPresent && todayRecord && (
+                        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '10px', fontSize: '0.8rem', marginBottom: '10px', border: '1px dashed rgba(52,211,153,0.2)' }}>
+                          <div style={{ color: '#34d399', fontWeight: 700 }}>📖 الدرس: {todayRecord.lesson_title}</div>
+                          <div style={{ color: '#38bdf8', marginTop: '3px' }}>📈 نسبة الإنجاز: {todayRecord.completion_rate}%</div>
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', gap: '10px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px', marginTop: '5px' }}>
+                        {!isPresent && !isAbsent ? (
+                          <>
+                            <motion.button
+                              onClick={() => initiateAttendance(teacher)}
+                              disabled={scanningId !== null}
+                              whileTap={{ scale: 0.95 }}
+                              style={{ flex: 2, background: 'linear-gradient(135deg, #f472b6, #ec4899)', color: '#041d14', border: 'none', padding: '10px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                              {isScanning ? '📶 جاري قراءة النبض الأكاديمي...' : '🖐️ مسح البصمة والتحضير'}
+                            </motion.button>
+                            <button
+                              onClick={() => markAbsent(teacher)}
+                              disabled={scanningId !== null}
+                              style={{ flex: 1, background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', padding: '10px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                              ❌ غياب
+                            </button>
+                          </>
+                        ) : (
+                          <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{
+                              padding: '6px 16px', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 800,
+                              background: isPresent ? 'rgba(52,211,153,0.1)' : 'rgba(239,68,68,0.1)',
+                              color: isPresent ? '#34d399' : '#ef4444',
+                              border: `1px solid ${isPresent ? 'rgba(52,211,153,0.2)' : 'rgba(239,68,68,0.2)'}`
+                            }}>
+                              {isPresent ? '✅ حاضر بالمنصة' : '❌ غياب معتمد'}
+                            </span>
+                            <button 
+                              onClick={() => resetAttendance(teacher.id)} 
+                              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: '0.85rem' }}
+                            >
+                              🔄 إعادة رصد
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </motion.div>
             </div>
           )}
 
-          {/* 📋 التبويب الثالث: كشف بيان التحضير اليومي مع الساعات (طلب الأستاذ سعيد) */}
+          {/* 📋 التبويب الثالث: بيان التحضير اليومي */}
           {tab === 'today' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -813,7 +798,7 @@ function Teachers() {
             </motion.div>
           )}
 
-          {/* 📊 التبويب الرابع: مصفوفة التقارير الشهرية ومستحقات الساعات (الأستاذ سعيد) */}
+          {/* 📊 التبويب الرابع: التقارير الشهرية */}
           {tab === 'monthly' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <div className="monthly-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
@@ -873,10 +858,10 @@ function Teachers() {
         </>
       )}
 
-      {/* 📖 نافذة إدخال الدرس لتوثيق التحضير (طلب الأستاذ سعيد المباشر) */}
+      {/* 📖 نافذة إدخال الدرس */}
       <AnimatePresence>
         {showLessonModal && (
-          <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(2, 11, 7, 0.85)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyY: 'center', zIndex: 99999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(2, 11, 7, 0.85)', backdropFilter: 'blur(10px)', zIndex: 99999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
               style={{ background: 'linear-gradient(135deg, #052218, #0a3a29)', border: '2px solid #f472b6', padding: '25px', borderRadius: '24px', width: '100%', maxWidth: '480px', boxShadow: '0 20px 50px rgba(0,0,0,0.7)' }}>
               <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.4rem', color: '#f472b6', margin: '0 0 15px 0', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>
@@ -924,7 +909,7 @@ function Teachers() {
         )}
       </AnimatePresence>
 
-      {/* 🪟 نافذة نموذج قيد / تعديل بيانات المعلمين الأساسية */}
+      {/* 🪟 نافذة نموذج القيد والتعديل */}
       <AnimatePresence>
         {showForm && (
           <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(2, 11, 7, 0.8)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
@@ -936,7 +921,6 @@ function Teachers() {
               </h3>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                {/* صورة المعلم */}
                 <div style={{ textAlign: 'center', marginBottom: '10px' }}>
                   <div style={{ width: '100px', height: '100px', borderRadius: '50%', border: '2px solid #f472b6', margin: '0 auto 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: 'rgba(0,0,0,0.3)', fontSize: '2.5rem' }}>
                     {formData.photo ? <img src={formData.photo} alt="معاينة" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '👨‍🏫'}
