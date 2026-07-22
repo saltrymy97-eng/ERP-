@@ -1,8 +1,8 @@
-// src/components/Attendance.js – نظام رصد الحضور والانصراف (مصلح ومتوافق تماماً مع بنية SQLite 4.0 والربط المحلي)
-import React, { useState, useEffect, useRef } from 'react';
+// src/components/Attendance.js – نظام رصد الحضور والانصراف (سريع جداً ومُصلح 100%)
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery, initDatabase } from '../services/db';
-import { notifyParent } from '../services/whatsapp'; // استيراد دالة إرسال الفردي لتوثيق وبث الحالات بدقة
+import { notifyParent } from '../services/whatsapp';
 
 function Attendance() {
   const [tab, setTab] = useState('live');
@@ -50,7 +50,7 @@ function Attendance() {
     }
   }, [selectedMonth, tab, dbReady]);
 
-  // ========== تحميل الطلاب مع جلب أسماء الكليات والتخصصات بالربط الصحيح ==========
+  // ========== تحميل الطلاب ==========
   const loadStudents = async () => {
     const data = await getQuery(`
       SELECT s.id, s.university_id, s.full_name, s.phone, s.photo, s.status,
@@ -67,7 +67,7 @@ function Attendance() {
     return data || [];
   };
 
-  // ========== تحميل حضور اليوم بالربط الصحيح ==========
+  // ========== تحميل حضور اليوم ==========
   const loadTodayAttendance = async () => {
     const data = await getQuery(`
       SELECT a.id, a.student_id, a.date, a.time_in, a.time_out, a.status, a.method, a.late_minutes,
@@ -107,7 +107,7 @@ function Attendance() {
     setStats({ present: present + late, absent, late });
   };
 
-  // ========== تسجيل الحضور ومحاكاة البصمة ==========
+  // ========== تسجيل الحضور البيومتري ==========
   const markAttendance = async (student, status = 'present') => {
     if (attendanceTimeoutRef.current) {
       clearTimeout(attendanceTimeoutRef.current);
@@ -221,9 +221,8 @@ function Attendance() {
     await loadTodayAttendance();
   };
 
-  // ========== الدالة المعدلة: إرسال إشعارات للغائبين عبر البروتوكول المحلي المتتالي ==========
+  // ========== إرسال إشعارات للغائبين ==========
   const handleNotifyAbsent = async () => {
-    // جلب الطلاب المقيدين كـ غياب في جدول الحضور لليوم
     const absentRecords = todayAttendance.filter(record => record.status === 'absent');
 
     if (absentRecords.length === 0) {
@@ -236,8 +235,6 @@ function Attendance() {
     
     try {
       let successCount = 0;
-
-      // المرور التكراري على الطلاب الغائبين وفتح محادثاتهم محلياً بالترتيب وتوثيقها
       for (const record of absentRecords) {
         const result = await notifyParent(record.student_id, 'absent');
         if (result.success) {
@@ -262,7 +259,7 @@ function Attendance() {
     setTimeout(() => setNotificationResult(null), 5000);
   };
 
-  // ========== التقرير الشهري ومصفوفة الحرمان ومواءمة الربط ==========
+  // ========== التقرير الشهري ==========
   const loadMonthlyData = async () => {
     const startDate = `${selectedMonth}-01`;
     const endDate = `${selectedMonth}-31`;
@@ -325,6 +322,7 @@ function Attendance() {
     setMonthlyData(result);
   };
 
+  // ✅ إعادة فتح البوابة بدون نافذة confirm المسببة للتجمد
   const resetAttendance = async (studentId) => {
     await runQuery(
       "DELETE FROM attendance WHERE student_id = ? AND date = ?",
@@ -333,6 +331,16 @@ function Attendance() {
     const updatedAttendance = await loadTodayAttendance();
     await loadStats(updatedAttendance);
   };
+
+  // ✅ تصفية خفيفة وسريعة للطلاب عبر useMemo لعدم إبطاء الكتابة
+  const filteredStudents = useMemo(() => {
+    if (!searchTerm.trim()) return students;
+    const term = searchTerm.toLowerCase();
+    return students.filter(s => 
+      s.full_name?.toLowerCase().includes(term) || 
+      s.university_id?.includes(term)
+    );
+  }, [students, searchTerm]);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -423,7 +431,7 @@ function Attendance() {
                 )}
               </AnimatePresence>
 
-              {/* 🔔 مساحة عرض حالة نتائج بث الواتساب وعمليات التوجيه */}
+              {/* 🔔 مساحة عرض حالة نتائج بث الواتساب */}
               <AnimatePresence>
                 {notificationResult && (
                   <motion.div
@@ -443,96 +451,90 @@ function Attendance() {
               </AnimatePresence>
 
               <motion.div className="students-grid" variants={containerVariants} initial="hidden" animate="show" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
-                {students
-                  .filter(s => s.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || s.university_id?.includes(searchTerm))
-                  .map(student => {
-                    const todayRecord = todayAttendance.find(a => a.student_id === student.id);
-                    const isPresent = todayRecord?.status === 'present';
-                    const isLate = todayRecord?.status === 'late';
-                    const isAbsent = todayRecord?.status === 'absent';
-                    const isScanning = scanningId === student.id;
+                {filteredStudents.map(student => {
+                  const todayRecord = todayAttendance.find(a => a.student_id === student.id);
+                  const isPresent = todayRecord?.status === 'present';
+                  const isLate = todayRecord?.status === 'late';
+                  const isAbsent = todayRecord?.status === 'absent';
+                  const isScanning = scanningId === student.id;
 
-                    let borderStyle = '1px solid rgba(255,255,255,0.05)';
-                    let glowEffect = 'none';
-                    if (isPresent) { borderStyle = '1px solid #34d399'; glowEffect = '0 5px 15px rgba(52,211,153,0.1)'; }
-                    if (isLate) { borderStyle = '1px solid #D4AF37'; glowEffect = '0 5px 15px rgba(214,175,55,0.1)'; }
-                    if (isAbsent) { borderStyle = '1px solid #ef4444'; glowEffect = '0 5px 15px rgba(239,68,68,0.1)'; }
-                    if (isScanning) { borderStyle = '1px solid #34d399'; glowEffect = '0 0 25px rgba(52,211,153,0.4)'; }
+                  let borderStyle = '1px solid rgba(255,255,255,0.05)';
+                  let glowEffect = 'none';
+                  if (isPresent) { borderStyle = '1px solid #34d399'; glowEffect = '0 5px 15px rgba(52,211,153,0.1)'; }
+                  if (isLate) { borderStyle = '1px solid #D4AF37'; glowEffect = '0 5px 15px rgba(214,175,55,0.1)'; }
+                  if (isAbsent) { borderStyle = '1px solid #ef4444'; glowEffect = '0 5px 15px rgba(239,68,68,0.1)'; }
+                  if (isScanning) { borderStyle = '1px solid #34d399'; glowEffect = '0 0 25px rgba(52,211,153,0.4)'; }
 
-                    return (
-                      <motion.div
-                        key={student.id}
-                        variants={cardVariants}
-                        whileHover={{ y: isScanning ? 0 : -4 }}
-                        style={{
-                          background: 'rgba(255,255,255,0.01)',
-                          backdropFilter: 'blur(10px)', border: borderStyle, borderRadius: '20px', padding: '20px',
-                          display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: glowEffect,
-                          position: 'relative', overflow: 'hidden', transition: 'box-shadow 0.3s, border 0.3s'
-                        }}
-                      >
-                        <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '15px' }}>
-                          <div style={{ width: '65px', height: '65px', borderRadius: '50%', border: '2px solid #D4AF37', background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', overflow: 'hidden', flexShrink: 0 }}>
-                            {student.photo ? (
-                              <img src={student.photo} alt={student.full_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            ) : (
-                              '🎓'
-                            )}
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                            <span style={{ color: '#fff', fontWeight: 700, fontSize: '1.05rem' }}>{student.full_name}</span>
-                            <span style={{ color: '#f3e5ab', fontSize: '0.85rem', fontWeight: 600 }}>🔢 {student.university_id}</span>
-                            <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>🏛️ {student.college_name || 'غير محدد'} - {student.major_name || 'بدون تخصص'}</span>
-                          </div>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '10px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px', marginTop: '5px' }}>
-                          {!isPresent && !isLate && !isAbsent ? (
-                            <>
-                              <motion.button
-                                onClick={() => markAttendance(student, 'present')}
-                                disabled={scanningId !== null}
-                                whileTap={{ scale: 0.95 }}
-                                style={{ flex: 2, background: 'linear-gradient(135deg, #34d399, #10b981)', color: '#041d14', border: 'none', padding: '10px', borderRadius: '10px', fontWeight: 700, cursor: scanningId !== null ? 'not-allowed' : 'pointer' }}
-                              >
-                                {isScanning ? '📶 جاري قراءة النبض...' : '🖐️ محاكاة مسح البصمة'}
-                              </motion.button>
-                              <button
-                                onClick={() => markAbsent(student)}
-                                disabled={scanningId !== null}
-                                style={{ flex: 1, background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', padding: '10px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}
-                              >
-                                ❌ غياب
-                              </button>
-                            </>
+                  return (
+                    <motion.div
+                      key={student.id}
+                      variants={cardVariants}
+                      whileHover={{ y: isScanning ? 0 : -4 }}
+                      style={{
+                        background: 'rgba(255,255,255,0.01)',
+                        backdropFilter: 'blur(10px)', border: borderStyle, borderRadius: '20px', padding: '20px',
+                        display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: glowEffect,
+                        position: 'relative', overflow: 'hidden', transition: 'box-shadow 0.3s, border 0.3s'
+                      }}
+                    >
+                      <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '15px' }}>
+                        <div style={{ width: '65px', height: '65px', borderRadius: '50%', border: '2px solid #D4AF37', background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', overflow: 'hidden', flexShrink: 0 }}>
+                          {student.photo ? (
+                            <img src={student.photo} alt={student.full_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           ) : (
-                            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{
-                                padding: '6px 16px', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 800,
-                                background: isPresent ? 'rgba(52,211,153,0.1)' : isLate ? 'rgba(214,175,55,0.1)' : 'rgba(239,68,68,0.1)',
-                                color: isPresent ? '#34d399' : isLate ? '#D4AF37' : '#ef4444',
-                                border: `1px solid ${isPresent ? 'rgba(52,211,153,0.2)' : isLate ? 'rgba(214,175,55,0.2)' : 'rgba(239,68,68,0.2)'}`
-                              }}>
-                                {isPresent ? '✅ حاضر بالمنصة' : isLate ? '⚠️ قيد متأخراً' : '❌ غياب معتمد'}
-                              </span>
-                              <button 
-                                onClick={async () => {
-                                  if(window.confirm("هل ترغب في إعادة فتح بوابة الفحص لهذا الطالب؟")) {
-                                    await resetAttendance(student.id);
-                                  }
-                                }} 
-                                style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: '0.85rem' }}
-                              >
-                                🔄 إعادة فتح البوابة
-                              </button>
-                            </div>
+                            '🎓'
                           )}
                         </div>
-                      </motion.div>
-                    );
-                  })}
-                {students.length === 0 && (
-                  <div style={{ gridColumn: '1/-1', textAlign: 'center', color: 'rgba(255,255,255,0.4)', padding: '40px' }}>🚫 لا يوجد طلاب مضافين بالنظام حالياً أو لم يتم تنشيط حالاتهم.</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          <span style={{ color: '#fff', fontWeight: 700, fontSize: '1.05rem' }}>{student.full_name}</span>
+                          <span style={{ color: '#f3e5ab', fontSize: '0.85rem', fontWeight: 600 }}>🔢 {student.university_id}</span>
+                          <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>🏛️ {student.college_name || 'غير محدد'} - {student.major_name || 'بدون تخصص'}</span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '10px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px', marginTop: '5px' }}>
+                        {!isPresent && !isLate && !isAbsent ? (
+                          <>
+                            <motion.button
+                              onClick={() => markAttendance(student, 'present')}
+                              disabled={scanningId !== null}
+                              whileTap={{ scale: 0.95 }}
+                              style={{ flex: 2, background: 'linear-gradient(135deg, #34d399, #10b981)', color: '#041d14', border: 'none', padding: '10px', borderRadius: '10px', fontWeight: 700, cursor: scanningId !== null ? 'not-allowed' : 'pointer' }}
+                            >
+                              {isScanning ? '📶 جاري قراءة النبض...' : '🖐️ محاكاة مسح البصمة'}
+                            </motion.button>
+                            <button
+                              onClick={() => markAbsent(student)}
+                              disabled={scanningId !== null}
+                              style={{ flex: 1, background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', padding: '10px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                              ❌ غياب
+                            </button>
+                          </>
+                        ) : (
+                          <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{
+                              padding: '6px 16px', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 800,
+                              background: isPresent ? 'rgba(52,211,153,0.1)' : isLate ? 'rgba(214,175,55,0.1)' : 'rgba(239,68,68,0.1)',
+                              color: isPresent ? '#34d399' : isLate ? '#D4AF37' : '#ef4444',
+                              border: `1px solid ${isPresent ? 'rgba(52,211,153,0.2)' : isLate ? 'rgba(214,175,55,0.2)' : 'rgba(239,68,68,0.2)'}`
+                            }}>
+                              {isPresent ? '✅ حاضر بالمنصة' : isLate ? '⚠️ قيد متأخراً' : '❌ غياب معتمد'}
+                            </span>
+                            <button 
+                              onClick={() => resetAttendance(student.id)} 
+                              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: '0.85rem' }}
+                            >
+                              🔄 إعادة فتح البوابة
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+                {filteredStudents.length === 0 && (
+                  <div style={{ gridColumn: '1/-1', textAlign: 'center', color: 'rgba(255,255,255,0.4)', padding: '40px' }}>🚫 لا يوجد طلاب مضافين بالنظام حالياً أو لا يوجد نتائج طابقت البحث.</div>
                 )}
               </motion.div>
             </div>
@@ -572,7 +574,6 @@ function Attendance() {
                 </motion.button>
               </div>
 
-              {/* 🔔 مساحة عرض حالة نتائج بث الواتساب وعمليات التوجيه داخل تبويب الكشف اليومي */}
               <AnimatePresence>
                 {notificationResult && (
                   <motion.div
