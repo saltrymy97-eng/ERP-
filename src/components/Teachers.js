@@ -29,6 +29,8 @@ function Teachers() {
 
   const photoInputRef = useRef(null);
   const attendanceTimeoutRef = useRef(null);
+  
+  // توحيد صيغة التاريخ ISO YYYY-MM-DD
   const today = new Date().toISOString().slice(0, 10);
 
   const initialFormState = {
@@ -36,6 +38,18 @@ function Teachers() {
     speciality: '', department_id: '', college_id: '', qualifications: '', photo: ''
   };
   const [formData, setFormData] = useState(initialFormState);
+
+  // إغلاق النوافذ عبر زر Escape
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShowForm(false);
+        setShowLessonModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // ========== تهيئة قاعدة البيانات ==========
   useEffect(() => {
@@ -84,7 +98,7 @@ function Teachers() {
     }
   }, [selectedMonth, tab, dbReady]);
 
-  // ========== تحميل البيانات ==========
+  // ========== تحميل البيانات وتحديثها تلقائياً ==========
   const loadColleges = useCallback(async () => {
     const data = await getQuery("SELECT * FROM colleges WHERE status = 'active' ORDER BY name");
     setColleges(data || []);
@@ -163,14 +177,15 @@ function Teachers() {
     setShowLessonModal(true);
   };
 
+  // إرسال الحضور بدون alerts نافذة لتجنب تعليق Electron
   const submitAttendance = async () => {
-    if (!lessonForm.lesson_title.trim()) {
-      return alert("❌ يرجى توثيق عنوان المحاضرة أو الدرس الحالي للأستاذ سعيد");
-    }
+    if (!lessonForm.lesson_title.trim()) return;
 
     const teacher = selectedTeacherForAttendance;
     setShowLessonModal(false);
     setScanningId(teacher.id);
+
+    if (attendanceTimeoutRef.current) clearTimeout(attendanceTimeoutRef.current);
 
     attendanceTimeoutRef.current = setTimeout(async () => {
       const now = new Date();
@@ -205,12 +220,12 @@ function Teachers() {
       setScanningId(null);
       attendanceTimeoutRef.current = null;
 
+      // التحديث التلقائي للبيانات والواجهة
       const updatedAtt = await loadTodayAttendance();
       await calculateStats(null, updatedAtt);
-    }, 1000);
+    }, 800);
   };
 
-  // تسجيل الغياب السريع بدون قفل النافذة
   const markAbsent = async (teacher) => {
     const exists = await getQuery(
       "SELECT id FROM teacher_attendance WHERE teacher_id = ? AND date = ?",
@@ -237,15 +252,9 @@ function Teachers() {
       color: '#ef4444'
     });
 
+    // التحديث التلقائي
     const updatedAtt = await loadTodayAttendance();
-    const present = updatedAtt.filter(a => a.status === 'present' || a.status === 'late').length;
-    const absent = updatedAtt.filter(a => a.status === 'absent').length;
-
-    setStats(prev => ({
-      ...prev,
-      presentToday: present,
-      absentToday: absent
-    }));
+    await calculateStats(null, updatedAtt);
   };
 
   const markExit = async (attRecord) => {
@@ -257,16 +266,18 @@ function Teachers() {
       "UPDATE teacher_attendance SET time_out = ?, total_hours = ? WHERE id = ?",
       [timeNow, hours, attRecord.id]
     );
-
-    alert(`🚪 تم إثبات انصراف الأستاذ بنجاح.\n⏱️ زمن الدخول: ${attRecord.time_in}\n🚪 زمن الانصراف: ${timeNow}\n📊 إجمالي الساعات المستحقة: ${hours} ساعة.`);
     
+    // تحديث الواجهة مباشرة بدون window.alert
     const updatedAtt = await loadTodayAttendance();
     await calculateStats(null, updatedAtt);
   };
 
   const loadMonthlyReports = async () => {
+    const [year, month] = selectedMonth.split('-').map(Number);
+    const lastDayOfMonth = new Date(year, month, 0).getDate();
+    
     const startDate = `${selectedMonth}-01`;
-    const endDate = `${selectedMonth}-31`;
+    const endDate = `${selectedMonth}-${String(lastDayOfMonth).padStart(2, '0')}`;
 
     const data = await getQuery(`
       SELECT ta.*, t.full_name, t.teacher_id as doc_id, t.speciality,
@@ -316,7 +327,6 @@ function Teachers() {
     setMonthlyReports(Object.values(teacherMap));
   };
 
-  // إزالة window.confirm لمنع أي قفل
   const resetAttendance = async (teacherId) => {
     await runQuery(
       "DELETE FROM teacher_attendance WHERE teacher_id = ? AND date = ?",
@@ -331,21 +341,19 @@ function Teachers() {
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 500000) return alert("❌ حجم الصورة كبير جداً. الحد الأقصى 500 كيلوبايت");
+    if (file.size > 500000) return;
     const reader = new FileReader();
     reader.onload = (event) => setFormData({ ...formData, photo: event.target.result });
     reader.readAsDataURL(file);
   };
 
   const handleCollegeChange = async (collegeId) => {
-    setFormData({ ...formData, college_id: collegeId, department_id: '' });
+    setFormData(prev => ({ ...prev, college_id: collegeId, department_id: '' }));
     if (collegeId) await loadDepartments(collegeId);
   };
 
   const handleSave = async () => {
-    if (!formData.full_name.trim() || !formData.teacher_id.trim()) {
-      return alert("❌ يرجى إدخال اسم المعلم والرقم الوظيفي");
-    }
+    if (!formData.full_name.trim() || !formData.teacher_id.trim()) return;
 
     if (editId) {
       await runQuery(
@@ -363,12 +371,11 @@ function Teachers() {
     await calculateStats(updatedTeachers, null);
   };
 
+  // حذف أرشفة بدون window.confirm لمجاراة إلكترون
   const handleDelete = async (id) => {
-    if (window.confirm("👨‍🏫 هل أنت متأكد من أرشفة سجل هذا المعلم؟")) {
-      await runQuery("UPDATE teachers SET status = 'inactive' WHERE id = ?", [id]);
-      const updatedTeachers = await loadTeachers();
-      await calculateStats(updatedTeachers, null);
-    }
+    await runQuery("UPDATE teachers SET status = 'inactive' WHERE id = ?", [id]);
+    const updatedTeachers = await loadTeachers();
+    await calculateStats(updatedTeachers, null);
   };
 
   const handleEdit = (teacher) => {
@@ -426,7 +433,6 @@ function Teachers() {
       </body></html>`);
   };
 
-  // ✅ استخدام useMemo لمنع إعادة فلترة المدرسين دون الحاجة وحل مشكلة بطء البحث
   const filteredTeachers = useMemo(() => {
     if (!searchTerm.trim()) return teachers;
     const term = searchTerm.toLowerCase();
@@ -597,11 +603,11 @@ function Teachers() {
               <div className="live-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '25px' }}>
                 <div>
                   <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.7rem', color: '#f472b6', margin: 0 }}>🖐️ بوابة رصد البصمة البيومترية للأكاديميين</h3>
-                  <p style={{ color: 'rgba(255,255,255,0.5)', margin: '5px 0 0 0', fontSize: '0.88rem' }}>انقر فوق كرت الأستاذ لتفعيل محاكاة مسح البصمة لتوثيق تفاصيل الدرس المنجز</p>
+                  <p style={{ color: 'rgba(255,255,255,0.5)', margin: '5px 0 0 0', fontSize: '0.88rem' }}>انقر فوق كرت الأستاذ لتفعيل مسح البصمة وتسجيل أداء المحاضرة</p>
                 </div>
                 <input
                   type="text"
-                  placeholder="🔍 ابحث بالاسم أو الرقم الوظيفي للمطابقة..."
+                  placeholder="🔍 ابحث بالاسم أو الرقم الوظيفي..."
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
                   style={{ width: '100%', maxWidth: '360px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', padding: '12px 18px', borderRadius: '14px', color: '#fff' }}
@@ -625,7 +631,7 @@ function Teachers() {
                     <div style={{ flex: 1 }}>
                       <h4 style={{ margin: 0, fontSize: '1.1rem', color: '#fff' }}>{attendanceStatus.teacher}</h4>
                       <p style={{ margin: '3px 0 0 0', fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>
-                        سجل التوقيع: <strong style={{ color: '#f472b6' }}>{attendanceStatus.time}</strong> | النتيجة الأكاديمية: <span style={{ color: attendanceStatus.color, fontWeight: 'bold' }}>{attendanceStatus.status}</span>
+                        سجل التوقيع: <strong style={{ color: '#f472b6' }}>{attendanceStatus.time}</strong> | النتيجة: <span style={{ color: attendanceStatus.color, fontWeight: 'bold' }}>{attendanceStatus.status}</span>
                       </p>
                     </div>
                     <button onClick={() => setAttendanceStatus(null)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.2rem', opacity: 0.5 }}>✕</button>
@@ -633,7 +639,7 @@ function Teachers() {
                 )}
               </AnimatePresence>
 
-              {/* كروت حضور الأكاديميين المباشر */}
+              {/* كروت الحضور المباشر */}
               <motion.div className="students-grid" variants={containerVariants} initial="hidden" animate="show" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
                 {filteredTeachers.map(teacher => {
                   const todayRecord = todayAttendance.find(a => a.teacher_id === teacher.id);
@@ -690,7 +696,7 @@ function Teachers() {
                               whileTap={{ scale: 0.95 }}
                               style={{ flex: 2, background: 'linear-gradient(135deg, #f472b6, #ec4899)', color: '#041d14', border: 'none', padding: '10px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}
                             >
-                              {isScanning ? '📶 جاري قراءة النبض الأكاديمي...' : '🖐️ مسح البصمة والتحضير'}
+                              {isScanning ? '📶 جاري تسجيل البصمة...' : '🖐️ مسح البصمة والتحضير'}
                             </motion.button>
                             <button
                               onClick={() => markAbsent(teacher)}
@@ -804,7 +810,7 @@ function Teachers() {
               <div className="monthly-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
                 <div>
                   <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: '#f472b6', margin: 0 }}>📊 تقرير كشوفات الأداء والساعات التراكمية لشهر ({selectedMonth})</h3>
-                  <p style={{ color: 'rgba(255,255,255,0.4)', margin: '5px 0 0 0', fontSize: '0.88rem' }}>محسوب بدقة للأستاذ سعيد لمراقبة كشوفات الحضور ومستحقات المحاضرين المالية والأكاديمية</p>
+                  <p style={{ color: 'rgba(255,255,255,0.4)', margin: '5px 0 0 0', fontSize: '0.88rem' }}>متابعة كشوفات الحضور ومستحقات المحاضرين المالية والأكاديمية</p>
                 </div>
                 <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
                   style={{ background: '#041d14', border: '1px solid #f472b6', padding: '10px 15px', borderRadius: '12px', color: '#fff', fontWeight: 700, outline: 'none' }} />
@@ -865,10 +871,10 @@ function Teachers() {
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
               style={{ background: 'linear-gradient(135deg, #052218, #0a3a29)', border: '2px solid #f472b6', padding: '25px', borderRadius: '24px', width: '100%', maxWidth: '480px', boxShadow: '0 20px 50px rgba(0,0,0,0.7)' }}>
               <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.4rem', color: '#f472b6', margin: '0 0 15px 0', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>
-                📖 توثيق الدرس للمحاضر (للأستاذ سعيد)
+                📖 توثيق الدرس للمحاضر
               </h3>
               <p style={{ fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '15px' }}>
-                يرجى تسجيل المحتوى العلمي المعطى اليوم لحفظ نسبة إنجاز مقرر الأستاذ/ة: <strong style={{ color: '#fff' }}>{selectedTeacherForAttendance?.full_name}</strong>
+                تسجيل المحتوى العلمي المعطى اليوم لـ: <strong style={{ color: '#fff' }}>{selectedTeacherForAttendance?.full_name}</strong>
               </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
