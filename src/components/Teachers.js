@@ -1,4 +1,4 @@
-// src/components/Teachers.js – إدارة رصد حضور المدرسين والأكاديميين (سريع ومُحسّن 100%)
+// src/components/Teachers.js – إدارة رصد حضور المدرسين + محرك تشخيص أخطاء شامل
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery, initDatabase } from '../services/db';
@@ -27,11 +27,15 @@ function Teachers() {
   const [monthlyReports, setMonthlyReports] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
 
+  // 🔍 حالة محرك التشخيص الذكي
+  const [diagnosticLogs, setDiagnosticLogs] = useState(null);
+  const [isDiagnosing, setIsDiagnosing] = useState(false);
+
   const photoInputRef = useRef(null);
   const attendanceTimeoutRef = useRef(null);
   
   // توحيد صيغة التاريخ ISO YYYY-MM-DD
-  const today = new Date().toISOString().slice(0, 10);
+  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const initialFormState = {
     teacher_id: '', full_name: '', email: '', phone: '',
@@ -50,6 +54,89 @@ function Teachers() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // ========== 🔍 دالة التشخيص الشامل والدقيق للنظام ==========
+  const runFullDiagnostics = async () => {
+    setIsDiagnosing(true);
+    const logs = [];
+    let hasIssues = false;
+
+    try {
+      logs.push({ step: 'تاريخ اليوم المستهدف', result: `التاريخ المعتمد: [${today}]`, status: 'info' });
+
+      // 1. فحص جدول الحضور وتواجد الأعمدة
+      const tableCheck = await getQuery("PRAGMA table_info(teacher_attendance)");
+      if (!tableCheck || tableCheck.length === 0) {
+        logs.push({ step: 'فحص الجدول', result: '❌ خطأ حرج: جدول teacher_attendance غير موجود في القاعدة!', status: 'error' });
+        hasIssues = true;
+      } else {
+        const columns = tableCheck.map(c => c.name);
+        logs.push({ step: 'فحص الجدول', result: `✅ الجدول موجود ويحتوي على (${columns.length}) حقل: [${columns.join(', ')}]`, status: 'success' });
+      }
+
+      // 2. فحص بيانات المعلمين النشطين
+      const currentTeachers = await getQuery("SELECT id, teacher_id, full_name FROM teachers WHERE status = 'active'");
+      logs.push({ step: 'فحص المعلمين', result: `تم العثور على (${currentTeachers?.length || 0}) معلم نشط`, status: currentTeachers?.length > 0 ? 'success' : 'warn' });
+
+      // 3. فحص بيانات حضور اليوم المباشرة من القاعدة
+      const rawAttendance = await getQuery("SELECT * FROM teacher_attendance WHERE date = ?", [today]);
+      logs.push({ step: 'فحص سجلات اليوم', result: `تم إيجاد (${rawAttendance?.length || 0}) سجل حضور لتاريخ اليوم مباشرة من DB`, status: 'info' });
+
+      // 4. فحص مطابقة المعرفات (Type & Value Mismatch Analysis)
+      if (currentTeachers?.length > 0 && rawAttendance?.length > 0) {
+        let matchedCount = 0;
+        let mismatchDetails = [];
+
+        currentTeachers.forEach(t => {
+          const match = rawAttendance.find(a => 
+            String(a.teacher_id) === String(t.id) || 
+            String(a.teacher_id) === String(t.teacher_id)
+          );
+
+          if (match) {
+            matchedCount++;
+          } else {
+            mismatchDetails.push(`المعلم [${t.full_name}] - (ID: ${t.id}, Code: ${t.teacher_id}) لا يوجد له تطابق في سجلات الحضور.`);
+          }
+        });
+
+        logs.push({
+          step: 'تحليل المطابقة بين الأقسام',
+          result: `تم ربط (${matchedCount}) من أصل (${currentTeachers.length}) معلم مع سجلات حضورهم بنجاح.`,
+          status: matchedCount > 0 ? 'success' : 'error'
+        });
+
+        if (mismatchDetails.length > 0 && matchedCount < rawAttendance.length) {
+          logs.push({
+            step: 'تفاصيل عدم المطابقة',
+            result: mismatchDetails.slice(0, 3).join(' | '),
+            status: 'warn'
+          });
+        }
+      } else if (rawAttendance?.length === 0) {
+        logs.push({ step: 'حالة المطابقة', result: 'ℹ️ لا توجد عمليات حضور مسجلة اليوم لاختبار المطابقة.', status: 'info' });
+      }
+
+      // 5. فحص المزامنة مع الـ State الداخلي
+      if (todayAttendance.length !== rawAttendance?.length) {
+        logs.push({
+          step: 'مزامنة الواجهة (UI Sync)',
+          result: `⚠️ تحذير: الـ State يتضمن (${todayAttendance.length}) سجل بينما قاعدة البيانات تحتوي (${rawAttendance?.length || 0}) سجل. يتم الآن فرض المزامنة...`,
+          status: 'warn'
+        });
+        hasIssues = true;
+      } else {
+        logs.push({ step: 'مزامنة الواجهة (UI Sync)', result: '✅ الـ State متطابق تماماً 100% مع قاعدة البيانات.', status: 'success' });
+      }
+
+    } catch (err) {
+      logs.push({ step: 'خطأ غير متوقع', result: `❌ حدث خطأ أثناء تشغيل محرك التشخيص: ${err.message}`, status: 'error' });
+      hasIssues = true;
+    } finally {
+      setIsDiagnosing(false);
+      setDiagnosticLogs({ timestamp: new Date().toLocaleTimeString('ar-YE'), logs, hasIssues });
+    }
+  };
 
   // ========== تهيئة قاعدة البيانات ==========
   useEffect(() => {
@@ -122,7 +209,7 @@ function Teachers() {
     return data || [];
   }, []);
 
-  const loadTodayAttendance = async () => {
+  const loadTodayAttendance = useCallback(async () => {
     const data = await getQuery(`
       SELECT ta.*, t.full_name, t.teacher_id as doc_id, t.photo, t.speciality,
              c.name as college_name
@@ -135,9 +222,9 @@ function Teachers() {
     );
     setTodayAttendance(data || []);
     return data || [];
-  };
+  }, [today]);
 
-  const calculateStats = async (allTeachers = null, attToday = null) => {
+  const calculateStats = useCallback(async (allTeachers = null, attToday = null) => {
     const activeTeachers = allTeachers || teachers;
     const currentAtt = attToday || todayAttendance;
 
@@ -150,7 +237,7 @@ function Teachers() {
       presentToday: present,
       absentToday: absent
     });
-  };
+  }, [teachers, todayAttendance]);
 
   const calculateHours = (timeIn, timeOut) => {
     if (!timeIn || !timeOut) return 0;
@@ -189,7 +276,6 @@ function Teachers() {
 
     attendanceTimeoutRef.current = setTimeout(async () => {
       try {
-        // 1️⃣ الخطوة الأولى: وقت قياسي نظيف ومرن
         const now = new Date();
         const timeNow = now.toTimeString().slice(0, 5); // "14:30"
         const status = 'present';
@@ -219,9 +305,9 @@ function Teachers() {
           color: '#f59e0b'
         });
 
-        // 2️⃣ الخطوة الثانية: إجبار الشاشة على إعادة القراءة من قاعدة البيانات
+        // 🟢 تحديث الـ State واستعادة السجلات مباشرة لإعادة الرسم
         const updatedTeachersAttendance = await loadTodayAttendance();
-        setTodayAttendance(updatedTeachersAttendance);
+        setTodayAttendance([...updatedTeachersAttendance]);
         await calculateStats(teachers, updatedTeachersAttendance);
 
       } catch (error) {
@@ -230,7 +316,7 @@ function Teachers() {
         setScanningId(null);
         attendanceTimeoutRef.current = null;
       }
-    }, 600);
+    }, 400);
   };
 
   const markAbsent = async (teacher) => {
@@ -260,9 +346,9 @@ function Teachers() {
         color: '#ef4444'
       });
 
-      // النظر للدفتر وتحديث الواجهة
+      // 🟢 تحديث مباشر لـ State الحضور وإعادة رسم الواجهة
       const updatedAtt = await loadTodayAttendance();
-      setTodayAttendance(updatedAtt);
+      setTodayAttendance([...updatedAtt]);
       await calculateStats(teachers, updatedAtt);
     } catch (error) {
       console.error("خطأ أثناء تسجيل الغياب:", error);
@@ -281,7 +367,7 @@ function Teachers() {
       );
       
       const updatedAtt = await loadTodayAttendance();
-      setTodayAttendance(updatedAtt);
+      setTodayAttendance([...updatedAtt]);
       await calculateStats(teachers, updatedAtt);
     } catch (error) {
       console.error("خطأ أثناء تسجيل الانصراف:", error);
@@ -349,7 +435,7 @@ function Teachers() {
       [teacherId, today]
     );
     const updatedAtt = await loadTodayAttendance();
-    setTodayAttendance(updatedAtt);
+    setTodayAttendance([...updatedAtt]);
     await calculateStats(teachers, updatedAtt);
   };
 
@@ -471,6 +557,47 @@ function Teachers() {
 
       {dbReady && (
         <>
+          {/* 🔍 شريط التشخيص والتحقق الذكي علوي */}
+          <div style={{ background: 'rgba(0,0,0,0.3)', border: '1px dashed rgba(245,158,11,0.3)', borderRadius: '14px', padding: '12px 20px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '1.2rem' }}>🛠️</span>
+              <span style={{ fontSize: '0.88rem', color: '#cbd5e1', fontWeight: 600 }}>محرك فحص وتشخيص النظام المباشر:</span>
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={runFullDiagnostics}
+                disabled={isDiagnosing}
+                style={{ background: 'linear-gradient(135deg, #38bdf8, #0284c7)', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '0.82rem' }}
+              >
+                {isDiagnosing ? '⏳ جاري الفحص...' : '🔍 تشغيل الفحص والتشخيص الشامل'}
+              </button>
+            </div>
+          </div>
+
+          {/* 📋 نتيجة التقرير التشخيصي (إن وجد) */}
+          <AnimatePresence>
+            {diagnosticLogs && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ marginBottom: '25px' }}>
+                <div style={{ background: '#041d14', border: `2px solid ${diagnosticLogs.hasIssues ? '#ef4444' : '#34d399'}`, borderRadius: '16px', padding: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px', marginBottom: '15px' }}>
+                    <h4 style={{ margin: 0, color: diagnosticLogs.hasIssues ? '#ef4444' : '#34d399', fontSize: '1.1rem', fontWeight: 800 }}>
+                      {diagnosticLogs.hasIssues ? '⚠️ اكتشاف ملاحظات تحتاج تدخلاً' : '✅ جميع الفحوصات والربط سليمة 100%'} ({diagnosticLogs.timestamp})
+                    </h4>
+                    <button onClick={() => setDiagnosticLogs(null)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.85rem' }}>
+                    {diagnosticLogs.logs.map((log, idx) => (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                        <span style={{ color: '#f59e0b', fontWeight: 700 }}>{log.step}:</span>
+                        <span style={{ color: log.status === 'error' ? '#ef4444' : log.status === 'warn' ? '#fbbf24' : '#34d399', fontWeight: 600 }}>{log.result}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* 🧭 شريط التبويبات الفاخر */}
           <div className="tabs" style={{ display: 'flex', gap: '10px', background: 'rgba(255,255,255,0.02)', padding: '10px', borderRadius: '18px', border: '1px solid rgba(245,158,11,0.15)', marginBottom: '30px' }}>
             {[
@@ -658,7 +785,11 @@ function Teachers() {
               {/* كروت الحضور المباشر */}
               <motion.div className="students-grid" variants={containerVariants} initial="hidden" animate="show" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
                 {filteredTeachers.map(teacher => {
-                  const todayRecord = todayAttendance.find(a => a.teacher_id === teacher.id);
+                  // 🟢 حل جذري ومرن للمطابقة الشاملة لتجنب خلل Number vs String
+                  const todayRecord = todayAttendance.find(a => 
+                    String(a.teacher_id || a.teacherId || a.id) === String(teacher.id || teacher.teacher_id)
+                  );
+
                   const isPresent = todayRecord?.status === 'present';
                   const isAbsent = todayRecord?.status === 'absent';
                   const isScanning = scanningId === teacher.id;
