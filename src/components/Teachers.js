@@ -177,7 +177,7 @@ function Teachers() {
     setShowLessonModal(true);
   };
 
-  // إرسال الحضور بدون alerts نافذة لتجنب تعليق Electron
+  // إرسال الحضور وتحديث الدفتر والشاشة فوراً
   const submitAttendance = async () => {
     if (!lessonForm.lesson_title.trim()) return;
 
@@ -188,10 +188,53 @@ function Teachers() {
     if (attendanceTimeoutRef.current) clearTimeout(attendanceTimeoutRef.current);
 
     attendanceTimeoutRef.current = setTimeout(async () => {
-      const now = new Date();
-      const timeNow = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false });
-      const status = 'present';
+      try {
+        // 1️⃣ الخطوة الأولى: وقت قياسي نظيف ومرن
+        const now = new Date();
+        const timeNow = now.toTimeString().slice(0, 5); // "14:30"
+        const status = 'present';
 
+        const exists = await getQuery(
+          "SELECT id FROM teacher_attendance WHERE teacher_id = ? AND date = ?",
+          [teacher.id, today]
+        );
+
+        if (exists && exists.length > 0) {
+          await runQuery(
+            "UPDATE teacher_attendance SET status = ?, time_in = ?, lesson_title = ?, completion_rate = ? WHERE teacher_id = ? AND date = ?",
+            [status, timeNow, lessonForm.lesson_title, lessonForm.completion_rate, teacher.id, today]
+          );
+        } else {
+          await runQuery(
+            "INSERT INTO teacher_attendance (teacher_id, date, time_in, status, lesson_title, completion_rate, method) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [teacher.id, today, timeNow, status, lessonForm.lesson_title, lessonForm.completion_rate, 'biometric']
+          );
+        }
+
+        setAttendanceStatus({
+          teacher: teacher.full_name,
+          time: timeNow,
+          status: `حضور معتمد مع الدرس: [${lessonForm.lesson_title}] بنسبة إنجاز ${lessonForm.completion_rate}%`,
+          icon: '⚡',
+          color: '#f59e0b'
+        });
+
+        // 2️⃣ الخطوة الثانية: إجبار الشاشة على إعادة القراءة من قاعدة البيانات
+        const updatedTeachersAttendance = await loadTodayAttendance();
+        setTodayAttendance(updatedTeachersAttendance);
+        await calculateStats(teachers, updatedTeachersAttendance);
+
+      } catch (error) {
+        console.error("خطأ أثناء تحضير المعلم:", error);
+      } finally {
+        setScanningId(null);
+        attendanceTimeoutRef.current = null;
+      }
+    }, 600);
+  };
+
+  const markAbsent = async (teacher) => {
+    try {
       const exists = await getQuery(
         "SELECT id FROM teacher_attendance WHERE teacher_id = ? AND date = ?",
         [teacher.id, today]
@@ -199,77 +242,50 @@ function Teachers() {
 
       if (exists && exists.length > 0) {
         await runQuery(
-          "UPDATE teacher_attendance SET status = ?, time_in = ?, lesson_title = ?, completion_rate = ? WHERE teacher_id = ? AND date = ?",
-          [status, timeNow, lessonForm.lesson_title, lessonForm.completion_rate, teacher.id, today]
+          "UPDATE teacher_attendance SET status = 'absent', time_in = NULL, time_out = NULL, total_hours = 0 WHERE teacher_id = ? AND date = ?",
+          [teacher.id, today]
         );
       } else {
         await runQuery(
-          "INSERT INTO teacher_attendance (teacher_id, date, time_in, status, lesson_title, completion_rate, method) VALUES (?, ?, ?, ?, ?, ?, ?)",
-          [teacher.id, today, timeNow, status, lessonForm.lesson_title, lessonForm.completion_rate, 'biometric']
+          "INSERT INTO teacher_attendance (teacher_id, date, status, method, total_hours) VALUES (?, ?, 'absent', 'manual', 0)",
+          [teacher.id, today]
         );
       }
 
       setAttendanceStatus({
         teacher: teacher.full_name,
-        time: timeNow,
-        status: `حضور معتمد مع الدرس: [${lessonForm.lesson_title}] بنسبة إنجاز ${lessonForm.completion_rate}%`,
-        icon: '⚡',
-        color: '#f472b6'
+        time: '—',
+        status: 'تم تقييد غياب رسمي للمحاضر بنجاح ⚡',
+        icon: '❌',
+        color: '#ef4444'
       });
 
-      setScanningId(null);
-      attendanceTimeoutRef.current = null;
-
-      // التحديث التلقائي للبيانات والواجهة
+      // النظر للدفتر وتحديث الواجهة
       const updatedAtt = await loadTodayAttendance();
-      await calculateStats(null, updatedAtt);
-    }, 800);
-  };
-
-  const markAbsent = async (teacher) => {
-    const exists = await getQuery(
-      "SELECT id FROM teacher_attendance WHERE teacher_id = ? AND date = ?",
-      [teacher.id, today]
-    );
-
-    if (exists && exists.length > 0) {
-      await runQuery(
-        "UPDATE teacher_attendance SET status = 'absent', time_in = NULL, time_out = NULL, total_hours = 0 WHERE teacher_id = ? AND date = ?",
-        [teacher.id, today]
-      );
-    } else {
-      await runQuery(
-        "INSERT INTO teacher_attendance (teacher_id, date, status, method, total_hours) VALUES (?, ?, 'absent', 'manual', 0)",
-        [teacher.id, today]
-      );
+      setTodayAttendance(updatedAtt);
+      await calculateStats(teachers, updatedAtt);
+    } catch (error) {
+      console.error("خطأ أثناء تسجيل الغياب:", error);
     }
-
-    setAttendanceStatus({
-      teacher: teacher.full_name,
-      time: '—',
-      status: 'تم تقييد غياب رسمي للمحاضر بنجاح ⚡',
-      icon: '❌',
-      color: '#ef4444'
-    });
-
-    // التحديث التلقائي
-    const updatedAtt = await loadTodayAttendance();
-    await calculateStats(null, updatedAtt);
   };
 
   const markExit = async (attRecord) => {
-    const now = new Date();
-    const timeNow = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false });
-    const hours = calculateHours(attRecord.time_in, timeNow);
+    try {
+      const now = new Date();
+      const timeNow = now.toTimeString().slice(0, 5);
+      const hours = calculateHours(attRecord.time_in, timeNow);
 
-    await runQuery(
-      "UPDATE teacher_attendance SET time_out = ?, total_hours = ? WHERE id = ?",
-      [timeNow, hours, attRecord.id]
-    );
-    
-    // تحديث الواجهة مباشرة بدون window.alert
-    const updatedAtt = await loadTodayAttendance();
-    await calculateStats(null, updatedAtt);
+      await runQuery(
+        "UPDATE teacher_attendance SET time_out = ?, total_hours = ? WHERE id = ?",
+        [timeNow, hours, attRecord.id]
+      );
+      
+      const updatedAtt = await loadTodayAttendance();
+      setTodayAttendance(updatedAtt);
+      await calculateStats(teachers, updatedAtt);
+    } catch (error) {
+      console.error("خطأ أثناء تسجيل الانصراف:", error);
+    }
   };
 
   const loadMonthlyReports = async () => {
@@ -333,7 +349,8 @@ function Teachers() {
       [teacherId, today]
     );
     const updatedAtt = await loadTodayAttendance();
-    await calculateStats(null, updatedAtt);
+    setTodayAttendance(updatedAtt);
+    await calculateStats(teachers, updatedAtt);
   };
 
   const resetForm = () => { setFormData(initialFormState); setEditId(null); setShowForm(false); };
@@ -371,7 +388,6 @@ function Teachers() {
     await calculateStats(updatedTeachers, null);
   };
 
-  // حذف أرشفة بدون window.confirm لمجاراة إلكترون
   const handleDelete = async (id) => {
     await runQuery("UPDATE teachers SET status = 'inactive' WHERE id = ?", [id]);
     const updatedTeachers = await loadTeachers();
@@ -402,18 +418,18 @@ function Teachers() {
       <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&family=Amiri:wght@700&display=swap" rel="stylesheet">
       <style>
         body{font-family:'Tajawal',sans-serif;background:#020b07;color:#fff;text-align:center;padding:0;margin:0;display:flex;align-items:center;justify-content:center;height:100vh}
-        .card{border:2px dashed #f472b6;border-radius:24px;padding:30px;width:350px;background:linear-gradient(135deg,#052218,#0a3a29);position:relative;overflow:hidden;box-shadow:0 20px 40px rgba(0,0,0,0.8);box-sizing:border-box}
+        .card{border:2px dashed #f59e0b;border-radius:24px;padding:30px;width:350px;background:linear-gradient(135deg,#052218,#0a3a29);position:relative;overflow:hidden;box-shadow:0 20px 40px rgba(0,0,0,0.8);box-sizing:border-box}
         .card::before{content:"🏛️";position:absolute;font-size:16rem;opacity:0.03;top:15%;left:-15%;pointer-events:none}
-        .gold-line{height:4px;background:linear-gradient(90deg,transparent,#f472b6,transparent);margin:12px 0}
-        .header-title{font-family:'Amiri',serif;font-size:1.3rem;color:#f472b6;margin:0;font-weight:700}
+        .gold-line{height:4px;background:linear-gradient(90deg,transparent,#f59e0b,transparent);margin:12px 0}
+        .header-title{font-family:'Amiri',serif;font-size:1.3rem;color:#f59e0b;margin:0;font-weight:700}
         .sub-title{font-size:0.78rem;color:#a3b8cc;margin:2px 0 15px 0}
-        .avatar-zone{width:105px;height:105px;border-radius:50%;border:2px solid #f472b6;background:rgba(255,255,255,0.03);margin:0 auto 15px;display:flex;align-items:center;justify-content:center;font-size:3rem;box-shadow:0 0 15px rgba(244,114,182,0.1);overflow:hidden}
+        .avatar-zone{width:105px;height:105px;border-radius:50%;border:2px solid #f59e0b;background:rgba(255,255,255,0.03);margin:0 auto 15px;display:flex;align-items:center;justify-content:center;font-size:3rem;box-shadow:0 0 15px rgba(245,158,11,0.15);overflow:hidden}
         .avatar-zone img{width:100%;height:100%;object-fit:cover}
         .name{font-size:1.35rem;font-weight:900;color:#fff;margin:10px 0 5px 0}
-        .id-badge{background:linear-gradient(135deg,#f472b6,#ec4899);color:#020b07;display:inline-block;padding:5px 20px;border-radius:50px;font-weight:900;font-size:1rem;margin-bottom:15px;box-shadow:0 4px 10px rgba(244,114,182,0.2)}
-        .info-box{text-align:right;background:rgba(0,0,0,0.3);padding:14px 18px;border-radius:16px;margin-top:18px;border:1px solid rgba(244,114,182,0.12);font-size:0.88rem}
+        .id-badge{background:linear-gradient(135deg,#f59e0b,#d97706);color:#020b07;display:inline-block;padding:5px 20px;border-radius:50px;font-weight:900;font-size:1rem;margin-bottom:15px;box-shadow:0 4px 10px rgba(245,158,11,0.25)}
+        .info-box{text-align:right;background:rgba(0,0,0,0.3);padding:14px 18px;border-radius:16px;margin-top:18px;border:1px solid rgba(245,158,11,0.2);font-size:0.88rem}
         .info-box p{margin:6px 0;color:#cbd5e1;display:flex;justify-content:space-between}
-        .info-box strong{color:#f472b6}
+        .info-box strong{color:#f59e0b}
         .footer-text{font-size:0.68rem;color:rgba(255,255,255,0.35);margin-top:18px;border-top:1px solid rgba(255,255,255,0.06);padding-top:12px}
       </style></head><body>
       <div class="card">
@@ -450,13 +466,13 @@ function Teachers() {
   return (
     <div className="teachers-module" style={{ padding: '5px 0' }}>
       {!dbReady && (
-        <div style={{ textAlign: 'center', padding: '40px', color: '#f472b6' }}>⏳ جاري تهيئة قاعدة البيانات ومستشعرات البصمة للأكاديميين...</div>
+        <div style={{ textAlign: 'center', padding: '40px', color: '#f59e0b', fontWeight: 700 }}>⏳ جاري تهيئة قاعدة البيانات ومستشعرات البصمة للأكاديميين...</div>
       )}
 
       {dbReady && (
         <>
-          {/* 🧭 شريط التبويبات */}
-          <div className="tabs" style={{ display: 'flex', gap: '10px', background: 'rgba(255,255,255,0.02)', padding: '10px', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '30px' }}>
+          {/* 🧭 شريط التبويبات الفاخر */}
+          <div className="tabs" style={{ display: 'flex', gap: '10px', background: 'rgba(255,255,255,0.02)', padding: '10px', borderRadius: '18px', border: '1px solid rgba(245,158,11,0.15)', marginBottom: '30px' }}>
             {[
               { id: 'manage', label: '👨‍🏫 إدارة المعلمين' },
               { id: 'live', label: '🖐️ بوابة البصمة المباشرة' },
@@ -470,11 +486,11 @@ function Teachers() {
                 whileHover={{ y: -2, scale: 1.01 }}
                 whileTap={{ scale: 0.99 }}
                 style={{
-                  flex: 1, padding: '14px', borderRadius: '12px', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer',
-                  background: tab === t.id ? 'linear-gradient(135deg, #f472b6, #ec4899)' : 'rgba(255,255,255,0.03)',
-                  color: tab === t.id ? '#041d14' : 'rgba(255,255,255,0.6)',
-                  border: tab === t.id ? '1px solid #f472b644' : '1px solid rgba(255,255,255,0.05)',
-                  boxShadow: tab === t.id ? '0 8px 20px rgba(244,114,182,0.15)' : 'none',
+                  flex: 1, padding: '14px', borderRadius: '12px', fontWeight: 800, fontSize: '0.9rem', cursor: 'pointer',
+                  background: tab === t.id ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'rgba(255,255,255,0.03)',
+                  color: tab === t.id ? '#041d14' : 'rgba(255,255,255,0.7)',
+                  border: tab === t.id ? '1px solid #f59e0b66' : '1px solid rgba(255,255,255,0.05)',
+                  boxShadow: tab === t.id ? '0 8px 20px rgba(245,158,11,0.25)' : 'none',
                   transition: 'all 0.3s ease'
                 }}
               >
@@ -486,16 +502,16 @@ function Teachers() {
           {/* 🟢 التبويب الأول: إدارة شؤون المعلمين */}
           {tab === 'manage' && (
             <>
-              {/* الإحصائيات */}
+              {/* الإحصائيات الفخمة */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '25px' }}>
                 {[
-                  { label: 'إجمالي الأكاديميين', count: stats.total, color: '#f472b6', icon: '👨‍🏫' },
+                  { label: 'إجمالي الأكاديميين', count: stats.total, color: '#f59e0b', icon: '👨‍🏫' },
                   { label: 'المدرسين النشطين', count: stats.active, color: '#34d399', icon: '✅' },
                   { label: 'حضور اليوم', count: stats.presentToday, color: '#38bdf8', icon: '⏱️' },
                   { label: 'غياب اليوم', count: stats.absentToday, color: '#ef4444', icon: '❌' }
                 ].map((s, i) => (
                   <motion.div key={i} whileHover={{ y: -4 }}
-                    style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.02), rgba(0,0,0,0.2))', border: '1px solid var(--glass-border)', borderRadius: '16px', padding: '18px', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.03), rgba(0,0,0,0.3))', border: '1px solid rgba(245,158,11,0.15)', borderRadius: '16px', padding: '18px', display: 'flex', alignItems: 'center', gap: '15px' }}>
                     <span style={{ fontSize: '2rem' }}>{s.icon}</span>
                     <div>
                       <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{s.label}</span>
@@ -508,42 +524,42 @@ function Teachers() {
               {/* شريط الأدوات */}
               <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '15px', alignItems: 'center', marginBottom: '25px' }}>
                 <div>
-                  <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.7rem', color: '#f472b6', margin: 0 }}>👨‍🏫 إدارة الكادر الأكاديمي والتدريسي</h3>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', margin: '4px 0 0 0' }}>إدارة بيانات وسجلات ومؤهلات المدرسين بالجامعة</p>
+                  <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.8rem', color: '#f59e0b', margin: 0, fontWeight: 700 }}>👨‍🏫 إدارة الكادر الأكاديمي والتدريسي</h3>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>إدارة بيانات وسجلات ومؤهلات المدرسين بالجامعة</p>
                 </div>
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '10px', border: '1px solid var(--glass-border)' }}>
-                    <button onClick={() => setViewMode('grid')} style={{ background: viewMode === 'grid' ? '#f472b6' : 'transparent', color: viewMode === 'grid' ? '#052218' : '#fff', border: 'none', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>🎴 كروت</button>
-                    <button onClick={() => setViewMode('table')} style={{ background: viewMode === 'table' ? '#f472b6' : 'transparent', color: viewMode === 'table' ? '#052218' : '#fff', border: 'none', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>📋 جدول</button>
+                  <div style={{ display: 'flex', background: 'rgba(0,0,0,0.3)', padding: '4px', borderRadius: '10px', border: '1px solid rgba(245,158,11,0.2)' }}>
+                    <button onClick={() => setViewMode('grid')} style={{ background: viewMode === 'grid' ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'transparent', color: viewMode === 'grid' ? '#052218' : '#fff', border: 'none', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 800 }}>🎴 كروت</button>
+                    <button onClick={() => setViewMode('table')} style={{ background: viewMode === 'table' ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'transparent', color: viewMode === 'table' ? '#052218' : '#fff', border: 'none', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 800 }}>📋 جدول</button>
                   </div>
-                  <input type="text" placeholder="🔍 بحث بالاسم والتخصص..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ width: '220px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '10px 16px', borderRadius: '12px', color: '#fff' }} />
+                  <input type="text" placeholder="🔍 بحث بالاسم والتخصص..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ width: '220px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(245,158,11,0.2)', padding: '10px 16px', borderRadius: '12px', color: '#fff', outline: 'none' }} />
                   <motion.button onClick={() => { resetForm(); loadColleges(); setShowForm(true); }} whileHover={{ scale: 1.03 }}
-                    style={{ background: 'linear-gradient(135deg, #f472b6, #ec4899)', color: '#fff', border: 'none', padding: '11px 20px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 4px 15px rgba(244,114,182,0.3)' }}>
+                    style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#041d14', border: 'none', padding: '11px 22px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 4px 15px rgba(245,158,11,0.3)' }}>
                     ➕ قيد معلم
                   </motion.button>
                 </div>
               </div>
 
-              {/* كروت المعلمين */}
+              {/* كروت المعلمين الذهبية */}
               {viewMode === 'grid' ? (
                 <motion.div variants={containerVariants} initial="hidden" animate="show" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '20px' }}>
                   {filteredTeachers.map(teacher => (
                     <motion.div variants={itemVariants} key={teacher.id} whileHover={{ y: -6 }}
-                      style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.01), rgba(255,255,255,0.03))', backdropFilter: 'blur(10px)', border: '1px solid var(--glass-border)', borderRadius: '20px', padding: '20px', position: 'relative', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.02), rgba(0,0,0,0.3))', backdropFilter: 'blur(10px)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '20px', padding: '20px', position: 'relative', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       
                       <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                        <div style={{ width: '70px', height: '70px', borderRadius: '50%', border: '2px solid #f472b6', background: 'rgba(244,114,182,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', overflow: 'hidden', flexShrink: 0 }}>
+                        <div style={{ width: '70px', height: '70px', borderRadius: '50%', border: '2px solid #f59e0b', background: 'rgba(245,158,11,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', overflow: 'hidden', flexShrink: 0, boxShadow: '0 0 12px rgba(245,158,11,0.2)' }}>
                           {teacher.photo ? <img src={teacher.photo} alt={teacher.full_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '👨‍🏫'}
                         </div>
                         <div>
                           <span style={{ color: '#fff', fontWeight: 800, fontSize: '1.05rem', display: 'block' }}>{teacher.full_name}</span>
-                          <span style={{ color: '#f472b6', fontWeight: 700, fontSize: '0.85rem' }}>🆔 {teacher.teacher_id}</span>
+                          <span style={{ color: '#f59e0b', fontWeight: 700, fontSize: '0.85rem' }}>🆔 {teacher.teacher_id}</span>
                           <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', display: 'block' }}>{teacher.speciality || 'بدون تخصص'}</span>
                         </div>
                       </div>
 
-                      <div style={{ background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '12px', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>🏛️ الكلية:</span><span style={{ color: 'var(--gold-light)' }}>{teacher.college_name || '—'}</span></div>
+                      <div style={{ background: 'rgba(0,0,0,0.25)', padding: '12px', borderRadius: '12px', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>🏛️ الكلية:</span><span style={{ color: '#fbbf24', fontWeight: 600 }}>{teacher.college_name || '—'}</span></div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>📂 القسم:</span><span style={{ color: '#fff' }}>{teacher.department_name || '—'}</span></div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>📱 الهاتف:</span><span style={{ color: '#cbd5e1' }}>{teacher.phone || '—'}</span></div>
                         {teacher.qualifications && (
@@ -553,7 +569,7 @@ function Teachers() {
 
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <motion.button onClick={() => printTeacherCard(teacher)} whileTap={{ scale: 0.95 }}
-                          style={{ flex: 1, background: 'rgba(244,114,182,0.08)', color: '#f472b6', border: '1px solid rgba(244,114,182,0.2)', padding: '8px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', fontSize: '0.8rem' }}>🖨️ بطاقة</motion.button>
+                          style={{ flex: 1, background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)', padding: '8px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '0.8rem' }}>🖨️ بطاقة</motion.button>
                         <button className="btn-edit" onClick={() => handleEdit(teacher)} style={{ padding: '8px 14px', borderRadius: '10px', background: 'rgba(56,189,248,0.1)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.25)', cursor: 'pointer', fontWeight: 600 }}>✏️</button>
                         <button className="btn-delete" onClick={() => handleDelete(teacher.id)} style={{ padding: '8px 14px', borderRadius: '10px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)', cursor: 'pointer', fontWeight: 600 }}>🗑️</button>
                       </div>
@@ -561,7 +577,7 @@ function Teachers() {
                   ))}
                 </motion.div>
               ) : (
-                <div className="data-table" style={{ border: '1px solid var(--glass-border)', borderRadius: '14px', overflow: 'hidden' }}>
+                <div className="data-table" style={{ border: '1px solid rgba(245,158,11,0.2)', borderRadius: '14px', overflow: 'hidden' }}>
                   <table>
                     <thead>
                       <tr style={{ background: 'linear-gradient(135deg, #041d14, #083d2b)' }}>
@@ -573,20 +589,20 @@ function Teachers() {
                         <tr key={t.id}>
                           <td><strong>{i + 1}</strong></td>
                           <td>
-                            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(244,114,182,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(245,158,11,0.1)', border: '1px solid #f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                               {t.photo ? <img src={t.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '👨‍🏫'}
                             </div>
                           </td>
-                          <td style={{ color: '#f472b6', fontWeight: 700 }}>{t.teacher_id}</td>
+                          <td style={{ color: '#f59e0b', fontWeight: 800 }}>{t.teacher_id}</td>
                           <td style={{ color: '#fff', fontWeight: 600 }}>{t.full_name}</td>
-                          <td style={{ color: 'var(--gold-light)' }}>{t.college_name || '—'}</td>
+                          <td style={{ color: '#fbbf24' }}>{t.college_name || '—'}</td>
                           <td>{t.department_name || '—'}</td>
                           <td>{t.speciality || '—'}</td>
                           <td style={{ color: '#cbd5e1' }}>{t.phone || '—'}</td>
                           <td>
                             <button className="btn-edit" onClick={() => handleEdit(t)}>✏️</button>
                             <button className="btn-delete" onClick={() => handleDelete(t.id)}>🗑️</button>
-                            <button onClick={() => printTeacherCard(t)} style={{ color: '#f472b6', background: 'none', border: 'none', cursor: 'pointer', marginRight: '5px' }}>🖨️</button>
+                            <button onClick={() => printTeacherCard(t)} style={{ color: '#f59e0b', background: 'none', border: 'none', cursor: 'pointer', marginRight: '5px' }}>🖨️</button>
                           </td>
                         </tr>
                       ))}
@@ -602,15 +618,15 @@ function Teachers() {
             <div className="live-teachers-attendance">
               <div className="live-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '25px' }}>
                 <div>
-                  <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.7rem', color: '#f472b6', margin: 0 }}>🖐️ بوابة رصد البصمة البيومترية للأكاديميين</h3>
-                  <p style={{ color: 'rgba(255,255,255,0.5)', margin: '5px 0 0 0', fontSize: '0.88rem' }}>انقر فوق كرت الأستاذ لتفعيل مسح البصمة وتسجيل أداء المحاضرة</p>
+                  <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.8rem', color: '#f59e0b', margin: 0, fontWeight: 700 }}>🖐️ بوابة رصد البصمة البيومترية للأكاديميين</h3>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', margin: '5px 0 0 0', fontSize: '0.88rem' }}>انقر فوق كرت الأستاذ لتفعيل مسح البصمة وتسجيل أداء المحاضرة</p>
                 </div>
                 <input
                   type="text"
                   placeholder="🔍 ابحث بالاسم أو الرقم الوظيفي..."
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
-                  style={{ width: '100%', maxWidth: '360px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', padding: '12px 18px', borderRadius: '14px', color: '#fff' }}
+                  style={{ width: '100%', maxWidth: '360px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(245,158,11,0.2)', padding: '12px 18px', borderRadius: '14px', color: '#fff', outline: 'none' }}
                 />
               </div>
 
@@ -630,8 +646,8 @@ function Teachers() {
                     <span style={{ fontSize: '2rem', color: attendanceStatus.color }}>{attendanceStatus.icon}</span>
                     <div style={{ flex: 1 }}>
                       <h4 style={{ margin: 0, fontSize: '1.1rem', color: '#fff' }}>{attendanceStatus.teacher}</h4>
-                      <p style={{ margin: '3px 0 0 0', fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>
-                        سجل التوقيع: <strong style={{ color: '#f472b6' }}>{attendanceStatus.time}</strong> | النتيجة: <span style={{ color: attendanceStatus.color, fontWeight: 'bold' }}>{attendanceStatus.status}</span>
+                      <p style={{ margin: '3px 0 0 0', fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)' }}>
+                        سجل التوقيع: <strong style={{ color: '#f59e0b' }}>{attendanceStatus.time}</strong> | النتيجة: <span style={{ color: attendanceStatus.color, fontWeight: 'bold' }}>{attendanceStatus.status}</span>
                       </p>
                     </div>
                     <button onClick={() => setAttendanceStatus(null)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.2rem', opacity: 0.5 }}>✕</button>
@@ -647,11 +663,11 @@ function Teachers() {
                   const isAbsent = todayRecord?.status === 'absent';
                   const isScanning = scanningId === teacher.id;
 
-                  let borderStyle = '1px solid rgba(255,255,255,0.05)';
+                  let borderStyle = '1px solid rgba(255,255,255,0.08)';
                   let glowEffect = 'none';
-                  if (isPresent) { borderStyle = '1px solid #34d399'; glowEffect = '0 5px 15px rgba(52,211,153,0.1)'; }
-                  if (isAbsent) { borderStyle = '1px solid #ef4444'; glowEffect = '0 5px 15px rgba(239,68,68,0.1)'; }
-                  if (isScanning) { borderStyle = '1px solid #f472b6'; glowEffect = '0 0 25px rgba(244,114,182,0.4)'; }
+                  if (isPresent) { borderStyle = '1px solid #34d399'; glowEffect = '0 5px 15px rgba(52,211,153,0.15)'; }
+                  if (isAbsent) { borderStyle = '1px solid #ef4444'; glowEffect = '0 5px 15px rgba(239,68,68,0.15)'; }
+                  if (isScanning) { borderStyle = '1px solid #f59e0b'; glowEffect = '0 0 25px rgba(245,158,11,0.4)'; }
 
                   return (
                     <motion.div
@@ -659,14 +675,14 @@ function Teachers() {
                       variants={itemVariants}
                       whileHover={{ y: isScanning ? 0 : -4 }}
                       style={{
-                        background: 'rgba(255,255,255,0.01)',
+                        background: 'linear-gradient(135deg, rgba(255,255,255,0.02), rgba(0,0,0,0.3))',
                         backdropFilter: 'blur(10px)', border: borderStyle, borderRadius: '20px', padding: '20px',
                         display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: glowEffect,
                         position: 'relative', overflow: 'hidden'
                       }}
                     >
                       <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '15px' }}>
-                        <div style={{ width: '65px', height: '65px', borderRadius: '50%', border: '2px solid #f472b6', background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', overflow: 'hidden', flexShrink: 0 }}>
+                        <div style={{ width: '65px', height: '65px', borderRadius: '50%', border: '2px solid #f59e0b', background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', overflow: 'hidden', flexShrink: 0, boxShadow: '0 0 10px rgba(245,158,11,0.2)' }}>
                           {teacher.photo ? (
                             <img src={teacher.photo} alt={teacher.full_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           ) : (
@@ -674,16 +690,16 @@ function Teachers() {
                           )}
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                          <span style={{ color: '#fff', fontWeight: 700, fontSize: '1.05rem' }}>{teacher.full_name}</span>
-                          <span style={{ color: '#f472b6', fontSize: '0.85rem', fontWeight: 600 }}>🔢 وظيفي: {teacher.teacher_id}</span>
-                          <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>🎓 {teacher.speciality || 'أكاديمي'}</span>
+                          <span style={{ color: '#fff', fontWeight: 800, fontSize: '1.05rem' }}>{teacher.full_name}</span>
+                          <span style={{ color: '#f59e0b', fontSize: '0.85rem', fontWeight: 700 }}>🔢 وظيفي: {teacher.teacher_id}</span>
+                          <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.8rem' }}>🎓 {teacher.speciality || 'أكاديمي'}</span>
                         </div>
                       </div>
 
                       {isPresent && todayRecord && (
-                        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '10px', fontSize: '0.8rem', marginBottom: '10px', border: '1px dashed rgba(52,211,153,0.2)' }}>
-                          <div style={{ color: '#34d399', fontWeight: 700 }}>📖 الدرس: {todayRecord.lesson_title}</div>
-                          <div style={{ color: '#38bdf8', marginTop: '3px' }}>📈 نسبة الإنجاز: {todayRecord.completion_rate}%</div>
+                        <div style={{ background: 'rgba(0,0,0,0.25)', padding: '10px', borderRadius: '10px', fontSize: '0.8rem', marginBottom: '10px', border: '1px dashed rgba(52,211,153,0.3)' }}>
+                          <div style={{ color: '#34d399', fontWeight: 800 }}>📖 الدرس: {todayRecord.lesson_title}</div>
+                          <div style={{ color: '#38bdf8', marginTop: '3px', fontWeight: 600 }}>📈 نسبة الإنجاز: {todayRecord.completion_rate}%</div>
                         </div>
                       )}
 
@@ -694,14 +710,14 @@ function Teachers() {
                               onClick={() => initiateAttendance(teacher)}
                               disabled={scanningId !== null}
                               whileTap={{ scale: 0.95 }}
-                              style={{ flex: 2, background: 'linear-gradient(135deg, #f472b6, #ec4899)', color: '#041d14', border: 'none', padding: '10px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}
+                              style={{ flex: 2, background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#041d14', border: 'none', padding: '10px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}
                             >
                               {isScanning ? '📶 جاري تسجيل البصمة...' : '🖐️ مسح البصمة والتحضير'}
                             </motion.button>
                             <button
                               onClick={() => markAbsent(teacher)}
                               disabled={scanningId !== null}
-                              style={{ flex: 1, background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', padding: '10px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}
+                              style={{ flex: 1, background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', padding: '10px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}
                             >
                               ❌ غياب
                             </button>
@@ -712,7 +728,7 @@ function Teachers() {
                               padding: '6px 16px', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 800,
                               background: isPresent ? 'rgba(52,211,153,0.1)' : 'rgba(239,68,68,0.1)',
                               color: isPresent ? '#34d399' : '#ef4444',
-                              border: `1px solid ${isPresent ? 'rgba(52,211,153,0.2)' : 'rgba(239,68,68,0.2)'}`
+                              border: `1px solid ${isPresent ? 'rgba(52,211,153,0.3)' : 'rgba(239,68,68,0.3)'}`
                             }}>
                               {isPresent ? '✅ حاضر بالمنصة' : '❌ غياب معتمد'}
                             </span>
@@ -736,10 +752,10 @@ function Teachers() {
           {tab === 'today' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: '#f472b6', margin: 0 }}>📋 كشف الحضور والانصراف للأكاديميين اليوم ({today})</h3>
+                <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.7rem', color: '#f59e0b', margin: 0, fontWeight: 700 }}>📋 كشف الحضور والانصراف للأكاديميين اليوم ({today})</h3>
               </div>
 
-              <div className="data-table">
+              <div className="data-table" style={{ border: '1px solid rgba(245,158,11,0.2)', borderRadius: '14px', overflow: 'hidden' }}>
                 <table>
                   <thead>
                     <tr>
@@ -760,9 +776,9 @@ function Teachers() {
                       <tr key={a.id}>
                         <td><strong>{i + 1}</strong></td>
                         <td style={{ color: '#fff', fontWeight: 600 }}>{a.full_name}</td>
-                        <td style={{ color: '#f472b6', fontWeight: 700 }}>{a.doc_id}</td>
+                        <td style={{ color: '#f59e0b', fontWeight: 800 }}>{a.doc_id}</td>
                         <td style={{ color: '#34d399', fontWeight: 700 }}>⏱️ {a.time_in || '—'}</td>
-                        <td style={{ color: '#f472b6', fontWeight: 700 }}>🚪 {a.time_out || '—'}</td>
+                        <td style={{ color: '#f59e0b', fontWeight: 700 }}>🚪 {a.time_out || '—'}</td>
                         <td style={{ color: '#cbd5e1', fontStyle: 'italic' }}>{a.lesson_title || '—'}</td>
                         <td>
                           {a.completion_rate ? (
@@ -776,7 +792,7 @@ function Teachers() {
                         </td>
                         <td>
                           <span style={{
-                            padding: '4px 12px', borderRadius: '50px', fontSize: '0.8rem', fontWeight: 700,
+                            padding: '4px 12px', borderRadius: '50px', fontSize: '0.8rem', fontWeight: 800,
                             background: a.status === 'present' ? 'rgba(52,211,153,0.1)' : 'rgba(239,68,68,0.1)',
                             color: a.status === 'present' ? '#34d399' : '#ef4444'
                           }}>
@@ -786,7 +802,7 @@ function Teachers() {
                         <td>
                           {!a.time_out && a.status !== 'absent' ? (
                             <motion.button onClick={() => markExit(a)} whileHover={{ scale: 1.05 }}
-                              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid #f472b6', color: '#f472b6', padding: '5px 12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>
+                              style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid #f59e0b', color: '#f59e0b', padding: '5px 12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 800 }}>
                               🚪 إثبات انصراف وساعات
                             </motion.button>
                           ) : (
@@ -809,14 +825,14 @@ function Teachers() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <div className="monthly-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
                 <div>
-                  <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: '#f472b6', margin: 0 }}>📊 تقرير كشوفات الأداء والساعات التراكمية لشهر ({selectedMonth})</h3>
-                  <p style={{ color: 'rgba(255,255,255,0.4)', margin: '5px 0 0 0', fontSize: '0.88rem' }}>متابعة كشوفات الحضور ومستحقات المحاضرين المالية والأكاديمية</p>
+                  <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.7rem', color: '#f59e0b', margin: 0, fontWeight: 700 }}>📊 تقرير كشوفات الأداء والساعات التراكمية لشهر ({selectedMonth})</h3>
+                  <p style={{ color: 'rgba(255,255,255,0.5)', margin: '5px 0 0 0', fontSize: '0.88rem' }}>متابعة كشوفات الحضور ومستحقات المحاضرين المالية والأكاديمية</p>
                 </div>
                 <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
-                  style={{ background: '#041d14', border: '1px solid #f472b6', padding: '10px 15px', borderRadius: '12px', color: '#fff', fontWeight: 700, outline: 'none' }} />
+                  style={{ background: '#041d14', border: '1px solid #f59e0b', padding: '10px 15px', borderRadius: '12px', color: '#fff', fontWeight: 700, outline: 'none' }} />
               </div>
 
-              <div className="data-table">
+              <div className="data-table" style={{ border: '1px solid rgba(245,158,11,0.2)', borderRadius: '14px', overflow: 'hidden' }}>
                 <table>
                   <thead>
                     <tr>
@@ -836,7 +852,7 @@ function Teachers() {
                       <tr key={i}>
                         <td><strong>{i + 1}</strong></td>
                         <td style={{ color: '#fff', fontWeight: 600 }}>{r.full_name}</td>
-                        <td style={{ color: '#f472b6', fontWeight: 700 }}>{r.doc_id}</td>
+                        <td style={{ color: '#f59e0b', fontWeight: 800 }}>{r.doc_id}</td>
                         <td>{r.speciality || '—'}</td>
                         <td style={{ color: '#34d399', fontWeight: 700 }}>{r.days_present} محاضرة</td>
                         <td style={{ color: '#ef4444', fontWeight: 700 }}>{r.days_absent} يوم</td>
@@ -869,8 +885,8 @@ function Teachers() {
         {showLessonModal && (
           <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(2, 11, 7, 0.85)', backdropFilter: 'blur(10px)', zIndex: 99999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-              style={{ background: 'linear-gradient(135deg, #052218, #0a3a29)', border: '2px solid #f472b6', padding: '25px', borderRadius: '24px', width: '100%', maxWidth: '480px', boxShadow: '0 20px 50px rgba(0,0,0,0.7)' }}>
-              <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.4rem', color: '#f472b6', margin: '0 0 15px 0', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>
+              style={{ background: 'linear-gradient(135deg, #052218, #0a3a29)', border: '2px solid #f59e0b', padding: '25px', borderRadius: '24px', width: '100%', maxWidth: '480px', boxShadow: '0 20px 50px rgba(0,0,0,0.7)' }}>
+              <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.5rem', color: '#f59e0b', margin: '0 0 15px 0', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px', fontWeight: 700 }}>
                 📖 توثيق الدرس للمحاضر
               </h3>
               <p style={{ fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '15px' }}>
@@ -885,7 +901,7 @@ function Teachers() {
                     value={lessonForm.lesson_title}
                     onChange={e => setLessonForm({ ...lessonForm, lesson_title: e.target.value })}
                     placeholder="مثال: مقدمة في المحاسبة الحكومية"
-                    style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(244,114,182,0.3)', padding: '12px', borderRadius: '10px', color: '#fff', outline: 'none' }}
+                    style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(245,158,11,0.3)', padding: '12px', borderRadius: '10px', color: '#fff', outline: 'none' }}
                   />
                 </div>
 
@@ -898,7 +914,7 @@ function Teachers() {
                     step="5"
                     value={lessonForm.completion_rate}
                     onChange={e => setLessonForm({ ...lessonForm, completion_rate: Number(e.target.value) })}
-                    style={{ width: '100%', accentColor: '#f472b6', cursor: 'pointer' }}
+                    style={{ width: '100%', accentColor: '#f59e0b', cursor: 'pointer' }}
                   />
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', marginTop: '4px' }}>
                     <span>0%</span><span>50%</span><span>100%</span>
@@ -907,7 +923,7 @@ function Teachers() {
               </div>
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end' }}>
-                <button onClick={submitAttendance} style={{ background: '#f472b6', color: '#000', padding: '10px 20px', borderRadius: '10px', border: 'none', fontWeight: 700, cursor: 'pointer' }}>💾 تأكيد الحضور وبدء البصمة</button>
+                <button onClick={submitAttendance} style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#000', padding: '10px 20px', borderRadius: '10px', border: 'none', fontWeight: 800, cursor: 'pointer' }}>💾 تأكيد الحضور وبدء البصمة</button>
                 <button onClick={() => setShowLessonModal(false)} style={{ background: 'rgba(255,255,255,0.05)', color: '#fff', padding: '10px 15px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer' }}>إلغاء</button>
               </div>
             </motion.div>
@@ -920,19 +936,19 @@ function Teachers() {
         {showForm && (
           <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(2, 11, 7, 0.8)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
             <motion.div initial={{ opacity: 0, scale: 0.93, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 15 }} transition={{ type: 'spring', stiffness: 140, damping: 18 }}
-              style={{ background: 'linear-gradient(135deg, rgba(5,34,24,0.98), rgba(10,58,41,0.98))', border: '1px solid #f472b6', padding: '30px', borderRadius: '24px', width: '100%', maxWidth: '720px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 60px rgba(0,0,0,0.6)' }}>
+              style={{ background: 'linear-gradient(135deg, rgba(5,34,24,0.98), rgba(10,58,41,0.98))', border: '1px solid #f59e0b', padding: '30px', borderRadius: '24px', width: '100%', maxWidth: '720px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 60px rgba(0,0,0,0.6)' }}>
               
-              <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: '#f472b6', marginBottom: '22px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '12px', marginTop: 0 }}>
+              <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.7rem', color: '#f59e0b', marginBottom: '22px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '12px', marginTop: 0, fontWeight: 700 }}>
                 {editId ? '📝 تحرير بيانات المعلم الأكاديمية' : '➕ قيد معلم أكاديمي جديد'}
               </h3>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                 <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-                  <div style={{ width: '100px', height: '100px', borderRadius: '50%', border: '2px solid #f472b6', margin: '0 auto 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: 'rgba(0,0,0,0.3)', fontSize: '2.5rem' }}>
+                  <div style={{ width: '100px', height: '100px', borderRadius: '50%', border: '2px solid #f59e0b', margin: '0 auto 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: 'rgba(0,0,0,0.3)', fontSize: '2.5rem', boxShadow: '0 0 15px rgba(245,158,11,0.2)' }}>
                     {formData.photo ? <img src={formData.photo} alt="معاينة" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '👨‍🏫'}
                   </div>
                   <input ref={photoInputRef} type="file" accept="image/*" onChange={handlePhotoChange} style={{ display: 'none' }} />
-                  <button type="button" onClick={() => photoInputRef.current?.click()} style={{ background: 'rgba(244,114,182,0.1)', color: '#f472b6', border: '1px solid #f472b6', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>
+                  <button type="button" onClick={() => photoInputRef.current?.click()} style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid #f59e0b', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem' }}>
                     📷 {formData.photo ? 'تغيير الصورة' : 'رفع صورة'}
                   </button>
                   {formData.photo && <button type="button" onClick={() => setFormData({ ...formData, photo: '' })} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem', marginTop: '5px' }}>🗑️ حذف</button>}
@@ -990,8 +1006,8 @@ function Teachers() {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '30px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                <motion.button onClick={handleSave} whileHover={{ scale: 1.02, boxShadow: '0 0 15px rgba(244,114,182,0.3)' }} whileTap={{ scale: 0.98 }}
-                  style={{ background: 'linear-gradient(135deg, #f472b6, #ec4899)', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.95rem' }}>💾 حفظ</motion.button>
+                <motion.button onClick={handleSave} whileHover={{ scale: 1.02, boxShadow: '0 0 15px rgba(245,158,11,0.4)' }} whileTap={{ scale: 0.98 }}
+                  style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#041d14', border: 'none', padding: '12px 26px', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '0.95rem' }}>💾 حفظ</motion.button>
                 <button onClick={resetForm} style={{ background: 'rgba(255,255,255,0.04)', color: 'var(--text-secondary)', border: '1px solid rgba(255,255,255,0.08)', padding: '12px 20px', borderRadius: '12px', cursor: 'pointer', fontWeight: 600 }}>إلغاء</button>
               </div>
             </motion.div>
