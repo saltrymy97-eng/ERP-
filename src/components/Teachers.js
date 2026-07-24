@@ -1,4 +1,4 @@
-// src/components/Teachers.js – إدارة رصد حضور المدرسين (نسخة محسنة وفاخرة)
+// src/components/Teachers.js – إدارة رصد حضور المدرسين (نسخة معدلة ومضمونة)
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery, initDatabase } from '../services/db';
@@ -30,7 +30,7 @@ function Teachers() {
   const photoInputRef = useRef(null);
   const attendanceTimeoutRef = useRef(null);
   
-  // توحيد صيغة التاريخ ISO YYYY-MM-DD
+  // توحيد صيغة التاريخ YYYY-MM-DD
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const initialFormState = {
@@ -39,7 +39,7 @@ function Teachers() {
   };
   const [formData, setFormData] = useState(initialFormState);
 
-  // إخفاء التنبيهات تلقائياً بعد 4 ثوانٍ
+  // إخفاء التنبيهات تلقائياً
   useEffect(() => {
     if (attendanceStatus) {
       const timer = setTimeout(() => setAttendanceStatus(null), 4000);
@@ -130,20 +130,19 @@ function Teachers() {
     return data || [];
   }, []);
 
+  // 🟢 دالة جلب الحضور المعدلة بمرونة عالية مع LEFT JOIN
   const loadTodayAttendance = useCallback(async () => {
     const data = await getQuery(`
       SELECT ta.*, t.full_name, t.teacher_id as doc_id, t.photo, t.speciality,
              c.name as college_name
       FROM teacher_attendance ta
-      INNER JOIN teachers t ON ta.teacher_id = t.id
+      LEFT JOIN teachers t ON ta.teacher_id = t.id
       LEFT JOIN colleges c ON t.college_id = c.id
-      WHERE ta.date = ?
-      ORDER BY ta.time_in DESC`,
-      [today]
+      ORDER BY ta.id DESC`
     );
     setTodayAttendance(data || []);
     return data || [];
-  }, [today]);
+  }, []);
 
   const calculateStats = useCallback(async (allTeachers = null, attToday = null) => {
     const activeTeachers = allTeachers || teachers;
@@ -160,7 +159,6 @@ function Teachers() {
     });
   }, [teachers, todayAttendance]);
 
-  // حساب الساعات بدقة متناهية ودعم فترات منتصف الليل
   const calculateHours = (timeIn, timeOut) => {
     if (!timeIn || !timeOut) return 0;
     try {
@@ -170,7 +168,7 @@ function Teachers() {
       let mins1 = h1 * 60 + m1;
       let mins2 = h2 * 60 + m2;
       
-      if (mins2 < mins1) mins2 += 24 * 60; // إذا امتدت المحاضرة لبعد 12 ليلاً
+      if (mins2 < mins1) mins2 += 24 * 60;
       
       const diffHours = (mins2 - mins1) / 60;
       return parseFloat(diffHours.toFixed(2));
@@ -185,12 +183,17 @@ function Teachers() {
     setShowLessonModal(true);
   };
 
-  // إرسال الحضور بالاعتماد المباشر على المعرف الرقمي الصريح الآمن
+  // 🟢 إرسال الحضور المعدل مع تنبيه واضح
   const submitAttendance = async () => {
-    if (!lessonForm.lesson_title.trim() || !selectedTeacherForAttendance) return;
+    if (!selectedTeacherForAttendance) return;
+
+    if (!lessonForm.lesson_title.trim()) {
+      alert("⚠️ يرجى كتابة عنوان الدرس الملقى أولاً قبل تأكيد الحضور!");
+      return;
+    }
 
     const teacher = selectedTeacherForAttendance;
-    const teacherDbId = teacher.id; // المعرف الأساسي في الجدول
+    const teacherDbId = teacher.id;
 
     setShowLessonModal(false);
     setScanningId(teacherDbId);
@@ -200,10 +203,9 @@ function Teachers() {
     attendanceTimeoutRef.current = setTimeout(async () => {
       try {
         const now = new Date();
-        const timeNow = now.toTimeString().slice(0, 5); // "14:30"
+        const timeNow = now.toTimeString().slice(0, 5);
         const status = 'present';
 
-        // 1️⃣ استخدام التمرير الآمن بـ ?
         const exists = await getQuery(
           "SELECT id FROM teacher_attendance WHERE teacher_id = ? AND date = ?",
           [teacherDbId, today]
@@ -229,7 +231,6 @@ function Teachers() {
           color: '#f59e0b'
         });
 
-        // 🟢 تحديث السجلات تلقائياً
         const updatedAttendance = await loadTodayAttendance();
         await calculateStats(teachers, updatedAttendance);
 
@@ -242,6 +243,7 @@ function Teachers() {
     }, 300);
   };
 
+  // 🟢 تسجيل الغياب المحدث مع تحديث فوري للشاشة
   const markAbsent = async (teacher) => {
     try {
       const teacherDbId = teacher.id;
@@ -307,7 +309,7 @@ function Teachers() {
       SELECT ta.*, t.full_name, t.teacher_id as doc_id, t.speciality,
              c.name as college_name
       FROM teacher_attendance ta
-      INNER JOIN teachers t ON ta.teacher_id = t.id
+      LEFT JOIN teachers t ON ta.teacher_id = t.id
       LEFT JOIN colleges c ON t.college_id = c.id
       WHERE ta.date >= ? AND ta.date <= ?
       ORDER BY ta.date DESC`,
@@ -324,10 +326,10 @@ function Teachers() {
       const tid = item.teacher_id;
       if (!teacherMap[tid]) {
         teacherMap[tid] = {
-          full_name: item.full_name,
-          doc_id: item.doc_id,
-          college_name: item.college_name,
-          speciality: item.speciality,
+          full_name: item.full_name || 'غير معروف',
+          doc_id: item.doc_id || '—',
+          college_name: item.college_name || '—',
+          speciality: item.speciality || '—',
           days_present: 0,
           days_absent: 0,
           total_hours: 0,
@@ -509,7 +511,7 @@ function Teachers() {
           {/* 🟢 التبويب الأول: إدارة شؤون المعلمين */}
           {tab === 'manage' && (
             <>
-              {/* الإحصائيات الفخمة */}
+              {/* الإحصائيات */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '25px' }}>
                 {[
                   { label: 'إجمالي الأكاديميين', count: stats.total, color: '#f59e0b', icon: '👨‍🏫' },
@@ -547,7 +549,7 @@ function Teachers() {
                 </div>
               </div>
 
-              {/* كروت المعلمين الذهبية */}
+              {/* كروت المعلمين */}
               {viewMode === 'grid' ? (
                 <motion.div variants={containerVariants} initial="hidden" animate="show" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '20px' }}>
                   {filteredTeachers.map(teacher => (
@@ -665,7 +667,6 @@ function Teachers() {
               {/* كروت الحضور المباشر */}
               <motion.div className="students-grid" variants={containerVariants} initial="hidden" animate="show" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
                 {filteredTeachers.map(teacher => {
-                  // ✅ مطابقة آمنة ودقيقة للمعرف
                   const todayRecord = todayAttendance.find(a => String(a.teacher_id) === String(teacher.id));
 
                   const isPresent = todayRecord?.status === 'present';
@@ -784,8 +785,8 @@ function Teachers() {
                     {todayAttendance.map((a, i) => (
                       <tr key={a.id}>
                         <td><strong>{i + 1}</strong></td>
-                        <td style={{ color: '#fff', fontWeight: 600 }}>{a.full_name}</td>
-                        <td style={{ color: '#f59e0b', fontWeight: 800 }}>{a.doc_id}</td>
+                        <td style={{ color: '#fff', fontWeight: 600 }}>{a.full_name || '—'}</td>
+                        <td style={{ color: '#f59e0b', fontWeight: 800 }}>{a.doc_id || '—'}</td>
                         <td style={{ color: '#34d399', fontWeight: 700 }}>⏱️ {a.time_in || '—'}</td>
                         <td style={{ color: '#f59e0b', fontWeight: 700 }}>🚪 {a.time_out || '—'}</td>
                         <td style={{ color: '#cbd5e1', fontStyle: 'italic' }}>{a.lesson_title || '—'}</td>
