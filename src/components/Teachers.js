@@ -1,4 +1,4 @@
-// src/components/Teachers.js – إدارة رصد حضور المدرسين (نسخة معدلة ومضمونة)
+// src/components/Teachers.js – إدارة رصد حضور المدرسين (نسخة معدلة ومضمونة بالكامل)
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery, initDatabase } from '../services/db';
@@ -30,8 +30,13 @@ function Teachers() {
   const photoInputRef = useRef(null);
   const attendanceTimeoutRef = useRef(null);
   
-  // توحيد صيغة التاريخ YYYY-MM-DD
-  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+  // 🟢 توحيد صيغة التاريخ YYYY-MM-DD مع مراعاة التوقيت المحلي لليمن
+  const today = useMemo(() => {
+    const localDate = new Date();
+    const offset = localDate.getTimezoneOffset();
+    const adjustedDate = new Date(localDate.getTime() - (offset * 60 * 1000));
+    return adjustedDate.toISOString().split('T')[0];
+  }, []);
 
   const initialFormState = {
     teacher_id: '', full_name: '', email: '', phone: '',
@@ -59,7 +64,23 @@ function Teachers() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // ========== تهيئة قاعدة البيانات ==========
+  // ========== دالة جلب حضور اليوم (محدثة مع شرط التاريخ) ==========
+  const loadTodayAttendance = useCallback(async () => {
+    const data = await getQuery(`
+      SELECT ta.*, t.full_name, t.teacher_id as doc_id, t.photo, t.speciality,
+             c.name as college_name
+      FROM teacher_attendance ta
+      LEFT JOIN teachers t ON ta.teacher_id = t.id
+      LEFT JOIN colleges c ON t.college_id = c.id
+      WHERE ta.date = ?
+      ORDER BY ta.id DESC`,
+      [today]
+    );
+    setTodayAttendance(data || []);
+    return data || [];
+  }, [today]);
+
+  // ========== تهيئة قاعدة البيانات والأعمدة ==========
   useEffect(() => {
     let isMounted = true;
     const setup = async () => {
@@ -81,6 +102,21 @@ function Teachers() {
           )
         `);
 
+        // حقن الأعمدة الجديدة برمجياً للنسخ القديمة لتفادي الأخطاء الصامتة
+        const newColumns = [
+          "ALTER TABLE teacher_attendance ADD COLUMN lesson_title TEXT;",
+          "ALTER TABLE teacher_attendance ADD COLUMN completion_rate INTEGER;",
+          "ALTER TABLE teacher_attendance ADD COLUMN total_hours REAL DEFAULT 0;",
+          "ALTER TABLE teacher_attendance ADD COLUMN method TEXT;"
+        ];
+        for (let query of newColumns) {
+          try {
+            await runQuery(query);
+          } catch (e) {
+            /* تجاهل صامت إذا كان العمود موجوداً مسبقاً */
+          }
+        }
+
         if (isMounted) {
           setDbReady(true);
           await loadColleges();
@@ -98,7 +134,7 @@ function Teachers() {
       isMounted = false;
       if (attendanceTimeoutRef.current) clearTimeout(attendanceTimeoutRef.current);
     };
-  }, []);
+  }, [loadTodayAttendance]);
 
   useEffect(() => {
     if (tab === 'monthly' && dbReady) {
@@ -106,7 +142,7 @@ function Teachers() {
     }
   }, [selectedMonth, tab, dbReady]);
 
-  // ========== تحميل البيانات وتحديثها تلقائياً ==========
+  // ========== تحميل البيانات وتحديثها ==========
   const loadColleges = useCallback(async () => {
     const data = await getQuery("SELECT * FROM colleges WHERE status = 'active' ORDER BY name");
     setColleges(data || []);
@@ -127,20 +163,6 @@ function Teachers() {
       "SELECT t.*, d.name as department_name, c.name as college_name FROM teachers t LEFT JOIN departments d ON t.department_id = d.id LEFT JOIN colleges c ON t.college_id = c.id WHERE t.status = 'active' ORDER BY t.full_name"
     );
     setTeachers(data || []);
-    return data || [];
-  }, []);
-
-  // 🟢 دالة جلب الحضور المعدلة بمرونة عالية مع LEFT JOIN
-  const loadTodayAttendance = useCallback(async () => {
-    const data = await getQuery(`
-      SELECT ta.*, t.full_name, t.teacher_id as doc_id, t.photo, t.speciality,
-             c.name as college_name
-      FROM teacher_attendance ta
-      LEFT JOIN teachers t ON ta.teacher_id = t.id
-      LEFT JOIN colleges c ON t.college_id = c.id
-      ORDER BY ta.id DESC`
-    );
-    setTodayAttendance(data || []);
     return data || [];
   }, []);
 
@@ -183,7 +205,6 @@ function Teachers() {
     setShowLessonModal(true);
   };
 
-  // 🟢 إرسال الحضور المعدل مع تنبيه واضح
   const submitAttendance = async () => {
     if (!selectedTeacherForAttendance) return;
 
@@ -243,7 +264,6 @@ function Teachers() {
     }, 300);
   };
 
-  // 🟢 تسجيل الغياب المحدث مع تحديث فوري للشاشة
   const markAbsent = async (teacher) => {
     try {
       const teacherDbId = teacher.id;
