@@ -14,6 +14,7 @@ function Students() {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('grid');
   const [dbReady, setDbReady] = useState(false);
+  const [formError, setFormError] = useState('');
   const photoInputRef = useRef(null);
 
   const initialFormState = {
@@ -98,24 +99,34 @@ function Students() {
     setup();
   }, [loadColleges, loadDepartments, loadMajors, loadStudents]);
 
-  const resetForm = () => { setFormData(initialFormState); setEditId(null); setShowForm(false); };
+  const resetForm = () => { 
+    setFormData(initialFormState); 
+    setEditId(null); 
+    setShowForm(false); 
+    setFormError('');
+  };
 
   // ========== ضغط الصورة إلى Base64 ==========
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 500000) return alert("❌ حجم الصورة كبير جداً. الحد الأقصى 500 كيلوبايت");
+    if (file.size > 500000) {
+      setFormError("❌ حجم الصورة كبير جداً. الحد الأقصى 500 كيلوبايت");
+      return;
+    }
 
+    setFormError('');
     const reader = new FileReader();
     reader.onload = (event) => setFormData({ ...formData, photo: event.target.result });
     reader.readAsDataURL(file);
   };
 
   const handleSave = async () => {
-    if (tab === 'colleges' && !formData.name.trim()) return alert("يرجى إدخال اسم الكلية");
-    if (tab === 'departments' && (!formData.name.trim() || !formData.college_id)) return alert("يرجى إكمال بيانات القسم والكلية");
-    if (tab === 'majors' && (!formData.name.trim() || !formData.department_id)) return alert("يرجى إكمال بيانات التخصص والقسم");
-    if (tab === 'students' && (!formData.full_name.trim() || !formData.university_id || !formData.major_id)) return alert("يرجى إكمال حقول الطالب الأساسية");
+    setFormError('');
+    if (tab === 'colleges' && !formData.name.trim()) return setFormError("يرجى إدخال اسم الكلية");
+    if (tab === 'departments' && (!formData.name.trim() || !formData.college_id)) return setFormError("يرجى إكمال بيانات القسم والكلية");
+    if (tab === 'majors' && (!formData.name.trim() || !formData.department_id)) return setFormError("يرجى إكمال بيانات التخصص والقسم");
+    if (tab === 'students' && (!formData.full_name.trim() || !formData.university_id || !formData.major_id)) return setFormError("يرجى إكمال حقول الطالب الأساسية");
 
     if (tab === 'colleges') {
       if (editId) await runQuery("UPDATE colleges SET name = ? WHERE id = ?", [formData.name, editId]);
@@ -145,19 +156,20 @@ function Students() {
     resetForm();
   };
 
+  // ========== الأرشفة/الحذف المباشر بدلاً من window.confirm ==========
   const handleDelete = async (id) => {
-    if (window.confirm("🏛️ هل أنت متأكد من رغبتك في أرشفة هذا السجل؟")) {
-      const table = tab === 'colleges' ? 'colleges' : tab === 'departments' ? 'departments' : tab === 'majors' ? 'majors' : 'students';
-      await runQuery(`UPDATE ${table} SET status = 'inactive' WHERE id = ?`, [id]);
-      if (tab === 'colleges') { await loadColleges(); await loadDepartments(); await loadMajors(); await loadStudents(); }
-      if (tab === 'departments') { await loadDepartments(); await loadMajors(); await loadStudents(); }
-      if (tab === 'majors') { await loadMajors(); await loadStudents(); }
-      if (tab === 'students') await loadStudents();
-    }
+    const table = tab === 'colleges' ? 'colleges' : tab === 'departments' ? 'departments' : tab === 'majors' ? 'majors' : 'students';
+    await runQuery(`UPDATE ${table} SET status = 'inactive' WHERE id = ?`, [id]);
+    
+    if (tab === 'colleges') { await loadColleges(); await loadDepartments(); await loadMajors(); await loadStudents(); }
+    if (tab === 'departments') { await loadDepartments(); await loadMajors(); await loadStudents(); }
+    if (tab === 'majors') { await loadMajors(); await loadStudents(); }
+    if (tab === 'students') await loadStudents();
   };
 
   const handleEdit = (item) => {
     setEditId(item.id);
+    setFormError('');
     if (tab === 'colleges') setFormData({ ...initialFormState, name: item.name });
     if (tab === 'departments') setFormData({ ...initialFormState, name: item.name, college_id: item.college_id });
     if (tab === 'majors') setFormData({ ...initialFormState, name: item.name, department_id: item.department_id, fees: item.fees || '', duration: item.duration || '4 سنوات' });
@@ -424,7 +436,7 @@ function Students() {
                         <div><span style={{ color: '#fff', fontWeight: 800 }}>{s.full_name}</span><br /><span style={{ color: 'var(--gold-light)', fontWeight: 700, fontSize: '0.85rem' }}>ID: {s.university_id}</span></div>
                       </div>
                       <div style={{ background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '12px', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <div style={{ display: 'flex', justifycontent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>🏛️ الكلية:</span><span style={{ color: 'var(--gold-light)' }}>{s.college_name || '—'}</span></div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>🏛️ الكلية:</span><span style={{ color: 'var(--gold-light)' }}>{s.college_name || '—'}</span></div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>📜 التخصص:</span><span style={{ color: '#fff' }}>{s.major_name || '—'}</span></div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)' }}>📈 المستوى:</span><span style={{ color: '#38bdf8' }}>{s.level} ({s.group_name || 'أ'})</span></div>
                       </div>
@@ -471,7 +483,14 @@ function Students() {
           {showForm && (
             <div className="modal-overlay">
               <motion.div initial={{ opacity: 0, scale: 0.93 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} style={{ background: 'linear-gradient(135deg, rgba(5,34,24,0.98), rgba(10,58,41,0.98))', border: '1px solid var(--gold-main)', padding: '30px', borderRadius: '24px', width: '100%', maxWidth: tab === 'students' ? '720px' : '460px', maxHeight: '90vh', overflowY: 'auto' }}>
-                <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-main)', marginBottom: '22px' }}>{editId ? '📝 تحرير السجل' : '➕ قيد سجل جديد'}</h3>
+                <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-main)', marginBottom: '15px' }}>{editId ? '📝 تحرير السجل' : '➕ قيد سجل جديد'}</h3>
+
+                {/* شريط تنبيه الخطأ المدمج لمنع تعليق المتصفح */}
+                {formError && (
+                  <div style={{ background: 'rgba(239, 68, 68, 0.2)', border: '1px solid #ef4444', color: '#fca5a5', padding: '10px 14px', borderRadius: '10px', fontSize: '0.85rem', marginBottom: '15px', fontWeight: 700 }}>
+                    {formError}
+                  </div>
+                )}
 
                 {/* فورم الكليات */}
                 {tab === 'colleges' && (
