@@ -1,10 +1,10 @@
-// src/components/Settings.js – المركز السيادي واللوحة القيادية العليا للنظام (نسخة مؤمنة ومحدثة بالكامل لدعم البصمة الحقيقية)
+// src/components/Settings.js – المركز السيادي واللوحة القيادية العليا للنظام (نسخة محدثة: حذف مباشر بدون نوافذ تأكيد)
 // مطور النظام: المهندس سالم فهمي التريمي
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery, initDatabase, exportDatabase, importDatabase } from '../services/db';
 import { getCurrentUser, changePassword, addUser, deleteUser, getAllUsers, isAdmin } from '../services/auth';
-import { loadMobileModel } from '../services/ai'; // ربط فحص الاتصال التلقائي بالخادم السحابي
+import { loadMobileModel } from '../services/ai'; 
 
 function Settings() {
   const [tab, setTab] = useState('devices');
@@ -17,13 +17,13 @@ function Settings() {
   const [deviceForm, setDeviceForm] = useState({ name: '', ip_address: '', port: 4370 });
   const [isTestingId, setIsTestingId] = useState(null);
 
-  // وحدة تسجيل البصمات الـ 5 الاحتياطية (طلب الأستاذ سعيد)
+  // وحدة تسجيل البصمات الـ 5 الاحتياطية
   const [enrollTarget, setEnrollTarget] = useState('student'); // student أو teacher
   const [peopleList, setPeopleList] = useState([]);
   const [selectedPersonId, setSelectedPersonId] = useState('');
   const [activeDeviceIp, setActiveDeviceIp] = useState('');
-  const [enrollingFinger, setEnrollingFinger] = useState(null); // رقم الإصبع الحالي قيد التسجيل (0 إلى 4)
-  const [fingerTemplates, setFingerTemplates] = useState([null, null, null, null, null]); // مصفوفة الـ 5 بصمات
+  const [enrollingFinger, setEnrollingFinger] = useState(null); 
+  const [fingerTemplates, setFingerTemplates] = useState([null, null, null, null, null]); 
   const [enrollStatusText, setEnrollStatusText] = useState('');
 
   // إعدادات الذكاء الاصطناعي
@@ -33,7 +33,7 @@ function Settings() {
   const [calendarEvents, setCalendarEvents] = useState([]);
   const [eventForm, setEventForm] = useState({ event: '', date_from: '', date_to: '', type: 'event' });
 
-  // الجداول الدراسية المصلحة
+  // الجداول الدراسية
   const [schedules, setSchedules] = useState([]);
   const [scheduleForm, setScheduleForm] = useState({ day: '', subject: '', teacher: '', time_from: '', time_to: '', room: '', break_time: 0, late_tolerance: 10 });
 
@@ -54,7 +54,6 @@ function Settings() {
         await loadSchedules();
         if (isAdmin()) loadUsers();
         
-        // جلب الإعدادات المزامنة من التخزين المحلي لضمان استرجاع المفتاح فور فتح الصفحة
         const savedAI = localStorage.getItem('ai_config');
         if (savedAI) {
           try {
@@ -75,7 +74,6 @@ function Settings() {
     setup();
   }, []);
 
-  // تحديث قائمة الأشخاص عند تغيير الهدف (طالب/مدرس) في واجهة التسجيل
   useEffect(() => {
     loadPeopleForEnroll();
   }, [enrollTarget, dbReady]);
@@ -85,12 +83,11 @@ function Settings() {
     setTimeout(() => setMessage(''), 3500);
   };
 
-  // ========== إدارة البوابات وفحص الاتصال الحقيقي ==========
+  // ========== إدارة البوابات وفحص الاتصال ==========
   const loadDevices = async () => { 
     const data = await getQuery("SELECT * FROM devices ORDER BY name"); 
     setDevices(data || []); 
     if (data && data.length > 0) {
-      // تعيين أول جهاز نشط كخيار تلقائي لعملية تسجيل البصمات
       setActiveDeviceIp(data[0].ip_address);
     }
   };
@@ -101,11 +98,13 @@ function Settings() {
     setDeviceForm({ name: '', ip_address: '', port: 4370 }); await loadDevices(); showMessage('✨ تم تسجيل البوابة بنجاح');
   };
 
+  // ⚡ حذف مباشر بدون window.confirm
   const deleteDevice = async (id) => {
-    if (window.confirm("⚠️ إلغاء قيد هذا الجهاز؟")) { await runQuery("DELETE FROM devices WHERE id = ?", [id]); await loadDevices(); showMessage('🗑️ تم إلغاء الجهاز'); }
+    await runQuery("DELETE FROM devices WHERE id = ?", [id]); 
+    await loadDevices(); 
+    showMessage('🗑️ تم إلغاء الجهاز فوراً');
   };
 
-  // دالة فحص الاتصال الحقيقية بجهاز البصمة الفعلي عبر الجسر البرمجي
   const testConnection = async (device) => {
     setIsTestingId(device.id); 
     showMessage(`🔌 جاري فحص الاتصال الحقيقي بـ ${device.name} عبر الشبكة...`, 'info');
@@ -127,13 +126,13 @@ function Settings() {
     } catch (err) {
       await runQuery("UPDATE devices SET status = 'offline' WHERE id = ?", [device.id]);
       await loadDevices(); 
-      showMessage(`❌ فشل الاتصال الحقيقي بـ ${device.name}. تأكد من كابل الشبكة وتيار الكهرباء.`, 'error');
+      showMessage(`❌ فشل الاتصال الحقيقي بـ ${device.name}.`, 'error');
     } finally {
       setIsTestingId(null);
     }
   };
 
-  // ========== نظام تسجيل البصمات الخمس المطور (طلب الأستاذ سعيد) ==========
+  // ========== نظام تسجيل البصمات ==========
   const loadPeopleForEnroll = async () => {
     if (!dbReady) return;
     if (enrollTarget === 'student') {
@@ -147,7 +146,6 @@ function Settings() {
     setFingerTemplates([null, null, null, null, null]);
   };
 
-  // استعلام البصمات المسجلة مسبقاً للشخص المحدد
   const checkExistingFingerprints = async (personId) => {
     if (!personId) return;
     const table = enrollTarget === 'student' ? 'student_fingerprints' : 'teacher_fingerprints';
@@ -171,17 +169,15 @@ function Settings() {
     checkExistingFingerprints(id);
   };
 
-  // إرسال أمر للجهاز الفعلي لسحب بصمة لإصبع معين
   const enrollFingerprintDevice = async (fingerIndex) => {
     if (!activeDeviceIp) { showMessage('❌ يرجى إضافة جهاز بصمة وتفعيله أولاً', 'error'); return; }
-    if (!selectedPersonId) { showMessage('❌ يرجى اختيار الشخص (طالب/مدرس) أولاً', 'error'); return; }
+    if (!selectedPersonId) { showMessage('❌ يرجى اختيار الشخص أولاً', 'error'); return; }
     
     setEnrollingFinger(fingerIndex);
-    setEnrollStatusText(`⏳ يرجى وضع الإصبع رقم ${fingerIndex + 1} على قارئ البصمة الآن...`);
+    setEnrollStatusText(`⏳ يرجى وضع الإصبع رقم ${fingerIndex + 1} على قارئ البصمة الان...`);
     
     try {
       if (window.electronAPI && typeof window.electronAPI.enrollFinger === 'function') {
-        // إرسال أمر لـ Electron للتواصل مع جهاز ZK وسحب البصمة
         const result = await window.electronAPI.enrollFinger({
           ip: activeDeviceIp,
           port: 4370,
@@ -190,13 +186,10 @@ function Settings() {
         });
 
         if (result && result.success) {
-          // حفظ البصمة في قاعدة البيانات المحلية SQLite
           const table = enrollTarget === 'student' ? 'student_fingerprints' : 'teacher_fingerprints';
           const foreignKey = enrollTarget === 'student' ? 'student_id' : 'teacher_id';
           
-          // مسح البصمة القديمة لنفس الإصبع إن وجدت لتجنب التكرار
           await runQuery(`DELETE FROM ${table} WHERE ${foreignKey} = ? AND finger_index = ?`, [selectedPersonId, fingerIndex]);
-          // إدراج البصمة الجديدة
           await runQuery(`INSERT INTO ${table} (${foreignKey}, finger_index, template) VALUES (?, ?, ?)`, 
             [selectedPersonId, fingerIndex, result.template || 'template_placeholder']);
           
@@ -204,7 +197,7 @@ function Settings() {
           newTemplates[fingerIndex] = result.template || 'template_placeholder';
           setFingerTemplates(newTemplates);
           
-          setEnrollStatusText(`✅ تم تسجيل وتحفيظ الإصبع رقم ${fingerIndex + 1} بنجاح في النظام!`);
+          setEnrollStatusText(`✅ تم تسجيل الإصبع رقم ${fingerIndex + 1} بنجاح!`);
           showMessage(`✨ تم تسجيل البصمة الاحتياطية رقم ${fingerIndex + 1}`);
         } else {
           throw new Error(result.error || "Enrollment failed");
@@ -220,7 +213,7 @@ function Settings() {
     }
   };
 
-  // ========== دالة حفظ إعدادات المستشار الذكي ==========
+  // ========== حفظ إعدادات المستشار الذكي ==========
   const saveAiConfig = async () => {
     if (!aiConfig.api_key || !aiConfig.api_key.trim()) {
       showMessage('❌ لا يمكن الحفظ! يرجى كتابة مفتاح الـ API الخاص بـ Groq أولاً', 'error');
@@ -237,13 +230,13 @@ function Settings() {
     localStorage.setItem('GROQ_API_KEY', updatedConfig.api_key);
     setAiConfig(updatedConfig);
     
-    showMessage('⏳ جاري التحقق من صحة المفتاح وبناء قنوات الاتصال السحابي...', 'info');
+    showMessage('⏳ جاري التحقق من صحة المفتاح...', 'info');
 
     const isReady = await loadMobileModel();
     if (isReady) {
-      showMessage('🧠 تم ترقية وحفظ وتأمين إعدادات المستشار الذكي بنجاح، والقنوات متصلة!');
+      showMessage('🧠 تم ترقية وحفظ وتأمين إعدادات المستشار الذكي بنجاح!');
     } else {
-      showMessage('⚠️ تم الحفظ محلياً ولكن فشل فحص الاتصال التلقائي بالخادم. يرجى مراجعة صلاحية المفتاح والإنترنت.', 'error');
+      showMessage('⚠️ تم الحفظ محلياً ولكن فشل فحص الاتصال التلقائي بالخادم.', 'error');
     }
   };
 
@@ -254,18 +247,30 @@ function Settings() {
     await runQuery("INSERT INTO calendar (event, date_from, date_to, type) VALUES (?, ?, ?, ?)", [eventForm.event, eventForm.date_from, eventForm.date_to, eventForm.type]);
     setEventForm({ event: '', date_from: '', date_to: '', type: 'event' }); await loadCalendar(); showMessage('📅 تمت إضافة الفعالية');
   };
-  const deleteEvent = async (id) => { await runQuery("DELETE FROM calendar WHERE id = ?", [id]); await loadCalendar(); showMessage('🗑️ تم حذف الفعالية'); };
+  
+  // ⚡ حذف مباشر بدون window.confirm
+  const deleteEvent = async (id) => { 
+    await runQuery("DELETE FROM calendar WHERE id = ?", [id]); 
+    await loadCalendar(); 
+    showMessage('🗑️ تم حذف الفعالية فوراً'); 
+  };
 
   // ========== إدارة الجداول الدراسية ==========
   const loadSchedules = async () => { const data = await getQuery("SELECT * FROM schedules ORDER BY day, time_from"); setSchedules(data || []); };
   const addSchedule = async () => {
-    if (!scheduleForm.day || !scheduleForm.subject || !scheduleForm.time_from || !scheduleForm.time_to) { showMessage('❌ يرجى اختيار اليوم وإكمال حقول الجدول الأساسية المفتوحة للكتابة', 'error'); return; }
+    if (!scheduleForm.day || !scheduleForm.subject || !scheduleForm.time_from || !scheduleForm.time_to) { showMessage('❌ يرجى إكمال الحقول الأساسية', 'error'); return; }
     await runQuery("INSERT INTO schedules (day, subject, teacher, time_from, time_to, room, break_time, late_tolerance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       [scheduleForm.day, scheduleForm.subject, scheduleForm.teacher, scheduleForm.time_from, scheduleForm.time_to, scheduleForm.room, scheduleForm.break_time, scheduleForm.late_tolerance]);
     setScheduleForm({ day: '', subject: '', teacher: '', time_from: '', time_to: '', room: '', break_time: 0, late_tolerance: 10 });
     await loadSchedules(); showMessage('📚 تمت إضافة المحاضرة للجدول');
   };
-  const deleteSchedule = async (id) => { await runQuery("DELETE FROM schedules WHERE id = ?", [id]); await loadSchedules(); showMessage('🗑️ تم حذف المحاضرة'); };
+  
+  // ⚡ حذف مباشر بدون window.confirm
+  const deleteSchedule = async (id) => { 
+    await runQuery("DELETE FROM schedules WHERE id = ?", [id]); 
+    await loadSchedules(); 
+    showMessage('🗑️ تم حذف المحاضرة فوراً'); 
+  };
 
   // ========== صلاحيات الكادر ==========
   const loadUsers = () => { 
@@ -293,15 +298,24 @@ function Settings() {
     if (result.success) { setNewUserForm({ username: '', password: '', role: 'staff' }); loadUsers(); }
   };
 
+  // ⚡ حذف مباشر بدون window.confirm
   const handleDeleteUser = async (userId) => {
-    if (window.confirm("🛑 سحب الصلاحيات؟")) { const result = await deleteUser(userId); showMessage(result.message, result.success ? 'success' : 'error'); if (result.success) loadUsers(); }
+    const result = await deleteUser(userId); 
+    showMessage(result.message, result.success ? 'success' : 'error'); 
+    if (result.success) loadUsers(); 
   };
 
   // ========== قواعد البيانات ==========
   const handleBackup = () => { exportDatabase(); showMessage('📥 تم تصدير النسخة الاحتياطية'); };
+  
+  // ⚡ استيراد مباشر بدون window.confirm
   const handleRestore = async (e) => {
     const file = e.target.files[0];
-    if (file && window.confirm("⚠️ استبدال البيانات الحالية؟")) { await importDatabase(file); showMessage('✅ تمت الاستعادة'); setTimeout(() => window.location.reload(), 1500); }
+    if (file) { 
+      await importDatabase(file); 
+      showMessage('✅ تمت الاستعادة بنجاح'); 
+      setTimeout(() => window.location.reload(), 1500); 
+    }
   };
 
   // ==================== العرض المرئي (UI Renders) ====================
@@ -318,7 +332,7 @@ function Settings() {
           <input type="checkbox" checked={aiConfig.enabled || false} onChange={e => setAiConfig({ ...aiConfig, enabled: e.target.checked })} style={{ width: '18px', height: '18px', accentColor: 'var(--gold-main)' }} />تفعيل المستشار الذكي
         </label>
         <div style={{ background: 'rgba(6,43,30,0.4)', border: '1px solid var(--gold-main)', padding: '14px', borderRadius: '10px', color: 'var(--gold-light)', fontSize: '0.85rem', fontWeight: 700 }}>
-          🚀 النموذج النشط حالياً: GPT OSS 20B (الجيل الجديد المعتمد لعام 2026 والبديل لـ Llama 3.1)
+          🚀 النموذج النشط حالياً: GPT OSS 20B
         </div>
         <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} onClick={saveAiConfig} style={{ background: 'linear-gradient(135deg, var(--gold-main), #b89324)', color: '#062b1e', border: 'none', padding: '14px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-start', minWidth: '200px' }}>💾 ترقية وحفظ النموذج</motion.button>
       </div>
@@ -340,10 +354,9 @@ function Settings() {
           <tbody>{devices.map(d => (<tr key={d.id}><td>🔹 {d.name}</td><td>{d.ip_address}</td><td>{d.port}</td><td><span style={{ color: d.status === 'online' ? 'var(--green-bright)' : '#ef4444', fontWeight: 'bold' }}>{d.status === 'online' ? '🟢 متصل حقيقياً' : '🔴 غير متصل'}</span></td><td>{d.last_sync ? new Date(d.last_sync).toLocaleString('ar-SA') : '—'}</td><td style={{ display: 'flex', gap: '8px' }}><motion.button whileTap={{ scale: 0.95 }} disabled={isTestingId !== null} onClick={() => testConnection(d)} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', color: 'var(--gold-main)', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer' }}>{isTestingId === d.id ? '⏳' : '🔌 افحص الاتصال الحقيقي'}</motion.button><button onClick={() => deleteDevice(d.id)} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444', padding: '6px 10px', borderRadius: '8px', cursor: 'pointer' }}>🗑️</button></td></tr>))}{devices.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', padding: '35px' }}>📭 لا توجد أجهزة بصمة معرفة</td></tr>}</tbody></table>
       </div>
 
-      {/* 🔮 لوحة تسجيل الـ 5 بصمات الاحتياطية للطالب / المدرس (طلب الأستاذ سعيد) 🔮 */}
       {devices.length > 0 && (
         <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--gold-main)', borderRadius: '16px', padding: '25px', marginTop: '20px' }}>
-          <h4 style={{ fontFamily: 'Amiri, serif', fontSize: '1.4rem', color: 'var(--gold-light)', margin: '0 0 10px 0' }}>🖐️ وحدة تسجيل الـ 5 بصمات الاحتياطية (قيد وحفظ مسبق)</h4>
+          <h4 style={{ fontFamily: 'Amiri, serif', fontSize: '1.4rem', color: 'var(--gold-light)', margin: '0 0 10px 0' }}>🖐️ وحدة تسجيل الـ 5 بصمات الاحتياطية</h4>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px' }}>حدد الهدف الأكاديمي، ثم قم بسحب وحفظ 5 بصمات تأمينية من الجهاز المعلق بالجدار مباشرة.</p>
           
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 2fr', gap: '15px', marginBottom: '20px' }}>
@@ -413,12 +426,12 @@ function Settings() {
   const renderCalendar = () => (
     <div className="settings-section">
       <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)', margin: '0 0 5px 0' }}>📅 التقويم الأكاديمي الفصلي</h3>
-      <div className="form-row-lux" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: '12px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--glass-border)', padding: '18px', borderRadius: '14px', marginBottom: '25px' }}>
+      <div className="form-row-lux" style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 1.2fr 1fr auto', gap: '12px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--glass-border)', padding: '18px', borderRadius: '14px', marginBottom: '25px' }}>
         <input type="text" placeholder="الفعالية / المناسبة" value={eventForm.event || ''} onChange={e => setEventForm({ ...eventForm, event: e.target.value })} className="glass-input" />
-        <input type="date" value={eventForm.date_from || ''} onChange={e => setEventForm({ ...eventForm, date_from: e.target.value })} className="glass-input" />
-        <input type="date" value={eventForm.date_to || ''} onChange={e => setEventForm({ ...eventForm, date_to: e.target.value })} className="glass-input" />
+        <input type="text" placeholder="من تاريخ (مثال: 2026-01-01)" value={eventForm.date_from || ''} onChange={e => setEventForm({ ...eventForm, date_from: e.target.value })} className="glass-input" style={{ background: 'rgba(0,0,0,0.3)', color: '#fff', border: '1px solid var(--glass-border)' }} />
+        <input type="text" placeholder="إلى تاريخ (مثال: 2026-01-05)" value={eventForm.date_to || ''} onChange={e => setEventForm({ ...eventForm, date_to: e.target.value })} className="glass-input" style={{ background: 'rgba(0,0,0,0.3)', color: '#fff', border: '1px solid var(--glass-border)' }} />
         <select value={eventForm.type || 'event'} onChange={e => setEventForm({ ...eventForm, type: e.target.value })} style={{ background: '#041d14', border: '1px solid var(--glass-border)', padding: '12px', borderRadius: '10px', color: '#fff' }}><option value="event">📅 حدث</option><option value="holiday">🏖️ إجازة</option><option value="exam">📝 اختبار</option><option value="registration">📋 تسجيل</option><option value="results">📊 نتائج</option></select>
-        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={addEvent} style={{ background: 'linear-gradient(135deg, var(--gold-main), #b89324)', color: '#062b1e', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}>➕</motion.button>
+        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={addEvent} style={{ background: 'linear-gradient(135deg, var(--gold-main), #b89324)', color: '#062b1e', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', padding: '0 20px' }}>➕</motion.button>
       </div>
       <div className="data-table" style={{ border: '1px solid var(--glass-border)', borderRadius: '14px', overflow: 'hidden' }}>
         <table><thead><tr style={{ background: 'linear-gradient(135deg, #041d14, #083d2b)' }}><th>الفعالية</th><th>من</th><th>إلى</th><th>النوع</th><th>حذف</th></tr></thead>
@@ -430,8 +443,6 @@ function Settings() {
   const renderSchedules = () => (
     <div className="settings-section">
       <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)', margin: '0 0 5px 0' }}>📚 إدارة الساعات والجدول الدراسي الموحد</h3>
-      <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginBottom: '20px' }}>الحقول مفتوحة وجاهزة تماماً للكتابة والتعديل الفوري.</p>
-      
       <div className="form-row-lux" style={{ display: 'grid', gridTemplateColumns: '1.2fr 2fr 1.5fr 1fr 1fr 1fr auto', gap: '10px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--glass-border)', padding: '18px', borderRadius: '14px', marginBottom: '25px' }}>
         <select value={scheduleForm.day || ''} onChange={e => setScheduleForm({ ...scheduleForm, day: e.target.value })} className="glass-input" style={{ background: '#041d14', color: '#fff', border: '1px solid var(--glass-border)', padding: '10px' }}>
           <option value="">اختر اليوم...</option>
@@ -490,9 +501,6 @@ function Settings() {
       <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '35px' }}>
         <motion.button whileHover={{ y: -4 }} whileTap={{ scale: 0.97 }} onClick={handleBackup} style={{ background: 'linear-gradient(135deg, var(--gold-main), #b89324)', color: '#062b1e', border: 'none', padding: '18px 35px', borderRadius: '14px', fontWeight: 900, cursor: 'pointer' }}>📥 تصدير .db</motion.button>
         <motion.label whileHover={{ y: -4 }} whileTap={{ scale: 0.97 }} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', color: '#fff', padding: '18px 35px', borderRadius: '14px', fontWeight: 900, cursor: 'pointer' }}>📤 استيراد وترميم<input type="file" accept=".db" onChange={handleRestore} style={{ display: 'none' }} /></motion.label>
-      </div>
-      <div style={{ maxWidth: '600px', margin: '0 auto', background: 'rgba(239,68,68,0.02)', border: '1px dashed rgba(239,68,68,0.2)', padding: '20px', borderRadius: '14px', textAlign: 'right' }}>
-        <p style={{ color: '#ef4444', fontWeight: 800 }}>⚠️ تحذير إداري: استيراد أي ملف قاعدة بيانات خارجي سيقوم بمسح واستبدال كافة بيانات الطلاب وسجلات الحضور والغياب الحالية فوراً!</p>
       </div>
     </div>
   );
