@@ -1,5 +1,5 @@
 // src/components/Reports.js – مركز التقارير الأكاديمية المحسن والمطابق لقاعدة البيانات
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, initDatabase } from '../services/db';
 import * as XLSX from 'xlsx';
@@ -17,6 +17,11 @@ function Reports() {
   const [quickStats, setQuickStats] = useState({ totalRecords: 0, efficiencyRate: 100, alertCount: 0 });
   const [dbReady, setDbReady] = useState(false);
 
+  // حالات بحث الطالب التفاعلية
+  const [studentSearchTerm, setStudentSearchTerm] = useState('');
+  const [showStudentDropdown, setShowStudentDropdown] = useState(false);
+  const dropdownRef = useRef(null);
+
   useEffect(() => {
     const setup = async () => {
       await initDatabase();
@@ -24,6 +29,17 @@ function Reports() {
       await loadFilters();
     };
     setup();
+  }, []);
+
+  // إغلاق قائمة البحث عند النقر في أي مكان آخر بالصفحة
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowStudentDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   useEffect(() => {
@@ -35,7 +51,7 @@ function Reports() {
     const studentData = await getQuery("SELECT id, full_name, university_id FROM students WHERE status = 'active' ORDER BY full_name");
     setStudents(studentData || []);
     
-    // جلب التخصصات بالطريقة الصحيحة المتوافقة مع السكيما الفعلية
+    // جلب التخصصات
     const majorData = await getQuery("SELECT id, name FROM majors WHERE status = 'active' ORDER BY name");
     setMajors(majorData || []);
   };
@@ -63,7 +79,7 @@ function Reports() {
     finally { setTimeout(() => setLoading(false), 300); }
   };
 
-  // ========== تقرير يومي (تم إصلاح الربط) ==========
+  // ========== تقرير يومي ==========
   const generateDailyReport = async () => {
     const data = await getQuery(
       `SELECT a.time_in, a.time_out, a.status, s.university_id, s.full_name, m.name as major_name
@@ -93,10 +109,9 @@ function Reports() {
     }));
   };
 
-  // ========== تقرير شهري (تم إصلاح معيار نهاية الشهر ذكياً عبر SQLite) ==========
+  // ========== تقرير شهري ==========
   const generateMonthlyReport = async () => {
     const startDate = `${selectedMonth}-01`;
-    // الحيلة البرمجية: جلب آخر يوم في الشهر ديناميكياً لتفادي مشكلة (30 أو 31 يوم)
     const endDate = `${selectedMonth}-31`; 
     
     const data = await getQuery(
@@ -198,7 +213,7 @@ function Reports() {
       else if (rate >= 20) { stage = '🟡 تنبيه ثانٍ'; stageColor = '#f59e0b'; }
       else if (rate >= 10) { stage = '🟢 تنبيه أول'; stageColor = '#38bdf8'; }
       return { ...s, rate, stage, stageColor };
-    }).filter(s => s.rate >= 5).sort((a, b) => b.rate - a.rate); // خفضنا الحد الأدنى لـ 5% ليظهر الطلاب بشكل مرن
+    }).filter(s => s.rate >= 5).sort((a, b) => b.rate - a.rate);
   };
 
   const calculateQuickStats = (data) => {
@@ -219,7 +234,6 @@ function Reports() {
     if (!reportData || reportData.length === 0) return;
     const printWindow = window.open('', '_blank');
     
-    // تأمين جلب العناوين لتفادي خطأ undefined
     let keys = Object.keys(reportData[0]);
     let tableHeadersHtml = keys.map(key => `<th>${translateHeader(key)}</th>`).join('');
     
@@ -301,6 +315,18 @@ function Reports() {
     return value;
   };
 
+  // فلترة قائمة الطلاب للبحث المباشر
+  const filteredStudents = students.filter(s => 
+    s.full_name.toLowerCase().includes(studentSearchTerm.toLowerCase()) ||
+    (s.university_id && s.university_id.toString().includes(studentSearchTerm))
+  );
+
+  const handleSelectStudent = (student) => {
+    setSelectedStudent(student.id);
+    setStudentSearchTerm(`${student.full_name} (${student.university_id})`);
+    setShowStudentDropdown(false);
+  };
+
   if (!dbReady) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', gap: '20px' }}>
@@ -310,7 +336,6 @@ function Reports() {
     );
   }
 
-  // الاحتفاظ بالـ JSX الأصلي والواجهات الجمالية المتناسقة مع الـ Glassmorphism الداكن للجامعة
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="reports-module" style={{ padding: '5px 0' }}>
       
@@ -357,14 +382,114 @@ function Reports() {
                 type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
                 style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '11px 15px', borderRadius: '12px', color: '#fff', fontWeight: 600 }} />
             )}
+            
+            {/* استبدال القائمة المنسدلة بحقل البحث التفاعلي الفوري للطلاب */}
             {reportType === 'student' && (
-              <motion.select initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-                value={selectedStudent} onChange={e => setSelectedStudent(e.target.value)}
-                style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '11px 15px', borderRadius: '12px', color: '#fff', maxWidth: '280px' }}>
-                <option value="">اختر طالباً...</option>
-                {students.map(s => <option key={s.id} value={s.id} style={{background:'#041d14'}}>{s.full_name} ({s.university_id})</option>)}
-              </motion.select>
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }} 
+                animate={{ opacity: 1, scale: 1 }} 
+                exit={{ opacity: 0 }}
+                ref={dropdownRef}
+                style={{ position: 'relative', minWidth: '280px', flex: 1, maxWidth: '350px' }}
+              >
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    placeholder="🔍 ابحث باسم الطالب أو الرقم الجامعي..."
+                    value={studentSearchTerm}
+                    onChange={(e) => {
+                      setStudentSearchTerm(e.target.value);
+                      setSelectedStudent(''); // إعادة تعيين الطالب المختار في حال التعديل
+                      setShowStudentDropdown(true);
+                    }}
+                    onFocus={() => setShowStudentDropdown(true)}
+                    style={{
+                      width: '100%',
+                      background: 'rgba(0,0,0,0.4)',
+                      border: '1px solid var(--gold-main)',
+                      padding: '11px 35px 11px 15px',
+                      borderRadius: '12px',
+                      color: '#fff',
+                      fontWeight: 600,
+                      outline: 'none',
+                      fontSize: '0.9rem'
+                    }}
+                  />
+                  {studentSearchTerm && (
+                    <button
+                      onClick={() => {
+                        setStudentSearchTerm('');
+                        setSelectedStudent('');
+                      }}
+                      style={{
+                        position: 'absolute',
+                        left: '10px',
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--text-secondary)',
+                        cursor: 'pointer',
+                        fontSize: '1rem'
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* قائمة الاقتراحات المنسدلة للبحث */}
+                {showStudentDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      right: 0,
+                      left: 0,
+                      marginTop: '6px',
+                      background: '#041d14',
+                      border: '1px solid var(--gold-main)',
+                      borderRadius: '12px',
+                      maxHeight: '220px',
+                      overflowY: 'auto',
+                      zIndex: 100,
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
+                    }}
+                  >
+                    {filteredStudents.length > 0 ? (
+                      filteredStudents.map((s) => (
+                        <div
+                          key={s.id}
+                          onClick={() => handleSelectStudent(s)}
+                          style={{
+                            padding: '10px 14px',
+                            cursor: 'pointer',
+                            borderBottom: '1px solid rgba(255,255,255,0.05)',
+                            display: 'flex',
+                            justify: 'space-between',
+                            alignItems: 'center',
+                            transition: 'background 0.2s',
+                            color: '#fff'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(214,175,55,0.15)'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <span style={{ fontWeight: 600 }}>{s.full_name}</span>
+                          <span style={{ color: 'var(--gold-main)', fontSize: '0.8rem', opacity: 0.8 }}>
+                            {s.university_id}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ padding: '12px', color: 'var(--text-secondary)', textCenter: 'center', fontSize: '0.85rem' }}>
+                        لا يوجد طالب بهذا الاسم أو الرقم
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </motion.div>
             )}
+
             {reportType === 'major' && (
               <motion.select initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
                 value={selectedMajor} onChange={e => setSelectedMajor(e.target.value)}
