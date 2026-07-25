@@ -171,22 +171,70 @@ function Reports() {
     return Object.values(studentMap).sort((a, b) => b.absences - a.absences);
   };
 
-  // ========== تقرير تقييم الانضباط ==========
+  // ========== تقرير تقييم الانضباط (احتساب آلي ذكي واحترافي 100%) ==========
   const generateDisciplineReport = async () => {
-    const data = await getQuery(
-      `SELECT d.attendance_score, d.punctuality_score, d.absence_score, d.discipline_score, d.total_score,
-              s.university_id, s.full_name
-       FROM discipline d INNER JOIN students s ON d.student_id = s.id ORDER BY d.total_score DESC`
-    );
-    return (data || []).map(d => ({
-      university_id: d.university_id,
-      full_name: d.full_name,
-      attendance_score: d.attendance_score,
-      punctuality_score: d.punctuality_score,
-      absence_score: d.absence_score,
-      discipline_score: d.discipline_score,
-      total_score: d.total_score
-    }));
+    // 1. جلب جميع الطلاب النشطين
+    const activeStudents = await getQuery("SELECT id, university_id, full_name FROM students WHERE status = 'active'");
+    if (!activeStudents || activeStudents.length === 0) return [];
+
+    // 2. جلب جميع سجلات الحضور والغياب
+    const attendanceLogs = await getQuery("SELECT student_id, status FROM attendance");
+
+    // 3. تجميع السجلات وحساب الأيام لكل طالب
+    const attendanceMap = {};
+    if (attendanceLogs && attendanceLogs.length > 0) {
+      attendanceLogs.forEach(log => {
+        const sid = log.student_id;
+        if (!attendanceMap[sid]) {
+          attendanceMap[sid] = { total: 0, present: 0, late: 0, absent: 0 };
+        }
+        attendanceMap[sid].total++;
+        if (log.status === 'present') attendanceMap[sid].present++;
+        if (log.status === 'late') attendanceMap[sid].late++;
+        if (log.status === 'absent') attendanceMap[sid].absent++;
+      });
+    }
+
+    // 4. احتساب الدرجات الأكاديمية التلقائية من 100
+    const disciplineReport = activeStudents.map(student => {
+      const stats = attendanceMap[student.id] || { total: 0, present: 0, late: 0, absent: 0 };
+      const totalDays = stats.total;
+
+      let attendance_score = 50;  // حضور الجلسات (50)
+      let punctuality_score = 15; // المواظبة والتبكير (15)
+      let absence_score = 15;     // رصيد عدم الغياب (15)
+      let discipline_score = 20;  // السلوك العام (20)
+
+      if (totalDays > 0) {
+        // حساب درجات الحضور الفعلي
+        attendance_score = Math.round(((stats.present + stats.late) / totalDays) * 50);
+        
+        // خصم درجة ونصف عن كل تأخير من رصيد التبكير
+        punctuality_score = Math.max(0, 15 - Math.round(stats.late * 1.5));
+        
+        // خصم 3 درجات عن كل يوم غياب من رصيد الغياب
+        absence_score = Math.max(0, 15 - (stats.absent * 3));
+        
+        // درجة السلوك تنقص فقط في حال تراكم الغياب والتأخيرات الكثيرة
+        const penalties = stats.absent + Math.floor(stats.late / 2);
+        discipline_score = Math.max(10, 20 - penalties);
+      }
+
+      const total_score = attendance_score + punctuality_score + absence_score + discipline_score;
+
+      return {
+        university_id: student.university_id,
+        full_name: student.full_name,
+        attendance_score,
+        punctuality_score,
+        absence_score,
+        discipline_score,
+        total_score
+      };
+    });
+
+    // ترتيب الطلاب حسب الدرجة الكلية من الأعلى للأقل (المنضبطين في البداية)
+    return disciplineReport.sort((a, b) => b.total_score - a.total_score);
   };
 
   // ========== تقرير مراحل الغياب والحرمان ==========
