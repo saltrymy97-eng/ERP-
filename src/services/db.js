@@ -1,4 +1,4 @@
-// src/services/db.js – الإصدار المتوافق كلياً مع الجداول الـ 14 لمنظومة Electron + دعم حضور الأكاديميين لـ AI
+// src/services/db.js – الإصدار المحدث والآمن كلياً لعمليات التصدير والترميم المباشر
 let getQuery, runQuery, initDatabase, closeDatabase, exportDatabase, importDatabase, getSystemStatsForAI;
 
 getQuery = async (sql, params = []) => {
@@ -16,34 +16,74 @@ initDatabase = async () => {
 
 closeDatabase = () => {};
 
+// 📥 تصدير آمن باسم نظيف خالي من الرموز المقطوعة
 exportDatabase = async () => {
   try {
     const data = await window.electronAPI.exportDB();
-    if (!data) throw new Error('لم يتم إرجاع بيانات');
-    const blob = new Blob([data]);
+    if (!data) throw new Error('لم يتم إرجاع بيانات من محرك التصدير');
+    
+    const blob = new Blob([data], { type: 'application/x-sqlite3' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `backup_${new Date().toISOString().split('T')[0]}.db`;
+    
+    // تسمية آمنة ومباشرة بدون نقاط أو رموز غير متوافقة
+    const today = new Date().toISOString().split('T')[0];
+    a.download = `quran_attendance_backup_${today}.db`;
+    
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  } catch (e) { console.error(e); }
+  } catch (e) { 
+    console.error("❌ فشل التصدير:", e); 
+    throw e;
+  }
 };
 
+// 📤 استعادة احترافية متضمنة فحص رأس الملف (SQLite Header Validation)
 importDatabase = async (file) => {
-  try {
+  return new Promise((resolve, reject) => {
+    if (!file) {
+      return reject(new Error("لم يتم اختيار أي ملف."));
+    }
+
     const reader = new FileReader();
-    reader.readAsDataURL(file);
-    return new Promise((resolve, reject) => {
-      reader.onload = async () => {
-        try {
-          const base64Data = reader.result.split(',')[1];
-          const result = await window.electronAPI.importDB(base64Data);
+
+    // 1. قراءة الهيدر (أول 16 بايت) للتحقق من أن الملف SQLite حقيقي وسلامته 100%
+    const headerReader = new FileReader();
+    headerReader.onload = function(e) {
+      const arr = new Uint8Array(e.target.result);
+      const headerString = String.fromCharCode.apply(null, arr.subarray(0, 15));
+      
+      // التوقيع القياسي لجميع قواعد بيانات SQLite
+      if (!headerString.startsWith("SQLite format 3")) {
+        return reject(new Error("الملف المختار ليس قاعدة بيانات SQLite صالحة! يرجى اختيار ملف نسخة احتياطية معتمد."));
+      }
+
+      // 2. الملف سليم -> البدء في تحويله وإرساله لـ Electron للترميم
+      reader.readAsDataURL(file);
+    };
+
+    headerReader.onerror = () => reject(new Error("فشل قراءة رأس الملف المختار."));
+    headerReader.readAsArrayBuffer(file.slice(0, 16));
+
+    // 3. قراءة الملف بالكامل وتحويله إلى Base64 آمن للـ IPC
+    reader.onload = async () => {
+      try {
+        const base64Data = reader.result.split(',')[1];
+        const result = await window.electronAPI.importDB(base64Data);
+        if (result && result.success !== false) {
           resolve(result);
-        } catch (err) { reject(err); }
-      };
-    });
-  } catch (e) { return false; }
+        } else {
+          reject(new Error(result?.error || "فشلت عملية الترميم من محرك Electron."));
+        }
+      } catch (err) { 
+        reject(err); 
+      }
+    };
+    reader.onerror = () => reject(new Error("فشل قراءة محتوى الملف."));
+  });
 };
 
 // الدالة السيادية الكبرى بعد مطابقتها مع جداول الحضور الأكاديمي والطلاب
@@ -99,10 +139,9 @@ getSystemStatsForAI = async () => {
         .join("\n");
     }
 
-    // 4. جلب قائمة كادر هيئة التدريس وسجلات حضورهم الأخيرة متضمنة متطلبات الأستاذ سعيد
+    // 4. جلب قائمة كادر هيئة التدريس وسجلات حضورهم الأخيرة
     const teachersList = await getQuery("SELECT id, teacher_id, full_name, speciality, status FROM teachers WHERE status = 'active';");
     
-    // جلب آخر عمليات حضور للمعلمين متضمنة الدرس ونسبة الإنجاز وإجمالي الساعات
     const teacherAttendanceRecords = await getQuery(`
       SELECT ta.*, t.full_name 
       FROM teacher_attendance ta 
@@ -154,7 +193,7 @@ getSystemStatsForAI = async () => {
 [كشف الطلاب التفصيلي والبيانات المكتشفة في جداول الحضور]:
 ${studentsDetailsText}
 
-[سجل كادر هيئة التدريس التفصيلي وحالة الحضور والدروس ونسب الإنجاز (طلب الأستاذ سعيد)]:
+[سجل كادر هيئة التدريس التفصيلي وحالة الحضور والدروس ونسب الإنجاز]:
 ${teachersDetailsText}
 --------------------------------------------------
     `;
