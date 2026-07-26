@@ -267,18 +267,53 @@ ipcMain.handle('exportDB', () => {
   }
 });
 
-// ========== IPC: استيراد قاعدة البيانات ==========
+// ========== IPC: استيراد قاعدة البيانات المحدث وفتح القفل الآمن (Safe Import & Lock Bypass) ==========
 ipcMain.handle('importDB', (event, data) => {
   try {
     const buffer = Buffer.from(data, 'base64');
-    db.close();
+
+    if (db) {
+      try {
+        // 1. إغلاق نمط WAL ومسح ملفات السجل المؤقتة مؤقتاً
+        db.pragma('journal_mode = DELETE');
+      } catch (errWal) {
+        console.warn('⚠️ تحذير بسيط عند تحويل نمط WAL:', errWal.message);
+      }
+      
+      // 2. إغلاق اتصال قاعدة البيانات الحالي لفك قفل الملف من نظام Windows
+      db.close();
+    }
+
+    // 3. مسح ملفات السجل المتبقية (WAL / SHM) لمنع أي تعارض بيانات قديم
+    const walPath = `${dbPath}-wal`;
+    const shmPath = `${dbPath}-shm`;
+    if (fs.existsSync(walPath)) { try { fs.unlinkSync(walPath); } catch (e) {} }
+    if (fs.existsSync(shmPath)) { try { fs.unlinkSync(shmPath); } catch (e) {} }
+
+    // 4. استبدال كائن قاعدة البيانات بالبيانات الجديدة من الـ Buffer
     fs.writeFileSync(dbPath, buffer);
+
+    // 5. إعادة فتح قاعدة البيانات وتفعيل الإعدادات السيادية من جديد
     db = new Database(dbPath);
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
+
+    console.log('✨ تم ترميم واستعادة قاعدة البيانات بنجاح وبدون أي أقفال مسجلة');
     return { success: true };
   } catch (e) {
     console.error('❌ خطأ في استيراد قاعدة البيانات الفاخرة:', e);
+    
+    // محاولة إعادة الاتصال بالملف في حال حدث أي استثناء مفاجئ
+    try {
+      if (!db || !db.open) {
+        db = new Database(dbPath);
+        db.pragma('journal_mode = WAL');
+        db.pragma('foreign_keys = ON');
+      }
+    } catch (reconnectErr) {
+      console.error('❌ فشل إعادة الاتصال الطارئ بقاعدة البيانات:', reconnectErr);
+    }
+    
     return { success: false, error: e.message };
   }
 });
@@ -319,6 +354,8 @@ function startRealtimeAttendanceListener() {
   
   setInterval(async () => {
     try {
+      if (!db || !db.open) return;
+
       const activeDevice = db.prepare("SELECT ip_address, port FROM devices WHERE status = 'online' LIMIT 1").get();
       if (!activeDevice) return;
 
@@ -344,6 +381,8 @@ function startRealtimeAttendanceListener() {
         const userId = isTeacher ? rawId - 50000 : rawId;
         const currentDate = new Date().toISOString().split('T')[0];
         const currentTime = new Date().toLocaleTimeString('ar-SA', { hour12: false });
+
+        if (!db || !db.open) return;
 
         const person = db.prepare(`SELECT id FROM ${targetTable} WHERE id = ?`).get(userId);
         if (person) {
