@@ -1,4 +1,4 @@
-// src/components/Settings.js – المركز السيادي واللوحة القيادية العليا للنظام (نسخة محدثة: استعادة آمنة ومباشرة بدون أشرطة متصفح)
+// src/components/Settings.js – المركز السيادي واللوحة القيادية العليا للنظام (نسخة محدثة: استعادة آمنة وإعادة تنشيط سلسة)
 // مطور النظام: المهندس سالم فهمي التريمي
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -98,7 +98,6 @@ function Settings() {
     setDeviceForm({ name: '', ip_address: '', port: 4370 }); await loadDevices(); showMessage('✨ تم تسجيل البوابة بنجاح');
   };
 
-  // ⚡ حذف مباشر بدون أشرطة متصفح
   const deleteDevice = async (id) => {
     await runQuery("DELETE FROM devices WHERE id = ?", [id]); 
     await loadDevices(); 
@@ -248,7 +247,6 @@ function Settings() {
     setEventForm({ event: '', date_from: '', date_to: '', type: 'event' }); await loadCalendar(); showMessage('📅 تمت إضافة الفعالية');
   };
   
-  // ⚡ حذف مباشر بدون أشرطة متصفح
   const deleteEvent = async (id) => { 
     await runQuery("DELETE FROM calendar WHERE id = ?", [id]); 
     await loadCalendar(); 
@@ -265,7 +263,6 @@ function Settings() {
     await loadSchedules(); showMessage('📚 تمت إضافة المحاضرة للجدول');
   };
   
-  // ⚡ حذف مباشر بدون أشرطة متصفح
   const deleteSchedule = async (id) => { 
     await runQuery("DELETE FROM schedules WHERE id = ?", [id]); 
     await loadSchedules(); 
@@ -298,7 +295,6 @@ function Settings() {
     if (result.success) { setNewUserForm({ username: '', password: '', role: 'staff' }); loadUsers(); }
   };
 
-  // ⚡ حذف مباشر بدون أشرطة متصفح
   const handleDeleteUser = async (userId) => {
     const result = await deleteUser(userId); 
     showMessage(result.message, result.success ? 'success' : 'error'); 
@@ -306,28 +302,37 @@ function Settings() {
   };
 
   // ========== قواعد البيانات ==========
-  const handleBackup = () => { exportDatabase(); showMessage('📥 تم تصدير النسخة الاحتياطية'); };
+  const handleBackup = async () => {
+    try {
+      await exportDatabase(); 
+      showMessage('📥 تم تصدير النسخة الاحتياطية بنجاح');
+    } catch (e) {
+      showMessage(`❌ فشل التصدير: ${e.message}`, 'error');
+    }
+  };
   
-  // ✅ استعادة آمنة ومباشرة بدون أشرطة متصفح وبدون تجمد
+  // ✅ استعادة آمنة ومباشرة مع تحديث الشاشة التلقائي (Reload) دون الحاجة لإغلاق التطبيق ودون أي تجمد
   const handleRestore = async (e) => {
     const file = e.target.files[0];
     if (file) { 
       try {
-        // 1. استبدال ملف قاعدة البيانات
+        showMessage('⏳ جاري فحص واستعادة البيانات الحية...', 'info');
+        
+        // 1. فحص وتطبيق عملية استعادة قاعدة البيانات في الذاكرة ومحرك SQLite
         await importDatabase(file); 
         
-        // 2. إظهار رسالة النجاح في الواجهة المدمجة الخاصة بالنظام
-        showMessage('✅ تمت الاستعادة بنجاح! جاري إغلاق التطبيق لتحديث البيانات...');
+        showMessage('✅ تمت الاستعادة بنجاح! جاري تحديث بيانات الشاشة تلقائياً...');
         
-        // 3. إغلاق التطبيق فوراً لفك قفل الملفات وتجنب تعليق الحقول
-        if (window.electronAPI && typeof window.electronAPI.closeApp === 'function') {
-          window.electronAPI.closeApp();
-        } else {
-          window.close();
-        }
+        // 2. تحديث الواجهة تلقائياً بعد ثانية واحدة لإعادة تحميل كافة البيانات المستعادة بسلاسة
+        setTimeout(() => {
+          window.location.reload();
+        }, 1200);
+
       } catch (err) {
         showMessage(`❌ فشل الاستعادة: ${err.message}`, 'error');
       }
+      // إفراغ قيمة الإدخال لسمة الملف للسماح باختيار نفس الملف مجدداً إن لزم الأمر
+      e.target.value = '';
     }
   };
 
