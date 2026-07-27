@@ -1,7 +1,7 @@
 // electron/main.js – تطبيق Electron مع SQLite حقيقية محلية احترافية لدعم جهاز ZD-K البصمة الحقيقية
 // الإصدار المطور كلياً والمكمل للجداول الـ 16 لمنظومة الحضور الأكاديمي والطباعة الفاخرة
 // مطور النظام: المهندس سالم فهمي التريمي
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const Database = require('better-sqlite3');
 const net = require('net'); // للاتصال الشبكي المباشر بجهاز ZD-K عبر منفذ 4370
@@ -256,54 +256,85 @@ ipcMain.handle('runQuery', (event, sql, params = []) => {
   }
 });
 
-// ========== IPC: تصدير قاعدة البيانات ==========
-ipcMain.handle('exportDB', () => {
+// ========== IPC: تصدير قاعدة البيانات الحقيقي والمباشر عبر نظام التشغيل ==========
+ipcMain.handle('exportDB', async () => {
   try {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // فتح نافذة الحفظ الخاصة بنظام Windows
+    const { filePath, canceled } = await dialog.showSaveDialog({
+      title: 'حفظ نسخة احتياطية من قاعدة البيانات',
+      defaultPath: `quran_attendance_backup_${today}.db`,
+      filters: [{ name: 'SQLite Database', extensions: ['db'] }]
+    });
+
+    if (canceled || !filePath) return { success: false, canceled: true };
+
+    // أخذ النسخة الاحتياطية الثنائية مباشرة بدون تشفير Base64
     const data = db.serialize();
-    return Buffer.from(data).toString('base64');
+    fs.writeFileSync(filePath, data);
+
+    console.log('✅ تم تصدير قاعدة البيانات بنجاح إلى:', filePath);
+    return { success: true, filePath };
   } catch (e) {
     console.error('❌ خطأ في تصدير النسخة الاحتياطية للـ DB:', e);
-    return null;
+    return { success: false, error: e.message };
   }
 });
 
-// ========== IPC: استيراد قاعدة البيانات المحدث وفتح القفل الآمن (Safe Import & Lock Bypass) ==========
-ipcMain.handle('importDB', (event, data) => {
+// ========== IPC: استيراد قاعدة البيانات المحدث وفتح القفل الآمن (Safe Import) ==========
+ipcMain.handle('importDB', async (event, sourceFilePath) => {
   try {
-    const buffer = Buffer.from(data, 'base64');
+    // فتح نافذة اختيار الملف إذا لم يتم التمرير المباشر
+    let filePathToImport = sourceFilePath;
+    if (!filePathToImport || typeof filePathToImport !== 'string') {
+      const { filePaths, canceled } = await dialog.showOpenDialog({
+        title: 'اختر ملف النسخة الاحتياطية للاستعادة',
+        filters: [{ name: 'SQLite Database', extensions: ['db'] }],
+        properties: ['openFile']
+      });
+      if (canceled || filePaths.length === 0) return { success: false, canceled: true };
+      filePathToImport = filePaths[0];
+    }
+
+    // قراءة الملف للتحقق أولاً
+    const buffer = fs.readFileSync(filePathToImport);
+
+    // التحقق المباشر من التوقيع السليم (16 بايت)
+    const header = buffer.toString('utf8', 0, 16);
+    if (!header.startsWith('SQLite format 3')) {
+      throw new Error('الملف المختار ليس ملف قاعدة بيانات SQLite معتمد أو أنه ملف تالف.');
+    }
 
     if (db) {
       try {
-        // 1. إغلاق نمط WAL ومسح ملفات السجل المؤقتة مؤقتاً
         db.pragma('journal_mode = DELETE');
       } catch (errWal) {
         console.warn('⚠️ تحذير بسيط عند تحويل نمط WAL:', errWal.message);
       }
-      
-      // 2. إغلاق اتصال قاعدة البيانات الحالي لفك قفل الملف من نظام Windows
       db.close();
     }
 
-    // 3. مسح ملفات السجل المتبقية (WAL / SHM) لمنع أي تعارض بيانات قديم
+    // مسح ملفات السجل المؤقتة (WAL / SHM)
     const walPath = `${dbPath}-wal`;
     const shmPath = `${dbPath}-shm`;
     if (fs.existsSync(walPath)) { try { fs.unlinkSync(walPath); } catch (e) {} }
     if (fs.existsSync(shmPath)) { try { fs.unlinkSync(shmPath); } catch (e) {} }
 
-    // 4. استبدال كائن قاعدة البيانات بالبيانات الجديدة من الـ Buffer
+    // استبدال قاعدة البيانات بالملف الثنائي الجديد
     fs.writeFileSync(dbPath, buffer);
 
-    // 5. إعادة فتح قاعدة البيانات وتفعيل الإعدادات السيادية من جديد
+    // إعادة فتح قاعدة البيانات وتفعيل الخيارات
     db = new Database(dbPath);
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
 
-    console.log('✨ تم ترميم واستعادة قاعدة البيانات بنجاح وبدون أي أقفال مسجلة');
+    console.log('✨ تم استعادة قاعدة البيانات بنجاح وبدون أي أقفال');
     return { success: true };
   } catch (e) {
-    console.error('❌ خطأ في استيراد قاعدة البيانات الفاخرة:', e);
+    console.error('❌ خطأ في استيراد قاعدة البيانات:', e);
     
-    // محاولة إعادة الاتصال بالملف في حال حدث أي استثناء مفاجئ
+    // إعادة الاتصال الطارئ
     try {
       if (!db || !db.open) {
         db = new Database(dbPath);
@@ -432,22 +463,20 @@ function createWindow() {
     height: 850,
     minWidth: 1000,
     minHeight: 700,
-    icon: path.join(__dirname, 'logo.png'), // فك التجميع الصريح والمباشر من جذر الـ ASAR
+    icon: path.join(__dirname, 'logo.png'),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js') // يتوجه مباشرة للجذر مصلحاً خطأ الـ Console تماماً
+      preload: path.join(__dirname, 'preload.js')
     }
   });
 
-  // 🔥 [الحل الجذري الاحترافي المستقر]: استدعاء ملف index.html مباشرة من مجلد البناء عند التغليف لإنهاء أزمة الرابط الوهمي
   if (app.isPackaged) {
     mainWindow.loadFile(path.join(__dirname, '../build/index.html'));
   } else {
-    mainWindow.loadFile(path.join(__dirname, 'index.html')); // مرحلة التطوير العادية
+    mainWindow.loadFile(path.join(__dirname, 'index.html'));
   }
 
-  // السماح بنوافذ الطباعة المنبثقة وحقن مسار الـ preload النقي من الجذر
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     return {
       action: 'allow',
@@ -456,7 +485,7 @@ function createWindow() {
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true,
-          preload: path.join(__dirname, 'preload.js') // جذر التغليف المباشر
+          preload: path.join(__dirname, 'preload.js')
         }
       }
     };
