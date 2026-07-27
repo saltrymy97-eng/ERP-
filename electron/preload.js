@@ -9,11 +9,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // استعلامات INSERT/UPDATE/DELETE – تنفيذ وتعديل
   runQuery: (sql, params = []) => ipcRenderer.invoke('runQuery', sql, params),
   
-  // تصدير قاعدة البيانات كـ Base64
+  // تصدير قاعدة البيانات المباشر عبر نافذة الويندوز
   exportDB: () => ipcRenderer.invoke('exportDB'),
   
-  // استيراد قاعدة البيانات من Base64
-  importDB: (data) => ipcRenderer.invoke('importDB', data),
+  // استيراد واستعادة قاعدة البيانات بالمسار المباشر
+  importDB: (filePath) => ipcRenderer.invoke('importDB', filePath),
 
   // =========================================================
   // 🖐️ جسور العبور الخاصة بجهاز البصمة الحقيقي ZD-K (ZKTeco)
