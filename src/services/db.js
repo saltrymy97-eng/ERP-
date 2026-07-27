@@ -16,74 +16,41 @@ initDatabase = async () => {
 
 closeDatabase = () => {};
 
-// 📥 تصدير آمن باسم نظيف خالي من الرموز المقطوعة
+// 📥 تصدير آمن ومباشر عبر نافذة حفظ ويندوز (Electron Native Dialog)
 exportDatabase = async () => {
   try {
-    const data = await window.electronAPI.exportDB();
-    if (!data) throw new Error('لم يتم إرجاع بيانات من محرك التصدير');
-    
-    const blob = new Blob([data], { type: 'application/x-sqlite3' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    
-    // تسمية آمنة ومباشرة بدون نقاط أو رموز غير متوافقة
-    const today = new Date().toISOString().split('T')[0];
-    a.download = `quran_attendance_backup_${today}.db`;
-    
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const result = await window.electronAPI.exportDB();
+    if (result && result.success) {
+      return true;
+    } else if (result && result.canceled) {
+      return false; // ألغى المستخدم النافذة
+    } else {
+      throw new Error(result?.error || 'فشلت عملية التصدير من محرك النظام.');
+    }
   } catch (e) { 
     console.error("❌ فشل التصدير:", e); 
     throw e;
   }
 };
 
-// 📤 استعادة احترافية متضمنة فحص رأس الملف (SQLite Header Validation)
-importDatabase = async (file) => {
-  return new Promise((resolve, reject) => {
-    if (!file) {
-      return reject(new Error("لم يتم اختيار أي ملف."));
+// 📤 استعادة احترافية مباشرة عبر نظام التشغيل Electron
+importDatabase = async (fileOrPath) => {
+  try {
+    // إذا مرر المستخدم المسار المباشر أو استدعى الدالة مباشرة بدون برامتر فتح النافذة الرسمية
+    const filePath = typeof fileOrPath === 'string' ? fileOrPath : fileOrPath?.path;
+    const result = await window.electronAPI.importDB(filePath);
+    
+    if (result && result.success) {
+      return result;
+    } else if (result && result.canceled) {
+      return false; // ألغى المستخدم عملية الاختيار
+    } else {
+      throw new Error(result?.error || "فشلت عملية الترميم من محرك Electron.");
     }
-
-    const reader = new FileReader();
-
-    // 1. قراءة الهيدر (أول 16 بايت) للتحقق من أن الملف SQLite حقيقي وسلامته 100%
-    const headerReader = new FileReader();
-    headerReader.onload = function(e) {
-      const arr = new Uint8Array(e.target.result);
-      const headerString = String.fromCharCode.apply(null, arr.subarray(0, 15));
-      
-      // التوقيع القياسي لجميع قواعد بيانات SQLite
-      if (!headerString.startsWith("SQLite format 3")) {
-        return reject(new Error("الملف المختار ليس قاعدة بيانات SQLite صالحة! يرجى اختيار ملف نسخة احتياطية معتمد."));
-      }
-
-      // 2. الملف سليم -> البدء في تحويله وإرساله لـ Electron للترميم
-      reader.readAsDataURL(file);
-    };
-
-    headerReader.onerror = () => reject(new Error("فشل قراءة رأس الملف المختار."));
-    headerReader.readAsArrayBuffer(file.slice(0, 16));
-
-    // 3. قراءة الملف بالكامل وتحويله إلى Base64 آمن للـ IPC
-    reader.onload = async () => {
-      try {
-        const base64Data = reader.result.split(',')[1];
-        const result = await window.electronAPI.importDB(base64Data);
-        if (result && result.success !== false) {
-          resolve(result);
-        } else {
-          reject(new Error(result?.error || "فشلت عملية الترميم من محرك Electron."));
-        }
-      } catch (err) { 
-        reject(err); 
-      }
-    };
-    reader.onerror = () => reject(new Error("فشل قراءة محتوى الملف."));
-  });
+  } catch (err) {
+    console.error("❌ فشل الاستعادة:", err);
+    throw err;
+  }
 };
 
 // الدالة السيادية الكبرى بعد مطابقتها مع جداول الحضور الأكاديمي والطلاب
