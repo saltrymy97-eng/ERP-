@@ -2,7 +2,7 @@
   "name": "alquran-attendance-system",
   "version": "3.0.0",
   "homepage": ".",
-  "description": "نظام متابعة حضور وغياب الطلاب - جامعة القرآن الكريم والعلوم الإسلامية - SQLite محلية + أيقونات 3D",
+  "description": "نظام متابعة حضور وغياب الطلاب - جامعة القرآن الكريم والعلوم الإسلامية",
   "main": "electron/main.js",
   "author": "سالم التريمي",
   "license": "MIT",
@@ -11,13 +11,10 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject",
     "electron": "npm run build && electron .",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "postinstall": "electron-rebuild",
-    "dist": "npm run build && electron-builder",
-    "dist:win": "npm run build && electron-builder --win"
+    "dist": "npm run build && electron-builder"
   },
 
   "dependencies": {
@@ -42,9 +39,9 @@
     "appId": "com.alquran.attendance",
     "productName": "نظام الحضور والغياب",
     "copyright": "© 2026 جامعة القرآن الكريم - فرع غيل باوزير",
+    "compression": "maximum",
     "directories": {
-      "output": "dist",
-      "buildResources": "build"
+      "output": "dist"
     },
     "win": {
       "target": [
@@ -54,7 +51,7 @@
         }
       ],
       "requestedExecutionLevel": "requireAdministrator",
-      "artifactName": "القرآن-الحضور-${version}-Setup.${ext}"
+      "icon": "public/logo.png"
     },
     "nsis": {
       "oneClick": false,
@@ -66,8 +63,11 @@
       "shortcutName": "نظام الحضور والغياب",
       "installerLanguages": ["ar_SA"],
       "language": "1033",
+      "runAfterFinish": true,
       "deleteAppDataOnUninstall": false,
-      "runAfterFinish": true
+      "artifactName": "نظام-الحضور-Setup-${version}.${ext}",
+      "uninstallDisplayName": "نظام الحضور والغياب - جامعة القرآن الكريم",
+      "menuCategory": "جامعة القرآن الكريم"
     },
     "asar": true,
     "asarUnpack": [
@@ -78,17 +78,14 @@
       "electron/**/*",
       "public/**/*",
       "package.json",
-      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
-      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
-      "!**/node_modules/*.d.ts",
-      "!**/node_modules/.bin",
-      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
-      "!.editorconfig",
-      "!**/._*",
-      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
-      "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}",
-      "!**/{appveyor.yml,.travis.yml,circle.yml}",
-      "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
+      "!**/node_modules/**/*.md",
+      "!**/node_modules/**/*.map",
+      "!**/node_modules/**/*.ts",
+      "!**/node_modules/**/test/**",
+      "!**/node_modules/**/tests/**",
+      "!**/node_modules/**/example/**",
+      "!**/node_modules/**/examples/**",
+      "!**/node_modules/**/.bin/**"
     ],
     "extraMetadata": {
       "main": "electron/main.js"
@@ -97,20 +94,11 @@
   },
 
   "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=9.0.0"
+    "node": ">=18.0.0"
   },
 
   "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
+    "production": [">0.2%", "not dead", "not op_mini all"],
+    "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
   }
 }
