@@ -7,7 +7,15 @@ import * as XLSX from 'xlsx';
 function Reports() {
   const [reportType, setReportType] = useState('daily');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+  // 🟢 فلتران للتقارير التي تحتاج نطاقاً (التقرير الشهري)
+  const [fromDate, setFromDate] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  });
+  const [toDate, setToDate] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
+  });
   const [selectedStudent, setSelectedStudent] = useState('');
   const [selectedMajor, setSelectedMajor] = useState('');
   const [students, setStudents] = useState([]);
@@ -44,7 +52,7 @@ function Reports() {
 
   useEffect(() => {
     if (dbReady) generateReport();
-  }, [reportType, selectedDate, selectedMonth, selectedStudent, selectedMajor, dbReady]);
+  }, [reportType, selectedDate, fromDate, toDate, selectedStudent, selectedMajor, dbReady]);
 
   const loadFilters = async () => {
     // جلب الطلاب النشطين
@@ -109,11 +117,12 @@ function Reports() {
     }));
   };
 
-  // ========== تقرير شهري ==========
+  // ========== تقرير شهري (من ← إلى) ==========
   const generateMonthlyReport = async () => {
-    const startDate = `${selectedMonth}-01`;
-    const endDate = `${selectedMonth}-31`; 
-    
+    if (!fromDate || !toDate) return [];
+    // حماية: إذا كان fromDate بعد toDate، نبدّل بينهما تلقائياً
+    const [startDate, endDate] = fromDate <= toDate ? [fromDate, toDate] : [toDate, fromDate];
+
     const data = await getQuery(
       `SELECT a.student_id, a.status, s.university_id, s.full_name
        FROM attendance a 
@@ -139,25 +148,64 @@ function Reports() {
     })).sort((a, b) => a.rate - b.rate);
   };
 
-  // ========== تقرير طالب ==========
+  // ========== تقرير طالب (معدّل: فلتر تاريخ اختياري) ==========
   const generateStudentReport = async () => {
     if (!selectedStudent) return [];
-    const data = await getQuery(
-      `SELECT date, time_in, time_out, status FROM attendance WHERE student_id = ? ORDER BY date DESC LIMIT 40`, [selectedStudent]
-    );
+    let data;
+    if (selectedDate) {
+      // إذا حُدد تاريخ، اعرض سجلات ذلك اليوم فقط لهذا الطالب
+      data = await getQuery(
+        `SELECT date, time_in, time_out, status FROM attendance 
+         WHERE student_id = ? AND date = ? 
+         ORDER BY date DESC`, [selectedStudent, selectedDate]
+      );
+      // إن لم توجد نتائج لليوم المحدد، نعرض آخر 40 سجلاً (تجربة أفضل)
+      if (!data || data.length === 0) {
+        data = await getQuery(
+          `SELECT date, time_in, time_out, status FROM attendance 
+           WHERE student_id = ? 
+           ORDER BY date DESC LIMIT 40`, [selectedStudent]
+        );
+      }
+    } else {
+      data = await getQuery(
+        `SELECT date, time_in, time_out, status FROM attendance 
+         WHERE student_id = ? 
+         ORDER BY date DESC LIMIT 40`, [selectedStudent]
+      );
+    }
     return (data || []).map(a => ({ date: a.date, time_in: a.time_in || '—', time_out: a.time_out || '—', status: a.status }));
   };
 
-  // ========== تقرير تخصص ==========
+  // ========== تقرير تخصص (معدّل: فلتر تاريخ اختياري) ==========
   const generateMajorReport = async () => {
     if (!selectedMajor) return [];
-    const startDate = `${selectedMonth}-01`, endDate = `${selectedMonth}-31`;
-    const data = await getQuery(
-      `SELECT a.student_id, a.status, s.university_id, s.full_name
-       FROM attendance a 
-       INNER JOIN students s ON a.student_id = s.id
-       WHERE s.major_id = ? AND a.date >= ? AND a.date <= ?`, [selectedMajor, startDate, endDate]
-    );
+    let data;
+    if (selectedDate) {
+      // إذا حُدد تاريخ، اعرض سجلات ذلك اليوم فقط لهذا التخصص
+      data = await getQuery(
+        `SELECT a.student_id, a.status, s.university_id, s.full_name
+         FROM attendance a 
+         INNER JOIN students s ON a.student_id = s.id
+         WHERE s.major_id = ? AND a.date = ?`, [selectedMajor, selectedDate]
+      );
+      // إن لم توجد نتائج لليوم المحدد، نعرض كل السجلات (تجربة أفضل)
+      if (!data || data.length === 0) {
+        data = await getQuery(
+          `SELECT a.student_id, a.status, s.university_id, s.full_name
+           FROM attendance a 
+           INNER JOIN students s ON a.student_id = s.id
+           WHERE s.major_id = ?`, [selectedMajor]
+        );
+      }
+    } else {
+      data = await getQuery(
+        `SELECT a.student_id, a.status, s.university_id, s.full_name
+         FROM attendance a 
+         INNER JOIN students s ON a.student_id = s.id
+         WHERE s.major_id = ?`, [selectedMajor]
+      );
+    }
     if (!data || data.length === 0) return [];
     const studentMap = {};
     data.forEach(a => {
@@ -171,14 +219,25 @@ function Reports() {
     return Object.values(studentMap).sort((a, b) => b.absences - a.absences);
   };
 
-  // ========== تقرير تقييم الانضباط (احتساب آلي ذكي واحترافي 100%) ==========
+  // ========== تقرير تقييم الانضباط (فلتر تاريخ اختياري) ==========
   const generateDisciplineReport = async () => {
     // 1. جلب جميع الطلاب النشطين
     const activeStudents = await getQuery("SELECT id, university_id, full_name FROM students WHERE status = 'active'");
     if (!activeStudents || activeStudents.length === 0) return [];
 
-    // 2. جلب جميع سجلات الحضور والغياب
-    const attendanceLogs = await getQuery("SELECT student_id, status FROM attendance");
+    // 2. جلب سجلات الحضور (مع فلتر التاريخ إن وُجد)
+    let attendanceLogs;
+    if (selectedDate) {
+      attendanceLogs = await getQuery(
+        "SELECT student_id, status FROM attendance WHERE date = ?", [selectedDate]
+      );
+      // إن لم توجد نتائج، نعرض كل السجلات
+      if (!attendanceLogs || attendanceLogs.length === 0) {
+        attendanceLogs = await getQuery("SELECT student_id, status FROM attendance");
+      }
+    } else {
+      attendanceLogs = await getQuery("SELECT student_id, status FROM attendance");
+    }
 
     // 3. تجميع السجلات وحساب الأيام لكل طالب
     const attendanceMap = {};
@@ -200,22 +259,15 @@ function Reports() {
       const stats = attendanceMap[student.id] || { total: 0, present: 0, late: 0, absent: 0 };
       const totalDays = stats.total;
 
-      let attendance_score = 50;  // حضور الجلسات (50)
-      let punctuality_score = 15; // المواظبة والتبكير (15)
-      let absence_score = 15;     // رصيد عدم الغياب (15)
-      let discipline_score = 20;  // السلوك العام (20)
+      let attendance_score = 50;
+      let punctuality_score = 15;
+      let absence_score = 15;
+      let discipline_score = 20;
 
       if (totalDays > 0) {
-        // حساب درجات الحضور الفعلي
         attendance_score = Math.round(((stats.present + stats.late) / totalDays) * 50);
-        
-        // خصم درجة ونصف عن كل تأخير من رصيد التبكير
         punctuality_score = Math.max(0, 15 - Math.round(stats.late * 1.5));
-        
-        // خصم 3 درجات عن كل يوم غياب من رصيد الغياب
         absence_score = Math.max(0, 15 - (stats.absent * 3));
-        
-        // درجة السلوك تنقص فقط في حال تراكم الغياب والتأخيرات الكثيرة
         const penalties = stats.absent + Math.floor(stats.late / 2);
         discipline_score = Math.max(10, 20 - penalties);
       }
@@ -233,15 +285,29 @@ function Reports() {
       };
     });
 
-    // ترتيب الطلاب حسب الدرجة الكلية من الأعلى للأقل (المنضبطين في البداية)
     return disciplineReport.sort((a, b) => b.total_score - a.total_score);
   };
 
-  // ========== تقرير مراحل الغياب والحرمان ==========
+  // ========== تقرير مراحل الغياب والحرمان (فلتر تاريخ اختياري) ==========
   const generateAbsenceStagesReport = async () => {
-    const attendance = await getQuery(
-      "SELECT a.student_id, a.status, s.full_name, s.university_id, s.parent_phone FROM attendance a INNER JOIN students s ON a.student_id = s.id WHERE s.status = 'active'"
-    );
+    let attendance;
+    if (selectedDate) {
+      attendance = await getQuery(
+        "SELECT a.student_id, a.status, s.full_name, s.university_id, s.parent_phone FROM attendance a INNER JOIN students s ON a.student_id = s.id WHERE s.status = 'active' AND a.date = ?",
+        [selectedDate]
+      );
+      // إن لم توجد نتائج، نعرض كل السجلات
+      if (!attendance || attendance.length === 0) {
+        attendance = await getQuery(
+          "SELECT a.student_id, a.status, s.full_name, s.university_id, s.parent_phone FROM attendance a INNER JOIN students s ON a.student_id = s.id WHERE s.status = 'active'"
+        );
+      }
+    } else {
+      attendance = await getQuery(
+        "SELECT a.student_id, a.status, s.full_name, s.university_id, s.parent_phone FROM attendance a INNER JOIN students s ON a.student_id = s.id WHERE s.status = 'active'"
+      );
+    }
+
     if (!attendance || attendance.length === 0) return [];
     const studentMap = {};
     attendance.forEach(a => {
@@ -334,11 +400,11 @@ function Reports() {
     const titles = {
       daily: `كشف الحضور اليومي ليوم: ${selectedDate}`,
       absent: `بيان الطلاب الغائبين ليوم: ${selectedDate}`,
-      monthly: `التقرير الإحصائي الشهري: ${selectedMonth}`,
-      student: `السجل التراكمي للطالب: ${students.find(s => s.id == selectedStudent)?.full_name || '—'}`,
-      major: `تقرير نسب غياب تخصص: ${majors.find(m => m.id == selectedMajor)?.name || '—'}`,
-      discipline: 'كشف درجات تقييم الانضباط العام',
-      absence_stages: 'مراحل الغياب والإنذارات الإدارية'
+      monthly: `التقرير الإحصائي من: ${fromDate} إلى: ${toDate}`,
+      student: `السجل التراكمي للطالب: ${students.find(s => s.id == selectedStudent)?.full_name || '—'}${selectedDate ? ` — بتاريخ: ${selectedDate}` : ' — آخر 40 سجلاً'}`,
+      major: `تقرير نسب غياب تخصص: ${majors.find(m => m.id == selectedMajor)?.name || '—'}${selectedDate ? ` — بتاريخ: ${selectedDate}` : ''}`,
+      discipline: `كشف درجات تقييم الانضباط العام${selectedDate ? ` — بتاريخ: ${selectedDate}` : ' — كل السجلات'}`,
+      absence_stages: `مراحل الغياب والإنذارات الإدارية${selectedDate ? ` — بتاريخ: ${selectedDate}` : ' — كل السجلات'}`
     };
     return titles[reportType] || 'تقرير أكاديمي';
   };
@@ -420,127 +486,226 @@ function Reports() {
           </select>
 
           <AnimatePresence mode="wait">
+            {/* 📅 فلتر التاريخ الواحد (الحضور اليومي + بيان الغياب) */}
             {(reportType === 'daily' || reportType === 'absent') && (
-              <motion.input initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-                type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
-                style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '11px 15px', borderRadius: '12px', color: '#fff', fontWeight: 600 }} />
-            )}
-            {(reportType === 'monthly' || reportType === 'major') && (
-              <motion.input initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-                type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
-                style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '11px 15px', borderRadius: '12px', color: '#fff', fontWeight: 600 }} />
-            )}
-            
-            {/* استبدال القائمة المنسدلة بحقل البحث التفاعلي الفوري للطلاب */}
-            {reportType === 'student' && (
-              <motion.div 
+              <motion.input 
+                key="single-date-daily"
                 initial={{ opacity: 0, scale: 0.95 }} 
                 animate={{ opacity: 1, scale: 1 }} 
                 exit={{ opacity: 0 }}
-                ref={dropdownRef}
-                style={{ position: 'relative', minWidth: '280px', flex: 1, maxWidth: '350px' }}
-              >
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <input
-                    type="text"
-                    placeholder="🔍 ابحث باسم الطالب أو الرقم الجامعي..."
-                    value={studentSearchTerm}
-                    onChange={(e) => {
-                      setStudentSearchTerm(e.target.value);
-                      setSelectedStudent(''); // إعادة تعيين الطالب المختار في حال التعديل
-                      setShowStudentDropdown(true);
-                    }}
-                    onFocus={() => setShowStudentDropdown(true)}
-                    style={{
-                      width: '100%',
-                      background: 'rgba(0,0,0,0.4)',
-                      border: '1px solid var(--gold-main)',
-                      padding: '11px 35px 11px 15px',
-                      borderRadius: '12px',
-                      color: '#fff',
-                      fontWeight: 600,
-                      outline: 'none',
-                      fontSize: '0.9rem'
-                    }}
-                  />
-                  {studentSearchTerm && (
-                    <button
-                      onClick={() => {
-                        setStudentSearchTerm('');
-                        setSelectedStudent('');
-                      }}
-                      style={{
-                        position: 'absolute',
-                        left: '10px',
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'var(--text-secondary)',
-                        cursor: 'pointer',
-                        fontSize: '1rem'
-                      }}
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
+                type="date" 
+                value={selectedDate} 
+                onChange={e => setSelectedDate(e.target.value)}
+                style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '11px 15px', borderRadius: '12px', color: '#fff', fontWeight: 600 }} 
+              />
+            )}
 
-                {/* قائمة الاقتراحات المنسدلة للبحث */}
-                {showStudentDropdown && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    style={{
-                      position: 'absolute',
-                      top: '100%',
-                      right: 0,
-                      left: 0,
-                      marginTop: '6px',
-                      background: '#041d14',
-                      border: '1px solid var(--gold-main)',
-                      borderRadius: '12px',
-                      maxHeight: '220px',
-                      overflowY: 'auto',
-                      zIndex: 100,
-                      boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
-                    }}
-                  >
-                    {filteredStudents.length > 0 ? (
-                      filteredStudents.map((s) => (
-                        <div
-                          key={s.id}
-                          onClick={() => handleSelectStudent(s)}
-                          style={{
-                            padding: '10px 14px',
-                            cursor: 'pointer',
-                            borderBottom: '1px solid rgba(255,255,255,0.05)',
-                            display: 'flex',
-                            justify: 'space-between',
-                            alignItems: 'center',
-                            transition: 'background 0.2s',
-                            color: '#fff'
-                          }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(214,175,55,0.15)'}
-                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                        >
-                          <span style={{ fontWeight: 600 }}>{s.full_name}</span>
-                          <span style={{ color: 'var(--gold-main)', fontSize: '0.8rem', opacity: 0.8 }}>
-                            {s.university_id}
-                          </span>
-                        </div>
-                      ))
-                    ) : (
-                      <div style={{ padding: '12px', color: 'var(--text-secondary)', textCenter: 'center', fontSize: '0.85rem' }}>
-                        لا يوجد طالب بهذا الاسم أو الرقم
-                      </div>
-                    )}
-                  </motion.div>
-                )}
+            {/* 📅 فلتران: من ← إلى (التقرير الشهري فقط) */}
+            {reportType === 'monthly' && (
+              <motion.div
+                key="range-dates-monthly"
+                initial={{ opacity: 0, scale: 0.95 }} 
+                animate={{ opacity: 1, scale: 1 }} 
+                exit={{ opacity: 0 }}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <label style={{ color: 'var(--gold-light)', fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap' }}>من:</label>
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={e => setFromDate(e.target.value)}
+                  style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '11px 15px', borderRadius: '12px', color: '#fff', fontWeight: 600 }}
+                />
+                <label style={{ color: 'var(--gold-light)', fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap' }}>إلى:</label>
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={e => setToDate(e.target.value)}
+                  style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '11px 15px', borderRadius: '12px', color: '#fff', fontWeight: 600 }}
+                />
               </motion.div>
             )}
 
+            {/* 📅 فلتر تاريخ اختياري (تقرير تخصص + تقييم الانضباط + مراحل الغياب) */}
+            {(reportType === 'major' || reportType === 'discipline' || reportType === 'absence_stages') && (
+              <motion.div
+                key="single-date-optional"
+                initial={{ opacity: 0, scale: 0.95 }} 
+                animate={{ opacity: 1, scale: 1 }} 
+                exit={{ opacity: 0 }}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={e => setSelectedDate(e.target.value)}
+                  style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '11px 15px', borderRadius: '12px', color: '#fff', fontWeight: 600 }}
+                />
+                {selectedDate && (
+                  <button
+                    onClick={() => setSelectedDate('')}
+                    title="إلغاء فلتر التاريخ لعرض كل السجلات"
+                    style={{
+                      background: 'rgba(239,68,68,0.1)',
+                      border: '1px solid rgba(239,68,68,0.3)',
+                      color: '#ef4444',
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      cursor: 'pointer',
+                      fontWeight: 800,
+                      fontSize: '0.8rem'
+                    }}
+                  >
+                    ✕ مسح التاريخ
+                  </button>
+                )}
+              </motion.div>
+            )}
+            
+            {/* 👤 بحث الطالب + 📅 فلتر تاريخ اختياري (ملف طالب) */}
+            {reportType === 'student' && (
+              <motion.div
+                key="student-search"
+                initial={{ opacity: 0, scale: 0.95 }} 
+                animate={{ opacity: 1, scale: 1 }} 
+                exit={{ opacity: 0 }}
+                style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', flex: 1 }}
+              >
+                {/* 📅 فلتر تاريخ اختياري */}
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={e => setSelectedDate(e.target.value)}
+                  style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '11px 15px', borderRadius: '12px', color: '#fff', fontWeight: 600 }}
+                />
+                {selectedDate && (
+                  <button
+                    onClick={() => setSelectedDate('')}
+                    title="إلغاء فلتر التاريخ لعرض آخر 40 سجلاً"
+                    style={{
+                      background: 'rgba(239,68,68,0.1)',
+                      border: '1px solid rgba(239,68,68,0.3)',
+                      color: '#ef4444',
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      cursor: 'pointer',
+                      fontWeight: 800,
+                      fontSize: '0.8rem'
+                    }}
+                  >
+                    ✕ مسح
+                  </button>
+                )}
+
+                {/* 🔍 حقل البحث */}
+                <div ref={dropdownRef} style={{ position: 'relative', minWidth: '280px', flex: 1, maxWidth: '350px' }}>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      placeholder="🔍 ابحث باسم الطالب أو الرقم الجامعي..."
+                      value={studentSearchTerm}
+                      onChange={(e) => {
+                        setStudentSearchTerm(e.target.value);
+                        setSelectedStudent('');
+                        setShowStudentDropdown(true);
+                      }}
+                      onFocus={() => setShowStudentDropdown(true)}
+                      style={{
+                        width: '100%',
+                        background: 'rgba(0,0,0,0.4)',
+                        border: '1px solid var(--gold-main)',
+                        padding: '11px 35px 11px 15px',
+                        borderRadius: '12px',
+                        color: '#fff',
+                        fontWeight: 600,
+                        outline: 'none',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                    {studentSearchTerm && (
+                      <button
+                        onClick={() => {
+                          setStudentSearchTerm('');
+                          setSelectedStudent('');
+                        }}
+                        style={{
+                          position: 'absolute',
+                          left: '10px',
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--text-secondary)',
+                          cursor: 'pointer',
+                          fontSize: '1rem'
+                        }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {showStudentDropdown && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        right: 0,
+                        left: 0,
+                        marginTop: '6px',
+                        background: '#041d14',
+                        border: '1px solid var(--gold-main)',
+                        borderRadius: '12px',
+                        maxHeight: '220px',
+                        overflowY: 'auto',
+                        zIndex: 100,
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
+                      }}
+                    >
+                      {filteredStudents.length > 0 ? (
+                        filteredStudents.map((s) => (
+                          <div
+                            key={s.id}
+                            onClick={() => handleSelectStudent(s)}
+                            style={{
+                              padding: '10px 14px',
+                              cursor: 'pointer',
+                              borderBottom: '1px solid rgba(255,255,255,0.05)',
+                              display: 'flex',
+                              justify: 'space-between',
+                              alignItems: 'center',
+                              transition: 'background 0.2s',
+                              color: '#fff'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(214,175,55,0.15)'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <span style={{ fontWeight: 600 }}>{s.full_name}</span>
+                            <span style={{ color: 'var(--gold-main)', fontSize: '0.8rem', opacity: 0.8 }}>
+                              {s.university_id}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <div style={{ padding: '12px', color: 'var(--text-secondary)', textAlign: 'center', fontSize: '0.85rem' }}>
+                          لا يوجد طالب بهذا الاسم أو الرقم
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
+            {/* 📚 قائمة اختيار التخصص */}
             {reportType === 'major' && (
-              <motion.select initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-                value={selectedMajor} onChange={e => setSelectedMajor(e.target.value)}
+              <motion.select 
+                key="major-select"
+                initial={{ opacity: 0, scale: 0.95 }} 
+                animate={{ opacity: 1, scale: 1 }} 
+                exit={{ opacity: 0 }}
+                value={selectedMajor} 
+                onChange={e => setSelectedMajor(e.target.value)}
                 style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '11px 15px', borderRadius: '12px', color: '#fff', maxWidth: '280px' }}>
                 <option value="">اختر تخصصاً...</option>
                 {majors.map(m => <option key={m.id} value={m.id} style={{background:'#041d14'}}>{m.name}</option>)}
