@@ -4,14 +4,22 @@
   "homepage": ".",
   "description": "نظام متابعة حضور وغياب الطلاب - جامعة القرآن الكريم والعلوم الإسلامية - SQLite محلية + أيقونات 3D",
   "main": "electron/main.js",
+  "author": "سالم التريمي",
+  "license": "MIT",
+  "private": true,
+
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject",
+    "electron": "npm run build && electron .",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "postinstall": "electron-rebuild",
-    "electron": "npm run build && electron .",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win"
   },
+
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -22,16 +30,20 @@
     "@vladmandic/face-api": "^1.7.14",
     "better-sqlite3": "^11.0.0"
   },
+
   "devDependencies": {
     "electron": "^28.0.0",
     "electron-builder": "^24.0.0",
     "@electron/rebuild": "^3.6.0"
   },
+
   "build": {
     "appId": "com.alquran.attendance",
     "productName": "نظام الحضور والغياب",
+    "copyright": "© 2026 جامعة القرآن الكريم - فرع غيل باوزير",
     "directories": {
-      "output": "dist"
+      "output": "dist",
+      "buildResources": "build"
     },
     "win": {
       "target": [
@@ -40,14 +52,21 @@
           "arch": ["x64"]
         }
       ],
-      "requestedExecutionLevel": "requireAdministrator"
+      "requestedExecutionLevel": "requireAdministrator",
+      "artifactName": "القرآن-الحضور-${version}-Setup.${ext}"
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": true,
+      "allowElevation": true,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "نظام الحضور والغياب"
+      "shortcutName": "نظام الحضور والغياب",
+      "installerLanguages": ["ar_SA"],
+      "language": "1033",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true
     },
     "asar": true,
     "asarUnpack": [
@@ -57,16 +76,37 @@
       "build/**/*",
       "electron/**/*",
       "public/**/*",
-      "package.json"
-    ]
+      "package.json",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/node_modules/.bin",
+      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+      "!.editorconfig",
+      "!**/._*",
+      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
+      "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}",
+      "!**/{appveyor.yml,.travis.yml,circle.yml}",
+      "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
+    ],
+    "publish": null
   },
-  "author": "سالم التريمي",
-  "license": "MIT",
+
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
   },
+
   "browserslist": {
-    "production": [">0.2%", "not dead", "not op_mini all"],
-    "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
   }
 }
