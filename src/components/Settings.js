@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery, initDatabase, exportDatabase, importDatabase } from '../services/db';
-import { getCurrentUser, changePassword, addUser, deleteUser, getAllUsers, isAdmin } from '../services/auth';
+import { getCurrentUser, changePassword, deleteUser, getAllUsers, isAdmin } from '../services/auth';
 import { loadMobileModel } from '../services/ai'; 
 
 function Settings() {
@@ -26,8 +26,8 @@ function Settings() {
   const [fingerTemplates, setFingerTemplates] = useState([null, null, null, null, null]); 
   const [enrollStatusText, setEnrollStatusText] = useState('');
 
-  // إعدادات الذكاء الاصطناعي
-  const [aiConfig, setAiConfig] = useState({ api_key: '', enabled: false, model: 'gpt-oss-20b' }); 
+  // 🟢 إعدادات الذكاء الاصطناعي – تم توحيد اسم النموذج مع ملف ai.js
+  const [aiConfig, setAiConfig] = useState({ api_key: '', enabled: false, model: 'openai/gpt-oss-20b' }); 
 
   // التقويم الأكاديمي
   const [calendarEvents, setCalendarEvents] = useState([]);
@@ -37,10 +37,9 @@ function Settings() {
   const [schedules, setSchedules] = useState([]);
   const [scheduleForm, setScheduleForm] = useState({ day: '', subject: '', teacher: '', time_from: '', time_to: '', room: '', break_time: 0, late_tolerance: 10 });
 
-  // إدارة الصلاحيات والكادر
+  // إدارة الصلاحيات (عرض + حذف فقط – إضافة مستخدم تمت إزالتها)
   const [users, setUsers] = useState([]);
   const [passwordForm, setPasswordForm] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' });
-  const [newUserForm, setNewUserForm] = useState({ username: '', password: '', role: 'staff' });
 
   const currentUser = getCurrentUser();
 
@@ -61,7 +60,7 @@ function Settings() {
             setAiConfig({
               api_key: parsedAI.api_key || '',
               enabled: parsedAI.enabled ?? false,
-              model: 'gpt-oss-20b'
+              model: 'openai/gpt-oss-20b' // 🔄 توحيد الاسم الكامل
             });
           } catch (e) {
             console.error("Error parsing AI config on load:", e);
@@ -219,10 +218,11 @@ function Settings() {
       return;
     }
 
+    // 🟢 توحيد اسم النموذج الكامل ليتوافق مع ai.js
     const updatedConfig = { 
       api_key: aiConfig.api_key.trim(), 
       enabled: aiConfig.enabled, 
-      model: 'gpt-oss-20b'
+      model: 'openai/gpt-oss-20b'
     }; 
 
     localStorage.setItem('ai_config', JSON.stringify(updatedConfig));
@@ -269,7 +269,7 @@ function Settings() {
     showMessage('🗑️ تم حذف المحاضرة فوراً'); 
   };
 
-  // ========== صلاحيات الكادر ==========
+  // ========== صلاحيات الكادر (عرض + حذف فقط) ==========
   const loadUsers = () => { 
     try {
       const fetchedUsers = getAllUsers(); 
@@ -286,13 +286,6 @@ function Settings() {
     const result = await changePassword(currentUser.username, passwordForm.oldPassword, passwordForm.newPassword);
     showMessage(result.message, result.success ? 'success' : 'error');
     if (result.success) setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
-  };
-
-  const handleAddUser = async () => {
-    if (!newUserForm.username || !newUserForm.password) { showMessage('❌ بيانات ناقصة', 'error'); return; }
-    const result = await addUser(newUserForm.username, newUserForm.password, newUserForm.role);
-    showMessage(result.message, result.success ? 'success' : 'error');
-    if (result.success) { setNewUserForm({ username: '', password: '', role: 'staff' }); loadUsers(); }
   };
 
   const handleDeleteUser = async (userId) => {
@@ -349,8 +342,8 @@ function Settings() {
         <label style={{ color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 600 }}>
           <input type="checkbox" checked={aiConfig.enabled || false} onChange={e => setAiConfig({ ...aiConfig, enabled: e.target.checked })} style={{ width: '18px', height: '18px', accentColor: 'var(--gold-main)' }} />تفعيل المستشار الذكي
         </label>
-        <div style={{ background: 'rgba(6,43,30,0.4)', border: '1px solid var(--gold-main)', padding: '14px', borderRadius: '10px', color: 'var(--gold-light)', fontSize: '0.85rem', fontWeight: 700 }}>
-          🚀 النموذج النشط حالياً: GPT OSS 20B
+        <div style={{ background: 'rgba(6,43,30,0.4)', border: '1px solid var(--gold-main)', padding: '14px', borderRadius: '10px', color: 'var(--gold-light)', fontSize: '0.85rem', fontWeight: 700, direction: 'ltr', textAlign: 'left' }}>
+          🚀 النموذج النشط حالياً: <span style={{ fontFamily: 'monospace' }}>openai/gpt-oss-20b</span>
         </div>
         <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} onClick={saveAiConfig} style={{ background: 'linear-gradient(135deg, var(--gold-main), #b89324)', color: '#062b1e', border: 'none', padding: '14px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-start', minWidth: '200px' }}>💾 ترقية وحفظ النموذج</motion.button>
       </div>
@@ -488,21 +481,43 @@ function Settings() {
     </div>
   );
 
+  // 🟢 تم تبسيط واجهة الصلاحيات: إزالة نموذج إضافة مستخدم، والإبقاء على العرض + الحذف + تغيير كلمة المرور
   const renderUsers = () => (
     <div className="settings-section">
       <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)' }}>👥 صلاحيات الكادر والتحكم بالوصول الموحد</h3>
-      {isAdmin() && (
-        <div className="form-row-lux" style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr auto', gap: '15px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--glass-border)', padding: '18px', borderRadius: '14px', marginBottom: '25px' }}>
-          <input type="text" placeholder="اسم المستخدم" value={newUserForm.username || ''} onChange={e => setNewUserForm({ ...newUserForm, username: e.target.value })} className="glass-input" />
-          <input type="password" placeholder="كلمة المرور" value={newUserForm.password || ''} onChange={e => setNewUserForm({ ...newUserForm, password: e.target.value })} className="glass-input" />
-          <select value={newUserForm.role || 'staff'} onChange={e => setNewUserForm({ ...newUserForm, role: e.target.value })} style={{ background: '#041d14', border: '1px solid var(--glass-border)', padding: '12px', borderRadius: '10px', color: '#fff' }}><option value="admin">👑 مدير نظام كامل</option><option value="manager">👤 مشرف عام</option><option value="staff">🧑‍💼 موظف مسجل</option></select>
-          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleAddUser} style={{ background: 'linear-gradient(135deg, var(--gold-main), #b89324)', color: '#062b1e', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}>➕</motion.button>
-        </div>
-      )}
-      <div className="data-table" style={{ border: '1px solid var(--glass-border)', borderRadius: '14px', overflow: 'hidden', marginBottom: '35px' }}>
-        <table><thead><tr style={{ background: 'linear-gradient(135deg, #041d14, #083d2b)' }}><th>المستخدم للكادر</th><th>الدور والترخيص</th><th>تاريخ الإنشاء</th><th>سحب الصلاحية</th></tr></thead>
-          <tbody>{Array.isArray(users) && users.map(u => (<tr key={u.id}><td>👤 {u.username}</td><td>{u.role}</td><td>{u.created_at || 'غير محدد'}</td><td>{u.username !== 'admin' && isAdmin() && u.username !== currentUser.username ? <button onClick={() => handleDeleteUser(u.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>🛑</button> : <span>🔒 محمي</span>}</td></tr>))}{(!users || users.length === 0) && <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px' }}>📭 لم يتم تهيئة مستخدمين آخرين</td></tr>}</tbody></table>
+      
+      <div className="data-table" style={{ border: '1px solid var(--glass-border)', borderRadius: '14px', overflow: 'hidden', marginBottom: '35px', marginTop: '20px' }}>
+        <table>
+          <thead>
+            <tr style={{ background: 'linear-gradient(135deg, #041d14, #083d2b)' }}>
+              <th>المستخدم للكادر</th>
+              <th>الدور والترخيص</th>
+              <th>تاريخ الإنشاء</th>
+              <th>سحب الصلاحية</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Array.isArray(users) && users.map(u => (
+              <tr key={u.id}>
+                <td>👤 {u.username}</td>
+                <td>{u.role}</td>
+                <td>{u.created_at || 'غير محدد'}</td>
+                <td>
+                  {u.username !== 'admin' && isAdmin() && u.username !== currentUser.username ? (
+                    <button onClick={() => handleDeleteUser(u.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>🛑</button>
+                  ) : (
+                    <span>🔒 محمي</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {(!users || users.length === 0) && (
+              <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px' }}>📭 لم يتم تهيئة مستخدمين آخرين</td></tr>
+            )}
+          </tbody>
+        </table>
       </div>
+
       <h4 style={{ fontFamily: 'Amiri, serif', color: 'var(--gold-light)' }}>🔒 تغيير كلمة المرور الشخصية للحساب الحالي</h4>
       <div className="form-card-lux" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.01), rgba(0,0,0,0.15))', border: '1px solid var(--glass-border)', padding: '20px', borderRadius: '14px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '15px' }}>
         <input type="password" placeholder="كلمة المرور القديمة" value={passwordForm.oldPassword || ''} onChange={e => setPasswordForm({ ...passwordForm, oldPassword: e.target.value })} className="glass-input" />
