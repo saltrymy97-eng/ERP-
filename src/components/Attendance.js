@@ -13,10 +13,19 @@ function Attendance() {
   const [searchTerm, setSearchTerm] = useState('');
   const [stats, setStats] = useState({ present: 0, absent: 0, late: 0 });
   const [monthlyData, setMonthlyData] = useState([]);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [dbReady, setDbReady] = useState(false);
   const [sendingNotification, setSendingNotification] = useState(false);
   const [notificationResult, setNotificationResult] = useState(null);
+
+  // 🟢 فلترا النطاق الزمني للتقرير الشهري (من ← إلى)
+  const [fromDate, setFromDate] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  });
+  const [toDate, setToDate] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
+  });
 
   const attendanceTimeoutRef = useRef(null);
   const today = new Date().toISOString().slice(0, 10);
@@ -44,11 +53,12 @@ function Attendance() {
     };
   }, []);
 
+  // 🟢 مراقبة تغيير النطاق الزمني لإعادة تحميل التقرير الشهري
   useEffect(() => {
     if (tab === 'monthly' && dbReady) {
       loadMonthlyData();
     }
-  }, [selectedMonth, tab, dbReady]);
+  }, [fromDate, toDate, tab, dbReady]);
 
   // ========== تحميل الطلاب ==========
   const loadStudents = async () => {
@@ -225,8 +235,13 @@ function Attendance() {
   const handleNotifyAbsent = async () => {
     const absentRecords = todayAttendance.filter(record => record.status === 'absent');
 
+    // 🟢 إصلاح: استبدال alert برسالة أنيقة في الواجهة
     if (absentRecords.length === 0) {
-      alert('لا يوجد طلاب غائبون لإرسال إشعارات لهم حالياً.');
+      setNotificationResult({ 
+        type: 'info', 
+        message: 'ℹ️ لا يوجد طلاب غائبون لإرسال إشعارات لهم حالياً.' 
+      });
+      setTimeout(() => setNotificationResult(null), 4000);
       return;
     }
 
@@ -259,10 +274,10 @@ function Attendance() {
     setTimeout(() => setNotificationResult(null), 5000);
   };
 
-  // ========== التقرير الشهري ==========
+  // ✅ دالة معدّلة: التقرير الشهري بنطاق (من ← إلى)
   const loadMonthlyData = async () => {
-    const startDate = `${selectedMonth}-01`;
-    const endDate = `${selectedMonth}-31`;
+    // 🟢 حماية: إذا كان fromDate بعد toDate → نبدّل بينهما تلقائياً
+    const [startDate, endDate] = fromDate <= toDate ? [fromDate, toDate] : [toDate, fromDate];
 
     const data = await getQuery(`
       SELECT a.student_id, a.date, a.status, s.full_name, s.university_id,
@@ -440,9 +455,9 @@ function Attendance() {
                     exit={{ opacity: 0 }}
                     style={{
                       padding: '15px', borderRadius: '12px', marginBottom: '20px', fontWeight: 'bold', fontSize: '0.95rem',
-                      background: notificationResult.type === 'success' ? 'rgba(52,211,153,0.1)' : 'rgba(239,68,68,0.1)',
-                      color: notificationResult.type === 'success' ? '#34d399' : '#ef4444',
-                      border: `1px solid ${notificationResult.type === 'success' ? '#34d39933' : '#ef444433'}`
+                      background: notificationResult.type === 'success' ? 'rgba(52,211,153,0.1)' : notificationResult.type === 'info' ? 'rgba(56,189,248,0.1)' : 'rgba(239,68,68,0.1)',
+                      color: notificationResult.type === 'success' ? '#34d399' : notificationResult.type === 'info' ? '#38bdf8' : '#ef4444',
+                      border: `1px solid ${notificationResult.type === 'success' ? '#34d39933' : notificationResult.type === 'info' ? '#38bdf833' : '#ef444433'}`
                     }}
                   >
                     {notificationResult.message}
@@ -561,12 +576,12 @@ function Attendance() {
                 
                 <motion.button
                   onClick={handleNotifyAbsent}
-                  disabled={sendingNotification || stats.absent === 0}
-                  whileHover={{ scale: stats.absent > 0 ? 1.02 : 1 }}
+                  disabled={sendingNotification}
+                  whileHover={{ scale: !sendingNotification ? 1.02 : 1 }}
                   style={{
-                    background: sendingNotification ? 'rgba(255,255,255,0.05)' : stats.absent > 0 ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'rgba(255,255,255,0.05)',
-                    color: stats.absent > 0 ? '#fff' : 'rgba(255,255,255,0.3)',
-                    border: 'none', padding: '10px 20px', borderRadius: '12px', fontWeight: 700, cursor: stats.absent > 0 && !sendingNotification ? 'pointer' : 'not-allowed',
+                    background: sendingNotification ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, #ef4444, #dc2626)',
+                    color: '#fff',
+                    border: 'none', padding: '10px 20px', borderRadius: '12px', fontWeight: 700, cursor: !sendingNotification ? 'pointer' : 'not-allowed',
                     display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem'
                   }}
                 >
@@ -582,9 +597,9 @@ function Attendance() {
                     exit={{ opacity: 0 }}
                     style={{
                       padding: '12px 20px', borderRadius: '10px', marginBottom: '20px', fontWeight: 'bold', fontSize: '0.9rem',
-                      background: notificationResult.type === 'success' ? 'rgba(52,211,153,0.1)' : 'rgba(239,68,68,0.1)',
-                      color: notificationResult.type === 'success' ? '#34d399' : '#ef4444',
-                      border: `1px solid ${notificationResult.type === 'success' ? '#34d39933' : '#ef444433'}`
+                      background: notificationResult.type === 'success' ? 'rgba(52,211,153,0.1)' : notificationResult.type === 'info' ? 'rgba(56,189,248,0.1)' : 'rgba(239,68,68,0.1)',
+                      color: notificationResult.type === 'success' ? '#34d399' : notificationResult.type === 'info' ? '#38bdf8' : '#ef4444',
+                      border: `1px solid ${notificationResult.type === 'success' ? '#34d39933' : notificationResult.type === 'info' ? '#38bdf833' : '#ef444433'}`
                     }}
                   >
                     {notificationResult.message}
@@ -650,10 +665,27 @@ function Attendance() {
               <div className="monthly-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
                 <div>
                   <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: '#f3e5ab', margin: 0 }}>📊 مصفوفة رصد نسب الغياب والحرمان التراكمية</h3>
-                  <p style={{ color: 'rgba(255,255,255,0.4)', margin: '5px 0 0 0', fontSize: '0.88rem' }}>تلوين أحمر إنذاري آلي إذا تراجعت نسبة انضباط الحضور عن <strong style={{ color: '#ef4444' }}>75%</strong></p>
+                  <p style={{ color: 'rgba(255,255,255,0.4)', margin: '5px 0 0 0', fontSize: '0.88rem' }}>
+                    من (<strong style={{ color: '#D4AF37' }}>{fromDate}</strong>) إلى (<strong style={{ color: '#D4AF37' }}>{toDate}</strong>) — تلوين أحمر إنذاري آلي إذا تراجعت نسبة انضباط الحضور عن <strong style={{ color: '#ef4444' }}>75%</strong>
+                  </p>
                 </div>
-                <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
-                  style={{ background: '#041d14', border: '1px solid rgba(214,175,55,0.3)', padding: '10px 15px', borderRadius: '12px', color: '#fff', fontWeight: 700, outline: 'none' }} />
+                {/* 🟢 فلترا النطاق الزمني (من ← إلى) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  <label style={{ color: '#f3e5ab', fontSize: '0.85rem', fontWeight: 800, whiteSpace: 'nowrap' }}>من:</label>
+                  <input
+                    type="date"
+                    value={fromDate}
+                    onChange={e => setFromDate(e.target.value)}
+                    style={{ background: '#041d14', border: '1px solid rgba(214,175,55,0.3)', padding: '10px 15px', borderRadius: '12px', color: '#fff', fontWeight: 700, outline: 'none' }}
+                  />
+                  <label style={{ color: '#f3e5ab', fontSize: '0.85rem', fontWeight: 800, whiteSpace: 'nowrap' }}>إلى:</label>
+                  <input
+                    type="date"
+                    value={toDate}
+                    onChange={e => setToDate(e.target.value)}
+                    style={{ background: '#041d14', border: '1px solid rgba(214,175,55,0.3)', padding: '10px 15px', borderRadius: '12px', color: '#fff', fontWeight: 700, outline: 'none' }}
+                  />
+                </div>
               </div>
 
               <div className="data-table">
@@ -692,7 +724,7 @@ function Attendance() {
                       );
                     })}
                     {monthlyData.length === 0 && (
-                      <tr><td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'rgba(255,255,255,0.4)' }}>📭 لا توجد حركات رصد أو كشوفات مسجلة لهذا الشهر المحدد.</td></tr>
+                      <tr><td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'rgba(255,255,255,0.4)' }}>📭 لا توجد حركات رصد أو كشوفات مسجلة في هذه الفترة المحددة.</td></tr>
                     )}
                   </tbody>
                 </table>
