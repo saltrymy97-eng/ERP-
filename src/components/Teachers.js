@@ -19,6 +19,8 @@ function Teachers() {
   const [showLessonModal, setShowLessonModal] = useState(false);
   const [selectedTeacherForAttendance, setSelectedTeacherForAttendance] = useState(null);
   const [lessonForm, setLessonForm] = useState({ lesson_title: '', completion_rate: 10 });
+  // 🟢 حالة التحقق الصامت (بديل رسائل المتصفح المزعجة في بيئة Electron)
+  const [lessonError, setLessonError] = useState(false);
 
   // رصد الحضور الفعلي لليوم
   const [todayAttendance, setTodayAttendance] = useState([]);
@@ -58,6 +60,7 @@ function Teachers() {
       if (e.key === 'Escape') {
         setShowForm(false);
         setShowLessonModal(false);
+        setLessonError(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -202,16 +205,22 @@ function Teachers() {
   const initiateAttendance = (teacher) => {
     setSelectedTeacherForAttendance(teacher);
     setLessonForm({ lesson_title: '', completion_rate: 10 });
+    setLessonError(false);
     setShowLessonModal(true);
   };
 
+  // ✅ دالة معدلة: تحقق صامت بدون alert
   const submitAttendance = async () => {
     if (!selectedTeacherForAttendance) return;
 
+    // 🟢 التحقق الصامت: إذا كان الحقل فارغاً، فعّل التنبيه البصري فقط
     if (!lessonForm.lesson_title.trim()) {
-      alert("⚠️ يرجى كتابة عنوان الدرس الملقى أولاً قبل تأكيد الحضور!");
+      setLessonError(true);
+      setTimeout(() => setLessonError(false), 2000);
       return;
     }
+
+    setLessonError(false);
 
     const teacher = selectedTeacherForAttendance;
     const teacherDbId = teacher.id;
@@ -494,6 +503,17 @@ function Teachers() {
 
   return (
     <div className="teachers-module" style={{ padding: '5px 0' }}>
+      {/* 🎬 حركة اهتزاز حقل الدرس عند الخطأ (بديل رسائل المتصفح) */}
+      <style>{`
+        @keyframes shakeLessonField {
+          0%, 100% { transform: translateX(0); }
+          20% { transform: translateX(-8px); }
+          40% { transform: translateX(8px); }
+          60% { transform: translateX(-5px); }
+          80% { transform: translateX(5px); }
+        }
+      `}</style>
+
       {!dbReady && (
         <div style={{ textAlign: 'center', padding: '40px', color: '#f59e0b', fontWeight: 700 }}>⏳ جاري تهيئة قاعدة البيانات ومستشعرات البصمة للأكاديميين...</div>
       )}
@@ -910,51 +930,207 @@ function Teachers() {
         </>
       )}
 
-      {/* 📖 نافذة إدخال الدرس */}
+      {/* 📖 نافذة إدخال الدرس - النسخة الاحترافية بحل التحقق الصامت */}
       <AnimatePresence>
         {showLessonModal && (
-          <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(2, 11, 7, 0.85)', backdropFilter: 'blur(10px)', zIndex: 99999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-              style={{ background: 'linear-gradient(135deg, #052218, #0a3a29)', border: '2px solid #f59e0b', padding: '25px', borderRadius: '24px', width: '100%', maxWidth: '480px', boxShadow: '0 20px 50px rgba(0,0,0,0.7)' }}>
-              <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.5rem', color: '#f59e0b', margin: '0 0 15px 0', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px', fontWeight: 700 }}>
-                📖 توثيق الدرس للمحاضر
-              </h3>
-              <p style={{ fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '15px' }}>
-                تسجيل المحتوى العلمي المعطى اليوم لـ: <strong style={{ color: '#fff' }}>{selectedTeacherForAttendance?.full_name}</strong>
-              </p>
+          <div 
+            className="modal-overlay" 
+            style={{ 
+              position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', 
+              background: 'rgba(2, 11, 7, 0.85)', backdropFilter: 'blur(10px)', 
+              zIndex: 99999, display: 'flex', justifyContent: 'center', alignItems: 'center' 
+            }}
+            onClick={() => { setShowLessonModal(false); setLessonError(false); }}
+          >
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.9, y: 10 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 22 }}
+              onClick={(e) => e.stopPropagation()}
+              style={{ 
+                background: 'linear-gradient(135deg, #052218, #0a3a29)',
+                border: '2px solid rgba(245,158,11,0.5)',
+                borderRadius: '24px',
+                padding: '30px',
+                width: '90%',
+                maxWidth: '560px',
+                boxShadow: '0 25px 60px rgba(0,0,0,0.7), 0 0 40px rgba(245,158,11,0.15)',
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+            >
+              {/* خط ذهبي علوي */}
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: 'linear-gradient(90deg, transparent, #f59e0b, transparent)' }} />
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                <div>
-                  <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem', display: 'block', marginBottom: '5px' }}>📖 عنوان الدرس الملقى اليوم</label>
-                  <input
-                    type="text"
-                    value={lessonForm.lesson_title}
-                    onChange={e => setLessonForm({ ...lessonForm, lesson_title: e.target.value })}
-                    placeholder="مثال: مقدمة في المحاسبة الحكومية"
-                    style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(245,158,11,0.3)', padding: '12px', borderRadius: '10px', color: '#fff', outline: 'none' }}
-                  />
+              {/* زر الإغلاق */}
+              <button
+                onClick={() => { setShowLessonModal(false); setLessonError(false); }}
+                style={{
+                  position: 'absolute', top: '15px', left: '15px',
+                  background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+                  color: '#ef4444', width: '32px', height: '32px', borderRadius: '50%',
+                  cursor: 'pointer', fontSize: '1rem', fontWeight: 900,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}
+              >
+                ✕
+              </button>
+
+              {/* العنوان */}
+              <div style={{ textAlign: 'center', marginBottom: '25px' }}>
+                <div style={{ fontSize: '2.8rem', marginBottom: '8px' }}>📖</div>
+                <h3 style={{ 
+                  fontFamily: 'Amiri, serif', fontSize: '1.7rem', color: '#f59e0b', 
+                  margin: 0, fontWeight: 700 
+                }}>
+                  توثيق الدرس للمحاضر
+                </h3>
+                {selectedTeacherForAttendance && (
+                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.9rem', margin: '8px 0 0 0' }}>
+                    👨‍🏫 الأستاذ: <strong style={{ color: '#fff' }}>{selectedTeacherForAttendance.full_name}</strong>
+                    {' '} — 🆔 <strong style={{ color: '#f59e0b' }}>{selectedTeacherForAttendance.teacher_id}</strong>
+                  </p>
+                )}
+              </div>
+
+              {/* حقل عنوان الدرس */}
+              <div style={{ marginBottom: '22px' }}>
+                <label style={{ 
+                  display: 'block', color: '#f59e0b', fontWeight: 800, 
+                  fontSize: '0.95rem', marginBottom: '10px' 
+                }}>
+                  📝 عنوان الدرس الملقى
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={lessonForm.lesson_title}
+                  onChange={(e) => {
+                    setLessonForm({ ...lessonForm, lesson_title: e.target.value });
+                    if (lessonError) setLessonError(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') submitAttendance();
+                  }}
+                  placeholder="مثال: تفسير سورة البقرة - الآيات 1-20"
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    padding: '14px 18px',
+                    background: 'rgba(0,0,0,0.4)',
+                    border: lessonError ? '2px solid #ef4444' : '1px solid rgba(245,158,11,0.3)',
+                    borderRadius: '14px',
+                    color: '#fff',
+                    fontSize: '1rem',
+                    outline: 'none',
+                    fontFamily: 'inherit',
+                    transition: 'border 0.3s ease, box-shadow 0.3s ease',
+                    boxShadow: lessonError ? '0 0 20px rgba(239,68,68,0.4)' : 'none',
+                    animation: lessonError ? 'shakeLessonField 0.4s ease' : 'none'
+                  }}
+                />
+                <AnimatePresence>
+                  {lessonError && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -5 }}
+                      style={{
+                        color: '#ef4444', fontSize: '0.82rem', margin: '8px 0 0 0',
+                        fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px'
+                      }}
+                    >
+                      ⚠️ يرجى كتابة عنوان الدرس أولاً قبل التأكيد
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* شريط نسبة الإنجاز */}
+              <div style={{ 
+                background: 'rgba(0,0,0,0.25)', padding: '18px', 
+                borderRadius: '16px', border: '1px solid rgba(245,158,11,0.15)',
+                marginBottom: '25px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <label style={{ color: '#f59e0b', fontWeight: 800, fontSize: '0.95rem' }}>
+                    📊 نسبة الإنجاز في المقرر الإجمالية
+                  </label>
+                  <span style={{
+                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                    color: '#041d14', padding: '4px 14px', borderRadius: '50px',
+                    fontWeight: 900, fontSize: '0.95rem', minWidth: '55px', textAlign: 'center'
+                  }}>
+                    {lessonForm.completion_rate}%
+                  </span>
                 </div>
-
-                <div>
-                  <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem', display: 'block', marginBottom: '5px' }}>📈 نسبة الإنجاز في المقرر الإجمالية ({lessonForm.completion_rate}%)</label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="5"
-                    value={lessonForm.completion_rate}
-                    onChange={e => setLessonForm({ ...lessonForm, completion_rate: Number(e.target.value) })}
-                    style={{ width: '100%', accentColor: '#f59e0b', cursor: 'pointer' }}
-                  />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', marginTop: '4px' }}>
-                    <span>0%</span><span>50%</span><span>100%</span>
-                  </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="5"
+                  value={lessonForm.completion_rate}
+                  onChange={(e) => setLessonForm({ ...lessonForm, completion_rate: parseInt(e.target.value) })}
+                  style={{
+                    width: '100%',
+                    accentColor: '#f59e0b',
+                    height: '8px',
+                    cursor: 'pointer',
+                    direction: 'rtl'
+                  }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>
+                  <span>100%</span>
+                  <span>50%</span>
+                  <span>0%</span>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end' }}>
-                <button onClick={submitAttendance} style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#000', padding: '10px 20px', borderRadius: '10px', border: 'none', fontWeight: 800, cursor: 'pointer' }}>💾 تأكيد الحضور وبدء البصمة</button>
-                <button onClick={() => setShowLessonModal(false)} style={{ background: 'rgba(255,255,255,0.05)', color: '#fff', padding: '10px 15px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer' }}>إلغاء</button>
+              {/* أزرار التحكم */}
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <motion.button
+                  onClick={submitAttendance}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  style={{
+                    flex: 2,
+                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                    color: '#041d14',
+                    border: 'none',
+                    padding: '14px',
+                    borderRadius: '14px',
+                    fontWeight: 900,
+                    fontSize: '1rem',
+                    cursor: 'pointer',
+                    boxShadow: '0 8px 20px rgba(245,158,11,0.3)',
+                    fontFamily: 'inherit'
+                  }}
+                >
+                  ✅ تأكيد الحضور وبدء البصمة
+                </motion.button>
+                <motion.button
+                  onClick={() => {
+                    setShowLessonModal(false);
+                    setLessonError(false);
+                  }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  style={{
+                    flex: 1,
+                    background: 'rgba(239,68,68,0.1)',
+                    color: '#ef4444',
+                    border: '1px solid rgba(239,68,68,0.3)',
+                    padding: '14px',
+                    borderRadius: '14px',
+                    fontWeight: 800,
+                    fontSize: '1rem',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit'
+                  }}
+                >
+                  ❌ إلغاء
+                </motion.button>
               </div>
             </motion.div>
           </div>
