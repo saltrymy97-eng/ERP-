@@ -1,42 +1,140 @@
-name: Build Windows EXE
+# .github/workflows/build-windows.yml
+# 🏗️ بناء تطبيق ERP- كملف EXE تلقائياً (Electron)
+name: 🏗️ Build Windows EXE
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  build:
+  build-windows:
+    name: 🪟 بناء نسخة Windows (Electron)
     runs-on: windows-latest
+    timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@v3
+      # ─────────────────────────────────────────────
+      # 📥 تنزيل الكود
+      # ─────────────────────────────────────────────
+      - name: 📥 تنزيل الكود
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      # ─────────────────────────────────────────────
+      # 🟢 تثبيت Node.js 20 + npm cache
+      # ─────────────────────────────────────────────
+      - name: 🟢 تثبيت Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
+          cache: 'npm'
 
-      - name: Install Dependencies
-        run: npm install
+      # ─────────────────────────────────────────────
+      # 📦 تثبيت الاعتماديات (بدون electron-rebuild التلقائي)
+      # ─────────────────────────────────────────────
+      - name: 📦 تثبيت الاعتماديات
+        run: npm install --legacy-peer-deps --ignore-scripts
 
-      - name: Build React
+      # ─────────────────────────────────────────────
+      # 🔧 إعادة بناء better-sqlite3 لـ Electron يدوياً
+      # ─────────────────────────────────────────────
+      - name: 🔧 إعادة بناء better-sqlite3
+        run: npx electron-rebuild -f -w better-sqlite3
+        continue-on-error: true
+
+      # ─────────────────────────────────────────────
+      # 🔨 بناء واجهة React
+      # ─────────────────────────────────────────────
+      - name: 🔨 بناء React
         run: npm run build
+        env:
+          CI: false
+          GENERATE_SOURCEMAP: false
 
-      - name: Install Capacitor
+      # ─────────────────────────────────────────────
+      # 🏗️ بناء EXE بواسطة electron-builder
+      # ─────────────────────────────────────────────
+      - name: 🏗️ بناء ملف EXE النهائي
+        run: npx electron-builder --win --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ─────────────────────────────────────────────
+      # 📊 عرض الملفات المُنتجة
+      # ─────────────────────────────────────────────
+      - name: 📊 عرض الملفات
         run: |
-          npm install @capacitor/core @capacitor/cli @capacitor/windows
-          npx cap init "نظام الحضور" "com.alquran.attendance" --web-dir=build
-          npx cap add windows
+          Write-Host "═══════════════════════════════════════"
+          Write-Host "📁 محتويات مجلد dist:"
+          Write-Host "═══════════════════════════════════════"
+          if (Test-Path dist) {
+            Get-ChildItem -Path dist -Recurse | Select-Object FullName, @{Name='Size(MB)';Expression={[math]::Round($_.Length/1MB,2)}} | Format-Table -AutoSize
+          } else {
+            Write-Host "⚠️ مجلد dist غير موجود!"
+          }
 
-      - name: Build EXE
-        run: |
-          cd windows
-          npm install
-          npm run build
-
-      - name: Upload EXE
-        uses: actions/upload-artifact@v3
+      # ─────────────────────────────────────────────
+      # 📤 رفع الملفات كـ Artifact
+      # ─────────────────────────────────────────────
+      - name: 📤 رفع الملفات
+        uses: actions/upload-artifact@v4
         with:
-          name: Attendance-System
-          path: windows/output/*.exe
+          name: نظام-الحضور-Windows
+          path: |
+            dist/*.exe
+            dist/*.msi
+            dist/*.zip
+            dist/*.blockmap
+          retention-days: 30
+          if-no-files-found: warn
+
+      # ─────────────────────────────────────────────
+      # 🎉 إنشاء Release (فقط عند Tag)
+      # ─────────────────────────────────────────────
+      - name: 🎉 إنشاء Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          name: 🚀 الإصدار ${{ github.ref_name }}
+          body: |
+            ## 📋 نظام الحضور والغياب - الإصدار ${{ github.ref_name }}
+            
+            ### 🎓 جامعة القرآن الكريم والعلوم الإسلامية
+            **فرع غيل باوزير - حضرموت - اليمن**
+            
+            ### 📥 التحميل
+            حمّل ملف `.exe` ثم ثبّته على Windows.
+            
+            ### 🔑 كلمة المرور الافتراضية
+            ```
+            admin123
+            ```
+            
+            ---
+            **المطور:** سالم التريمي
+          files: |
+            dist/*.exe
+            dist/*.msi
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ─────────────────────────────────────────────
+      # ✅ ملخص
+      # ─────────────────────────────────────────────
+      - name: ✅ ملخص البناء
+        if: always()
+        run: |
+          Write-Host ""
+          Write-Host "═══════════════════════════════════════════"
+          Write-Host "الحالة: ${{ job.status }}"
+          Write-Host "SHA: ${{ github.sha }}"
+          Write-Host "═══════════════════════════════════════════"
