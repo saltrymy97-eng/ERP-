@@ -27,7 +27,16 @@ function Teachers() {
   const [scanningId, setScanningId] = useState(null);
   const [attendanceStatus, setAttendanceStatus] = useState(null);
   const [monthlyReports, setMonthlyReports] = useState([]);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+
+  // 🟢 فلترا النطاق الزمني للتقرير التراكمي (من ← إلى)
+  const [fromDate, setFromDate] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  });
+  const [toDate, setToDate] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
+  });
 
   const photoInputRef = useRef(null);
   const attendanceTimeoutRef = useRef(null);
@@ -139,11 +148,12 @@ function Teachers() {
     };
   }, [loadTodayAttendance]);
 
+  // 🟢 مراقبة تغيير النطاق الزمني لإعادة تحميل التقرير التراكمي
   useEffect(() => {
     if (tab === 'monthly' && dbReady) {
       loadMonthlyReports();
     }
-  }, [selectedMonth, tab, dbReady]);
+  }, [fromDate, toDate, tab, dbReady]);
 
   // ========== تحميل البيانات وتحديثها ==========
   const loadColleges = useCallback(async () => {
@@ -327,12 +337,10 @@ function Teachers() {
     }
   };
 
+  // ✅ دالة معدّلة: التقرير التراكمي بنطاق (من ← إلى)
   const loadMonthlyReports = async () => {
-    const [year, month] = selectedMonth.split('-').map(Number);
-    const lastDayOfMonth = new Date(year, month, 0).getDate();
-    
-    const startDate = `${selectedMonth}-01`;
-    const endDate = `${selectedMonth}-${String(lastDayOfMonth).padStart(2, '0')}`;
+    // 🟢 حماية: إذا كان fromDate بعد toDate → نبدّل بينهما تلقائياً
+    const [startDate, endDate] = fromDate <= toDate ? [fromDate, toDate] : [toDate, fromDate];
 
     const data = await getQuery(`
       SELECT ta.*, t.full_name, t.teacher_id as doc_id, t.speciality,
@@ -875,11 +883,26 @@ function Teachers() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <div className="monthly-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
                 <div>
-                  <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.7rem', color: '#f59e0b', margin: 0, fontWeight: 700 }}>📊 تقرير كشوفات الأداء والساعات التراكمية لشهر ({selectedMonth})</h3>
+                  <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.7rem', color: '#f59e0b', margin: 0, fontWeight: 700 }}>📊 تقرير كشوفات الأداء والساعات التراكمية من ({fromDate}) إلى ({toDate})</h3>
                   <p style={{ color: 'rgba(255,255,255,0.5)', margin: '5px 0 0 0', fontSize: '0.88rem' }}>متابعة كشوفات الحضور ومستحقات المحاضرين المالية والأكاديمية</p>
                 </div>
-                <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
-                  style={{ background: '#041d14', border: '1px solid #f59e0b', padding: '10px 15px', borderRadius: '12px', color: '#fff', fontWeight: 700, outline: 'none' }} />
+                {/* 🟢 فلترا النطاق الزمني (من ← إلى) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  <label style={{ color: '#f59e0b', fontSize: '0.85rem', fontWeight: 800, whiteSpace: 'nowrap' }}>من:</label>
+                  <input
+                    type="date"
+                    value={fromDate}
+                    onChange={e => setFromDate(e.target.value)}
+                    style={{ background: '#041d14', border: '1px solid #f59e0b', padding: '10px 15px', borderRadius: '12px', color: '#fff', fontWeight: 700, outline: 'none' }}
+                  />
+                  <label style={{ color: '#f59e0b', fontSize: '0.85rem', fontWeight: 800, whiteSpace: 'nowrap' }}>إلى:</label>
+                  <input
+                    type="date"
+                    value={toDate}
+                    onChange={e => setToDate(e.target.value)}
+                    style={{ background: '#041d14', border: '1px solid #f59e0b', padding: '10px 15px', borderRadius: '12px', color: '#fff', fontWeight: 700, outline: 'none' }}
+                  />
+                </div>
               </div>
 
               <div className="data-table" style={{ border: '1px solid rgba(245,158,11,0.2)', borderRadius: '14px', overflow: 'hidden' }}>
@@ -920,7 +943,7 @@ function Teachers() {
                       </tr>
                     ))}
                     {monthlyReports.length === 0 && (
-                      <tr><td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'rgba(255,255,255,0.4)' }}>📭 لا توجد بيانات مسجلة لهذا الشهر للمدرسين.</td></tr>
+                      <tr><td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'rgba(255,255,255,0.4)' }}>📭 لا توجد بيانات مسجلة في هذه الفترة للمدرسين.</td></tr>
                     )}
                   </tbody>
                 </table>
