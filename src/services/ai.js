@@ -17,7 +17,7 @@ let currentSystemState = AI_STATES.IDLE;
 let stateListener = null;
 
 // إعدادات الوصول السحابي لـ Groq API (النموذج العملاق المطور فائق الذكاء والاستيعاب)
-const GROQ_MODEL = 'llama-3.3-70b-versatile'; 
+const GROQ_MODEL = 'openai/gpt-oss-20b'; 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const REQUEST_TIMEOUT_MS = 15000; // مهلة أمان للإنترنت (15 ثانية)
 
