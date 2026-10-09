@@ -1,9 +1,9 @@
 // src/components/Settings.js – المركز السيادي واللوحة القيادية العليا للنظام
-// الإصدار: 3.2.0 - إصلاحات أمنية + استيراد Excel الذكي للمدرسين والطلاب
+// الإصدار: 3.3.0 - استيراد Excel ذرّي + إصلاحات أمنية شاملة
 // مطور النظام: المهندس سالم فهمي التريمي
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getQuery, runQuery, initDatabase, exportDatabase, importDatabase } from '../services/db';
+import { getQuery, runQuery, initDatabase, exportDatabase, importDatabase, runBulkImport, runBulkAbsence } from '../services/db';
 import { getCurrentUser, changePassword, deleteUser, getAllUsers, isAdmin } from '../services/auth';
 import { loadMobileModel } from '../services/ai';
 import * as XLSX from 'xlsx';
@@ -31,12 +31,16 @@ function Settings() {
   // ========== استيراد Excel ==========
   const [excelFile, setExcelFile] = useState(null);
   const [excelPreview, setExcelPreview] = useState(null);
-  const [excelColumns, setExcelColumns] = useState({ id: '', name: '', date: '', time: '' });
+  const [excelColumns, setExcelColumns] = useState({ id: '', name: '', date: '', time: '', _indexes: { id: -1, name: -1, date: -1, time: -1 } });
   const [excelTarget, setExcelTarget] = useState('student');
   const [lateThreshold, setLateThreshold] = useState('08:15');
   const [markAbsents, setMarkAbsents] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
+
+  // 🟢 نافذة تأكيد الغائبين
+  const [showAbsenceConfirm, setShowAbsenceConfirm] = useState(false);
+  const [pendingAbsenceData, setPendingAbsenceData] = useState(null);
 
   // ========== إعدادات الذكاء الاصطناعي ==========
   const [aiConfig, setAiConfig] = useState({ api_key: '', enabled: false, model: 'openai/gpt-oss-20b' });
@@ -72,11 +76,7 @@ function Settings() {
         if (savedAI) {
           try {
             const parsedAI = JSON.parse(savedAI);
-            setAiConfig({
-              api_key: '',
-              enabled: parsedAI.enabled ?? false,
-              model: 'openai/gpt-oss-20b'
-            });
+            setAiConfig({ api_key: '', enabled: parsedAI.enabled ?? false, model: 'openai/gpt-oss-20b' });
           } catch (e) { console.error("Error parsing AI config:", e); }
         }
       } catch (err) { console.error("Initialization Error:", err); }
@@ -134,7 +134,7 @@ function Settings() {
   };
 
   // =========================================================
-  // 🖐️ نظام تسجيل البصمات (🟢 إصلاحات أمنية)
+  // 🖐️ نظام تسجيل البصمات
   // =========================================================
   const loadPeopleForEnroll = async () => {
     if (!dbReady) return;
@@ -166,6 +166,7 @@ function Settings() {
     checkExistingFingerprints(id);
   };
 
+  // 🟢 إصلاح: استخدام الرقم الحقيقي (university_id / teacher_id)
   const enrollFingerprintDevice = async (fingerIndex) => {
     const activeDevice = devices.find(d => d.id === parseInt(activeDeviceId));
     if (!activeDevice) { showMessage('❌ يرجى اختيار جهاز بصمة أولاً', 'error'); return; }
@@ -175,11 +176,35 @@ function Settings() {
     setEnrollStatusText(`⏳ يرجى وضع الإصبع رقم ${fingerIndex + 1} على القارئ...`);
 
     try {
+      // 🟢 جلب الرقم الحقيقي للشخص (وليس id الداخلي)
+      const personRecord = await getQuery(
+        enrollTarget === 'student'
+          ? "SELECT university_id FROM students WHERE id = ?"
+          : "SELECT teacher_id FROM teachers WHERE id = ?",
+        [selectedPersonId]
+      );
+
+      if (!personRecord || personRecord.length === 0) {
+        setEnrollStatusText('❌ لم يتم العثور على الرقم الحقيقي للشخص');
+        setEnrollingFinger(null);
+        return;
+      }
+
+      const deviceUserId = parseInt(
+        enrollTarget === 'student' ? personRecord[0].university_id : personRecord[0].teacher_id
+      );
+
+      if (isNaN(deviceUserId)) {
+        setEnrollStatusText('❌ رقم الشخص غير صالح للمطابقة مع الجهاز');
+        setEnrollingFinger(null);
+        return;
+      }
+
       if (window.electronAPI && typeof window.electronAPI.enrollFinger === 'function') {
         const result = await window.electronAPI.enrollFinger({
           ip: activeDevice.ip_address,
           port: activeDevice.port,
-          userId: parseInt(selectedPersonId),
+          userId: deviceUserId,
           fingerId: fingerIndex
         });
 
@@ -187,6 +212,7 @@ function Settings() {
           if (!result.template || result.template.includes('placeholder')) {
             setEnrollStatusText(`⚠️ تم التقاط البصمة على الجهاز لكن القالب لم يُستلم. حاول مرة أخرى.`);
             showMessage('⚠️ لم يتم استلام قالب البصمة من الجهاز', 'error');
+            setEnrollingFinger(null);
             return;
           }
 
@@ -258,6 +284,7 @@ function Settings() {
     return null;
   };
 
+  // 🟢 إصلاح: حفظ فهارس الأعمدة (indexes)
   const handleExcelFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -279,7 +306,16 @@ function Settings() {
       const headers = rows[0].map(h => String(h || '').trim());
       const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim() !== ''));
       const detected = detectColumns(headers);
-      setExcelColumns(detected);
+
+      // 🟢 حفظ الفهارس مع الأسماء
+      const columnIndexes = {
+        id: detected.id ? headers.indexOf(detected.id) : -1,
+        name: detected.name ? headers.indexOf(detected.name) : -1,
+        date: detected.date ? headers.indexOf(detected.date) : -1,
+        time: detected.time ? headers.indexOf(detected.time) : -1
+      };
+
+      setExcelColumns({ ...detected, _indexes: columnIndexes });
 
       const preview = dataRows.slice(0, 10).map(row => {
         const obj = {};
@@ -297,10 +333,6 @@ function Settings() {
       if (missing.length > 0) {
         showMessage(`⚠️ لم يتم التعرف على: ${missing.join('، ')}`, 'error');
       } else {
-        const msg = [];
-        if (detected.id) msg.push(`ID=${detected.id}`);
-        if (detected.name) msg.push(`الاسم=${detected.name}`);
-        msg.push(`التاريخ=${detected.date}`, `الوقت=${detected.time}`);
         showMessage(`✅ تم التحميل: ${dataRows.length} سجل`);
       }
     } catch (err) {
@@ -322,6 +354,7 @@ function Settings() {
     showMessage('📥 تم تحميل القالب');
   };
 
+  // 🟢 إصلاح: استخدام الفهارس + Transaction + تأكيد الغائبين
   const handleExcelImport = async () => {
     if (!excelFile || !excelPreview) { showMessage('❌ يرجى اختيار ملف أولاً', 'error'); return; }
     if (!excelColumns.id && !excelColumns.name) { showMessage('❌ يجب تحديد ID أو الاسم على الأقل', 'error'); return; }
@@ -334,11 +367,25 @@ function Settings() {
       const data = await excelFile.arrayBuffer();
       const workbook = XLSX.read(data, { type: 'array', cellDates: true });
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(firstSheet, { raw: false, defval: '' });
+      const rows = XLSX.utils.sheet_to_json(firstSheet, { raw: false, defval: '', header: 1 });
+
+      const headers = rows[0].map(h => String(h || '').trim());
+      const dataRows = rows.slice(1);
+
+      // 🟢 استخدام الفهارس
+      const idx = excelColumns._indexes || {};
+      const idIdx = idx.id;
+      const nameIdx = idx.name;
+      const dateIdx = idx.date;
+      const timeIdx = idx.time;
+
+      if (dateIdx < 0 || timeIdx < 0) {
+        showMessage('❌ لم يتم تحديد فهارس التاريخ والوقت', 'error');
+        setImporting(false);
+        return;
+      }
 
       const isStudent = excelTarget === 'student';
-      const table = isStudent ? 'attendance' : 'teacher_attendance';
-      const foreignKey = isStudent ? 'student_id' : 'teacher_id';
       const sourceTable = isStudent ? 'students' : 'teachers';
       const idColumn = isStudent ? 'university_id' : 'teacher_id';
       const nameColumn = 'full_name';
@@ -347,13 +394,14 @@ function Settings() {
       const errors = [];
       let rowNumber = 1;
 
-      for (const row of rows) {
+      for (const row of dataRows) {
         rowNumber++;
+        if (!row || row.length === 0) continue;
 
-        const rawId = excelColumns.id ? String(row[excelColumns.id] || '').trim() : '';
-        const rawName = excelColumns.name ? String(row[excelColumns.name] || '').trim() : '';
-        const dateStr = parseExcelDate(row[excelColumns.date]);
-        const timeStr = parseExcelTime(row[excelColumns.time]);
+        const rawId = idIdx >= 0 ? String(row[idIdx] || '').trim() : '';
+        const rawName = nameIdx >= 0 ? String(row[nameIdx] || '').trim() : '';
+        const dateStr = parseExcelDate(row[dateIdx]);
+        const timeStr = parseExcelTime(row[timeIdx]);
 
         if (!rawId && !rawName && !dateStr && !timeStr) continue;
 
@@ -408,6 +456,7 @@ function Settings() {
             personName: person[nameColumn],
             date: dateStr,
             time: timeStr,
+            status: timeStr <= lateThreshold ? 'present' : 'late',
             matchedBy: matchMethod,
             row: rowNumber
           };
@@ -415,6 +464,7 @@ function Settings() {
       }
 
       const records = Object.values(recordsMap);
+
       if (records.length === 0) {
         setImportResult({
           total: 0, inserted: 0, updated: 0,
@@ -428,59 +478,109 @@ function Settings() {
         return;
       }
 
-      let inserted = 0, updated = 0;
-      let presentCount = 0, lateCount = 0, absentCount = 0;
-      let matchedById = 0, matchedByName = 0;
+      // 🟢 استيراد ذرّي (Transaction) عبر runBulkImport
+      const bulkResult = await runBulkImport(excelTarget, records);
 
-      for (const rec of records) {
-        if (rec.matchedBy === 'ID') matchedById++; else matchedByName++;
-
-        const status = rec.time <= lateThreshold ? 'present' : 'late';
-        const exists = await getQuery(`SELECT id FROM ${table} WHERE ${foreignKey} = ? AND date = ?`, [rec.personId, rec.date]);
-
-        if (exists && exists.length > 0) {
-          await runQuery(`UPDATE ${table} SET time_in = ?, status = ?, method = 'excel' WHERE id = ?`, [rec.time, status, exists[0].id]);
-          updated++;
-        } else {
-          await runQuery(`INSERT INTO ${table} (${foreignKey}, date, time_in, status, method) VALUES (?, ?, ?, ?, 'excel')`, [rec.personId, rec.date, rec.time, status]);
-          inserted++;
-        }
-        if (status === 'present') presentCount++; else lateCount++;
+      if (!bulkResult || !bulkResult.success) {
+        showMessage(`❌ فشل الاستيراد: ${bulkResult?.error || 'خطأ غير معروف'}`, 'error');
+        setImporting(false);
+        return;
       }
 
-      if (markAbsents) {
-        const activePeople = await getQuery(`SELECT id FROM ${sourceTable} WHERE status = 'active'`);
-        const uniqueDates = [...new Set(records.map(r => r.date))];
+      // 🎯 حساب الإحصائيات
+      let presentCount = 0, lateCount = 0;
+      let matchedById = 0, matchedByName = 0;
+      records.forEach(r => {
+        if (r.status === 'present') presentCount++; else lateCount++;
+        if (r.matchedBy === 'ID') matchedById++; else matchedByName++;
+      });
 
-        for (const date of uniqueDates) {
-          for (const p of activePeople) {
-            const exists = await getQuery(`SELECT id FROM ${table} WHERE ${foreignKey} = ? AND date = ?`, [p.id, date]);
-            if (!exists || exists.length === 0) {
-              await runQuery(`INSERT INTO ${table} (${foreignKey}, date, status, method) VALUES (?, ?, 'absent', 'excel-auto')`, [p.id, date]);
-              absentCount++;
-            }
-          }
-        }
+      // 🟢 تسجيل الغائبين مع تأكيد
+      let absentCount = 0;
+      if (markAbsents) {
+        const uniqueDates = [...new Set(records.map(r => r.date))];
+        const activePeopleCount = (await getQuery(`SELECT COUNT(*) as c FROM ${sourceTable} WHERE status = 'active'`))[0]?.c || 0;
+
+        // 🟢 عرض نافذة تأكيد
+        setPendingAbsenceData({
+          dates: uniqueDates,
+          activePeopleCount,
+          recordsCount: records.length
+        });
+        setShowAbsenceConfirm(true);
+        setImporting(false);
+
+        // حفظ النتيجة مؤقتاً لعرضها بعد التأكيد
+        setImportResult({
+          total: records.length,
+          inserted: bulkResult.inserted || 0,
+          updated: bulkResult.updated || 0,
+          presentCount, lateCount, absentCount: 0,
+          matchedById, matchedByName,
+          totalErrors: errors.length,
+          errors: errors.slice(0, 20),
+          _pendingAbsence: true
+        });
+        return;
       }
 
       setImportResult({
-        total: records.length, inserted, updated,
+        total: records.length,
+        inserted: bulkResult.inserted || 0,
+        updated: bulkResult.updated || 0,
         presentCount, lateCount, absentCount,
         matchedById, matchedByName,
         totalErrors: errors.length,
         errors: errors.slice(0, 20)
       });
-      showMessage(`✅ تم: ${inserted} جديد، ${updated} محدّث، ${errors.length} خطأ`);
+      showMessage(`✅ تم: ${bulkResult.inserted} جديد، ${bulkResult.updated} محدّث، ${errors.length} خطأ`);
     } catch (err) {
       console.error(err);
       showMessage(`❌ فشل الاستيراد: ${err.message}`, 'error');
-    } finally { setImporting(false); }
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // 🟢 تأكيد تسجيل الغائبين
+  const confirmAbsenceImport = async () => {
+    if (!pendingAbsenceData) return;
+
+    setShowAbsenceConfirm(false);
+
+    try {
+      const result = await runBulkAbsence(excelTarget, pendingAbsenceData.dates);
+
+      if (result && result.success) {
+        setImportResult(prev => ({
+          ...prev,
+          absentCount: result.absentCount || 0,
+          _pendingAbsence: false
+        }));
+        showMessage(`✅ تم تسجيل ${result.absentCount} غائب`);
+      } else {
+        showMessage(`❌ فشل تسجيل الغائبين: ${result?.error || 'خطأ غير معروف'}`, 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showMessage(`❌ فشل: ${err.message}`, 'error');
+    } finally {
+      setPendingAbsenceData(null);
+    }
+  };
+
+  // 🟢 إلغاء تسجيل الغائبين
+  const cancelAbsenceImport = () => {
+    setShowAbsenceConfirm(false);
+    setPendingAbsenceData(null);
+    setImportResult(prev => prev ? { ...prev, _pendingAbsence: false } : null);
+    showMessage('ℹ️ تم إلغاء تسجيل الغائبين — تم حفظ الحاضرين فقط', 'info');
   };
 
   const resetExcelImport = () => {
     setExcelFile(null);
     setExcelPreview(null);
-    setExcelColumns({ id: '', name: '', date: '', time: '' });
+    setExcelColumns({ id: '', name: '', date: '', time: '', _indexes: { id: -1, name: -1, date: -1, time: -1 } });
     setImportResult(null);
     showMessage('🔄 تم إعادة التعيين');
   };
@@ -686,7 +786,7 @@ function Settings() {
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0, lineHeight: 1.7 }}>
               ارفع ملف Excel من جهاز ZKTeco. النظام سيقوم بـ:
               <br/>✅ مطابقة ذكية: <strong style={{ color: '#38bdf8' }}>بالرقم أولاً، ثم بالاسم</strong>.
-              <br/>✅ تسجيل الحضور/التأخير تلقائياً.
+              <br/>✅ استيراد ذرّي (Transaction) — إما الكل ينجح أو الكل يفشل.
               <br/>✅ (اختياري) تسجيل الغائبين تلقائياً.
             </p>
           </div>
@@ -738,7 +838,7 @@ function Settings() {
 
         {markAbsents && (
           <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', padding: '12px 16px', borderRadius: '10px', color: '#fca5a5', fontSize: '0.82rem', marginBottom: '20px', fontWeight: 600 }}>
-            ⚠️ <strong>تنبيه:</strong> سيتم تسجيل كل الطلاب/المدرسين النشطين غير الموجودين في الملف كغائبين في تواريخ الملف. تأكد من اكتمال البيانات.
+            ⚠️ <strong>تنبيه:</strong> سيتم عرض نافذة تأكيد قبل تسجيل الغائبين.
           </div>
         )}
 
@@ -1003,6 +1103,66 @@ function Settings() {
             style={{ background: 'linear-gradient(135deg, #041d14, #0a3d2c)', border: `1px solid ${messageType === 'error' ? '#ef4444' : messageType === 'info' ? 'var(--gold-main)' : 'var(--green-bright)'}`, padding: '14px 24px', borderRadius: '12px', marginBottom: '25px', color: '#fff', fontWeight: 600 }}>
             {message}
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 🟢 نافذة تأكيد تسجيل الغائبين */}
+      <AnimatePresence>
+        {showAbsenceConfirm && pendingAbsenceData && (
+          <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(2, 11, 7, 0.85)', backdropFilter: 'blur(10px)', zIndex: 99999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}
+              style={{ background: 'linear-gradient(135deg, #052218, #0a3a29)', border: '2px solid #ef4444', borderRadius: '24px', padding: '30px', width: '100%', maxWidth: '560px', boxShadow: '0 25px 60px rgba(0,0,0,0.7)' }}>
+              
+              <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                <div style={{ fontSize: '3rem', marginBottom: '10px' }}>⚠️</div>
+                <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: '#ef4444', margin: 0 }}>تأكيد تسجيل الغائبين</h3>
+              </div>
+
+              <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '12px', padding: '15px', marginBottom: '20px', color: '#fca5a5', fontSize: '0.9rem', lineHeight: 1.7 }}>
+                <strong style={{ display: 'block', marginBottom: '8px', color: '#ef4444' }}>🚨 تنبيه مهم:</strong>
+                سيتم تسجيل الغياب لكل الأشخاص النشطين غير الموجودين في الملف. <strong>تأكد من أن الملف كامل لتلك التواريخ</strong> وإلا فقد يتم تسجيل غياب خاطئ لحاضرين.
+              </div>
+
+              <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '12px', padding: '15px', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '0.9rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>📅 عدد الأيام:</span>
+                  <strong style={{ color: '#fff' }}>{pendingAbsenceData.dates.length}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '0.9rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>👥 الأشخاص النشطون:</span>
+                  <strong style={{ color: '#fff' }}>{pendingAbsenceData.activePeopleCount}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>📊 سجلات حاضرين (محفوظة):</span>
+                  <strong style={{ color: 'var(--green-bright)' }}>{pendingAbsenceData.recordsCount}</strong>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ color: 'var(--gold-light)', fontWeight: 700, marginBottom: '8px', fontSize: '0.85rem' }}>📅 التواريخ المشمولة:</div>
+                <div style={{ maxHeight: '100px', overflowY: 'auto', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '10px', fontSize: '0.82rem', color: '#e2e8f0' }}>
+                  {pendingAbsenceData.dates.map((d, i) => (
+                    <span key={i} style={{ display: 'inline-block', padding: '3px 10px', margin: '3px', background: 'rgba(214,175,55,0.1)', border: '1px solid rgba(214,175,55,0.3)', borderRadius: '50px' }}>{d}</span>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={confirmAbsenceImport}
+                  style={{ flex: 2, background: 'linear-gradient(135deg, #ef4444, #b91c1c)', color: '#fff', border: 'none', padding: '14px', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '0.95rem' }}>
+                  ✅ تأكيد تسجيل الغائبين
+                </motion.button>
+                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={cancelAbsenceImport}
+                  style={{ flex: 1, background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', padding: '14px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem' }}>
+                  ❌ إلغاء
+                </motion.button>
+              </div>
+
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', marginTop: '12px', textAlign: 'center', margin: '12px 0 0 0' }}>
+                💡 إذا اخترت "إلغاء" → سيتم حفظ الحاضرين فقط
+              </p>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
