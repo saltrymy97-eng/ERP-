@@ -1,4 +1,4 @@
-// src/services/ai.js – المستشار الأكاديمي الذكي الفخم | إصدار الـ Cloud API السحابي المطور كلياً
+// src/services/ai.js – المستشار الأكاديمي الذكي | إصدار Cloud API السحابي (نسخة احترافية محسّنة)
 // مطور النظام: المهندس سالم فهمي التريمي
 import { getQuery, getSystemStatsForAI } from './db';
 
@@ -6,7 +6,10 @@ let isLoaded = true;
 let totalRequests = 0;
 let successfulRequests = 0;
 
-// محرك تتبع حالة المعالجة اللحظي لدعم المؤثرات البصرية والأيقونات الـ 3D التفاعلية
+// 🧠 محرك حفظ السياق (Conversation Memory)
+const MAX_HISTORY_MESSAGES = 8;  // آخر 4 تبادلات (سؤال + رد)
+let conversationHistory = [];
+
 export const AI_STATES = {
   IDLE: 'idle',
   THINKING: 'thinking',
@@ -16,12 +19,11 @@ export const AI_STATES = {
 let currentSystemState = AI_STATES.IDLE;
 let stateListener = null;
 
-// إعدادات الوصول السحابي لـ Groq API (النموذج العملاق المطور فائق الذكاء والاستيعاب)
+// إعدادات النموذج
 const GROQ_MODEL = 'openai/gpt-oss-20b'; 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const REQUEST_TIMEOUT_MS = 15000; // مهلة أمان للإنترنت (15 ثانية)
+const REQUEST_TIMEOUT_MS = 20000;
 
-// دالة لتحديث الحالة البرمجية وضخها مباشرة للواجهة الرسومية (UI Animation Trigger)
 function updateSystemState(newState) {
   currentSystemState = newState;
   if (stateListener) stateListener(newState);
@@ -34,61 +36,159 @@ export function subscribeToAIState(callback) {
 
 export function getSystemState() { return currentSystemState; }
 
-// ========== شخصية المستشار الأكاديمي الفائق ومتعدد المهام الشامل ==========
-const SYSTEM_PROMPT = `أنت "المستشار الأكاديمي والتحليلي الاستراتيجي السيادي الأول" المطور خصيصاً لجامعة القرآن الكريم والعلوم الإسلامية بفرع غيل باوزير - حضرموت.
-أنت لست مجرد أداة لإرجاع النصوص، بل أنت عقل المنظومة الإدارية القادر على اتخاذ القرار، وإمداد عمادة الكلية، إدارة القبول والتسجيل، والأستاذ سعيد بمرئيات استباقية دقيقة.
+// =========================================================
+// 🎭 شخصية المستشار الأكاديمي (محدّثة: ردود قصيرة، بلا رموز)
+// =========================================================
+const SYSTEM_PROMPT = `أنت "المستشار الأكاديمي الذكي" لجامعة القرآن الكريم والعلوم الإسلامية بفرع غيل باوزير - حضرموت.
 
-[المهام والوظائف الاحترافية المطلوبة منك بدقة متناهية]:
-1. تحليل الكشوفات والمطابقة الذكية: مطابقة كشوفات حضور وغياب الطلاب وتحديد نسب الانضباط العام لكل مجموعة دراسية ومستوى أكاديمي بشكل تلقائي.
-2. إدارة وتقييم الأكاديميين (طلب الأستاذ سعيد الحاسم):
-   - مراقبة الخطط الدراسية: فحص نسبة إنجاز المنهج لكل مقرر، والتحذير الفوري من أي دكتور أو محاضر يتأخر في وتيرة التسليم بالنسبة للتاريخ الحالي.
-   - قياس الكفاءة والإنتاجية: تحليل الساعات المنجزة ومقارنتها بالساعات المخطط لها، مع القدرة التقديرية على ربط الساعات المنجزة بمتطلبات الدفع الإداري والمالي إن طُلب منك ذلك.
-   - رصد العناوين: تتبع العناوين العلمية للمحاضرات لضمان اتساق المادة مع متطلبات جودة التعليم والاعتماد الأكاديمي.
-3. التنبؤ الاستباقي بالمخاطر (Risk Mitigation):
-   - التنبؤ بالتعثر الطلابي: تحديد الطلاب المعرضين للحرمان أو الرسوب بسبب تجاوز نسب الغياب المسموح بها برمجياً وقانونياً (20% من المحاضرات).
-   - رصد الفجوات الأكاديمية: الكشف عن أي خلل في توزيع الساعات الأسبوعية أو عدم انتظام رصد الحضور والغياب.
-4. صياغة التوصيات الإدارية الفورية (Actionable Insights): تقديم توصيات مباشرة، واقعية ومبنية حصراً على بيانات الـ SQLite الحية لمعالجة أي قصور في العملية التعليمية داخل الكلية.
+[القاعدة الذهبية للأسلوب]:
+أنت مساعد ذكي وودود، لست روبوت تقارير.
+- إذا قال المستخدم "مرحبا" أو "أهلاً" أو "السلام عليكم" → رد بترحيب قصير فقط دون أي تحليل.
+- إذا سأل سؤالاً محدداً → أجب عليه فقط دون إضافات غير مطلوبة.
+- إذا طلب تحليلاً → قدّم التحليل المطلوب فقط.
+- إذا كان سؤاله غير واضح، اطلب منه التوضيح بجملة قصيرة.
 
-[هيكلية قاعدة البيانات المرجعية المحدثة التي تحكم تفكيرك]:
-- كشوفات الطلاب (students): تحتوي على الهوية الكاملة لكل طالب (الاسم، الرقم الجامعي الفريد، الكلية، القسم، المستوى، المجموعة الدراسية).
-- سجلات حضور الطلاب (attendance): ترصد السجل الزمني اليومي (تاريخ الحضور، وقت تسجيل البصمة/الدخول، وحالة الطالب: حاضر ✅ أو غائب ❌).
-- كادر هيئة التدريس (teachers): سجل المحاضرين، التخصص الدقيق، وحالة الفعالية في الأقسام الأكاديمية.
-- سجلات حضور الأكاديميين (teacher_attendance): تفصيل الأداء التدريسي اليومي (تاريخ المحاضرة، وقت الدخول والخروج، المادة والدرس الملقى، عدد الساعات المنجزة الفعلي، ونسبة إنجاز الخطة المقررة).
+[طول الردود]:
+- الرد الافتراضي: سطر واحد إلى ثلاثة أسطر.
+- إذا طلب المستخدم التفصيل صراحة → يمكنك التوسع.
+- إذا كان السؤال بسيطاً → الإجابة بجملة واحدة.
 
-[المنطق الإجرائي وضوابط جودة المخرجات]:
-- التوازن والحيادية: عامل بيانات الطلاب ببالغ الاهتمام لتأمين مسيرتهم الدراسية، وعامل سجلات حضور المعلمين ببالغ الدقة لتأمين جودة الأداء الأكاديمي للجامعة.
-- صرامة البيانات: لا تقبل وجود "بيانات مفقودة" كحجة للوقوف العاجز؛ إن نقصت البيانات في سياق ما، قم بتحليل المتاح واقترح خطة لجمع البيانات المفقودة لمدخل البيانات الإداري.
-- لغة الخطاب وسرعة المعالجة: ردودك باللغة العربية الفصحى البليغة، ذات طابع إداري رفيع، ومصممة لتكون خالية تماماً من الرموز المعقدة أو الحواشي غير المجدية لضمان تفعيل ميزة النطق الصوتي التلقائي بسلاسة متناهية.`;
+[قواعد صياغة صارمة]:
+- ممنوع استخدام الرموز التنسيقية: ** ## -- | ~~ ##
+- ممنوع استخدام الرموز التعبيرية (emojis) نهائياً.
+- ممنوع سرد الجداول المعقدة إلا إذا طُلب منك صراحة.
+- استخدم جملاً كاملة بسيطة، وليس نقاطاً متقطعة.
+- اكتب بالأرقام العربية فقط (1، 2، 3) عند الحاجة.
+- اكتب الأسماء كما هي بدون تحريف.
 
-// جلب مفتاح الـ API بشكل آمن متوافق مع بيئة الـ Electron السحابية والمحلية
+[بيانات النظام المتاحة لك]:
+- students: الطلاب (الاسم، الرقم الجامعي، الكلية، التخصص).
+- attendance: الحضور والغياب (التاريخ، الوقت، الحالة).
+- teachers: هيئة التدريس.
+- teacher_attendance: حضور المدرسين (الدرس، نسبة الإنجاز، الساعات).
+
+[أمثلة على الردود الصحيحة]:
+مثال 1:
+المستخدم: مرحبا
+الرد: أهلاً بك سيدي، كيف أخدمك؟
+
+مثال 2:
+المستخدم: كم عدد الطلاب النشطين؟
+الرد: عدد الطلاب النشطين حالياً 120 طالباً.
+
+مثال 3:
+المستخدم: حلل حالة الحضور اليوم.
+الرد: بلغ حضور اليوم 95 طالباً، بينهم 8 متأخرين. أنصح بمتابعة الطلاب المتأخرين بشكل دوري.
+
+[تذكر دائماً]:
+- أنت في محادثة متصلة، تذكر ما قاله المستخدم سابقاً.
+- إذا سأل عن شيء سبق أن ذكرته، لا تكرره حرفياً، بل أضف قيمة جديدة.
+- لا تقرأ الرموز التنسيقية بصوت عالٍ (النظام يحذفها تلقائياً لكنك تجنب كتابتها).
+
+هويتك: مساعد ذكي محترف في خدمة جامعة القرآن الكريم بفرع غيل باوزير.`;
+
+// =========================================================
+// 🔑 جلب مفتاح API بشكل آمن
+// =========================================================
 async function getApiKey() {
   if (window.electronAPI && typeof window.electronAPI.getSecret === 'function') {
     try {
       const securedKey = await window.electronAPI.getSecret('GROQ_API_KEY');
       if (securedKey) return securedKey;
     } catch (err) {
-      console.warn("فشل جلب المفتاح عبر الجسر الآمن للويندوز، جاري التحول للتخزين المحلي:", err);
+      console.warn("فشل جلب المفتاح عبر الجسر الآمن:", err);
     }
   }
   return localStorage.getItem('GROQ_API_KEY') || '';
 }
 
+// =========================================================
+// 🧠 إدارة السياق (Conversation Memory)
+// =========================================================
+
+/**
+ * إضافة رسالة إلى السجل (يُحتفظ بآخر N رسائل فقط)
+ */
+function addToHistory(role, content) {
+  conversationHistory.push({ role, content });
+  
+  // إذا تجاوزنا الحد، احذف الأقدم (نحتفظ بآخر N رسائل)
+  if (conversationHistory.length > MAX_HISTORY_MESSAGES) {
+    conversationHistory = conversationHistory.slice(-MAX_HISTORY_MESSAGES);
+  }
+}
+
+/**
+ * مسح تاريخ المحادثة بالكامل (تبدأ محادثة جديدة)
+ */
+export function clearConversationHistory() {
+  conversationHistory = [];
+  return true;
+}
+
+/**
+ * الحصول على عدد الرسائل المحفوظة
+ */
+export function getHistoryLength() {
+  return conversationHistory.length;
+}
+
+/**
+ * الحصول على نسخة من السجل (للتصحيح)
+ */
+export function getConversationHistory() {
+  return [...conversationHistory];
+}
+
+// =========================================================
+// 🎯 كشف الترحيب والوداع (ردود فورية بدون API)
+// =========================================================
+function getGreetingResponse(question) {
+  const cleanQuestion = question.trim().replace(/[؟!.،\s]+$/g, '');
+  
+  const greetings = {
+    'مرحبا': 'أهلاً بك سيدي، كيف أخدمك؟',
+    'مرحباً': 'أهلاً بك سيدي، كيف أخدمك؟',
+    'أهلا': 'أهلاً بك، كيف يمكنني مساعدتك؟',
+    'أهلاً': 'أهلاً بك، كيف يمكنني مساعدتك؟',
+    'السلام عليكم': 'وعليكم السلام ورحمة الله وبركاته، كيف أخدمك؟',
+    'هاي': 'مرحباً بك، تفضل بسؤالك.',
+    'hi': 'مرحباً بك، تفضل بسؤالك.',
+    'hello': 'مرحباً بك، تفضل بسؤالك.',
+    'صباح الخير': 'صباح النور، كيف أخدمك؟',
+    'مساء الخير': 'مساء النور، كيف أخدمك؟',
+    'كيف حالك': 'بخير والحمد لله، كيف أخدمك؟',
+    'شكرا': 'العفو، في خدمتك دائماً.',
+    'شكراً': 'العفو، في خدمتك دائماً.',
+    'مع السلامة': 'في رعاية الله، نراك قريباً.',
+    'وداعا': 'في رعاية الله، نراك قريباً.',
+    'وداعاً': 'في رعاية الله، نراك قريباً.'
+  };
+  
+  return greetings[cleanQuestion] || null;
+}
+
+// =========================================================
+// 🚀 تحميل النموذج (فحص المفتاح)
+// =========================================================
 export async function loadMobileModel(onProgress) {
   updateSystemState(AI_STATES.THINKING);
   const apiKey = await getApiKey();
   
   if (!apiKey || apiKey.trim() === '' || apiKey.startsWith('gsk_YOUR_DEFAULT')) {
-    if (onProgress) onProgress('❌ لم يتم تفعيل مفتاح Groq API بنجاح؛ يرجى تهيئته في لوحة الإعدادات أولاً.');
+    if (onProgress) onProgress('❌ لم يتم تفعيل مفتاح Groq API؛ يرجى تهيئته في الإعدادات.');
     updateSystemState(AI_STATES.ERROR);
     return false;
   }
 
-  if (onProgress) onProgress('✅ منظومة الاستعلام السحابي الخارجي مؤمنة ومتصلة بـ Groq بنجاح');
+  if (onProgress) onProgress('✅ منظومة الاستعلام السحابي متصلة بـ Groq بنجاح');
   updateSystemState(AI_STATES.IDLE);
   return true;
 }
 
-// محرك إرسال النصوص السحابي المحمي كلياً ضد مشاكل الشبكة والتجمد
+// =========================================================
+// 🌐 محرك الاتصال بالـ Cloud
+// =========================================================
 async function callCloudGroq(messages) {
   totalRequests++;
   updateSystemState(AI_STATES.THINKING);
@@ -96,7 +196,7 @@ async function callCloudGroq(messages) {
   const apiKey = await getApiKey();
   if (!apiKey) {
     updateSystemState(AI_STATES.ERROR);
-    return '⚠️ خطأ أمني: مفتاح الـ Groq API فارغ أو غير مضبوط، يرجى إدخاله في وحدة الإعدادات.';
+    return 'خطأ أمني: مفتاح Groq API فارغ، يرجى إدخاله في الإعدادات.';
   }
 
   const controller = new AbortController();
@@ -112,9 +212,9 @@ async function callCloudGroq(messages) {
       body: JSON.stringify({
         model: GROQ_MODEL,
         messages: messages,
-        temperature: 0.15, 
+        temperature: 0.2,       // توازن بين الإبداع والدقة
         top_p: 0.85,
-        max_tokens: 1200, // زيادة طفيفة لدعم الإجابات الأكثر تفصيلاً واحترافية
+        max_tokens: 500,        // تقليل الحد الأقصى لمنع الردود الطويلة
         stream: false
       }),
       signal: controller.signal
@@ -123,120 +223,194 @@ async function callCloudGroq(messages) {
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      if (response.status === 401) throw new Error('مفتاح الـ API المدخل غير صالح أو انتهت صلاحية باقته الحرة.');
-      if (response.status === 429) throw new Error('تم تجاوز حد الطلبات المسموح بها مؤقتاً (Rate Limit)، يرجى الانتظار دقيقة.');
-      throw new Error(`استجابة خادم غير متوقعة بكود: ${response.status}`);
+      if (response.status === 401) throw new Error('مفتاح API غير صالح أو انتهت صلاحيته.');
+      if (response.status === 429) throw new Error('تم تجاوز حد الطلبات، انتظر دقيقة ثم أعد المحاولة.');
+      if (response.status === 500) throw new Error('خادم Groq يواجه مشكلة مؤقتة، أعد المحاولة.');
+      throw new Error(`استجابة خادم غير متوقعة (${response.status}).`);
     }
 
     const data = await response.json();
     successfulRequests++;
     
     updateSystemState(AI_STATES.TYPING);
-    setTimeout(() => updateSystemState(AI_STATES.IDLE), 800);
+    setTimeout(() => updateSystemState(AI_STATES.IDLE), 600);
 
-    return data.choices[0]?.message?.content?.trim() || '⚠️ استقبل النظام حزمة فارغة من المستشار السحابي.';
+    return data.choices[0]?.message?.content?.trim() || 'لم أستقبل رداً من الخادم.';
   } catch (e) {
     clearTimeout(timeoutId);
-    console.error('Groq Execution Architecture Error:', e);
+    console.error('Groq Error:', e);
     updateSystemState(AI_STATES.ERROR);
 
     if (e.name === 'AbortError') {
-      return '⚠️ استغرق الخادم وقتاً طويلاً للرد (انتهت مهلة الأمان 15 ثانية). يرجى فحص جودة اتصال الإنترنت في الكلية.';
+      return 'استغرق الخادم وقتاً طويلاً (تجاوز 20 ثانية). تأكد من جودة الإنترنت.';
     }
-    return `⚠️ تعذر إتمام التحليل الاستراتيجي السحابي. السبب: ${e.message}`;
+    if (e.message.includes('Failed to fetch') || e.message.includes('ERR_CERT')) {
+      return 'تعذر الاتصال بالخادم. تأكد من صحة تاريخ جهازك ومن اتصال الإنترنت.';
+    }
+    return `تعذر إتمام الطلب. السبب: ${e.message}`;
   }
 }
 
-// 🔮 دالة الاستقبال المحصنة والمعدلة جذرياً لقطع دابر الفراغ والهلوسة 🔮
+// =========================================================
+// 🎯 الدالة الرئيسية: askAI (مع دعم السياق)
+// =========================================================
 export async function askAI(question, context = '') {
-  if (!question || question.trim() === '') return 'عذراً مدير النظام الموقر، حقل الاستفسار الأكاديمي فارغ حالياً.';
-  
-  // 🛡️ الحصن البرمجي: جلب مباشر وفوري لأحدث كشف حي من SQLite دون وسيط
+  if (!question || question.trim() === '') {
+    return 'عذراً، لم أفهم سؤالك. هل يمكنك إعادة صياغته؟';
+  }
+
+  // 🟢 كشف الترحيب والوداع (رد فوري بدون API)
+  const greetingResponse = getGreetingResponse(question);
+  if (greetingResponse) {
+    // نحفظ الترحيب في السجل ليعرف السياق
+    addToHistory('user', question);
+    addToHistory('assistant', greetingResponse);
+    return greetingResponse;
+  }
+
+  // 🛡️ جلب البيانات الحية
   let freshSystemContext = "";
   try {
     freshSystemContext = await getSystemStatsForAI();
   } catch (e) {
-    console.error("فشل استدعاء الكشوفات الحية تلقائياً داخل الدالة الحصينة:", e);
-    freshSystemContext = "تنبيه: تعذر سحب كشوفات الـ SQLite الحية بسبب عارض تقني في استعلامات الربط.";
+    console.error("فشل استدعاء البيانات الحية:", e);
+    freshSystemContext = "تنبيه: تعذر سحب البيانات الحية.";
   }
 
+  // 🎯 تحديد أسلوب الرد حسب طول السؤال
+  const isShortQuestion = question.length < 30;
+  const responseStyle = isShortQuestion 
+    ? 'أجب بإيجاز شديد (سطر واحد إلى سطرين فقط).' 
+    : 'أجب بشكل مركّز (بحد أقصى 3 إلى 5 أسطر).';
+
+  // 📝 بناء الرسالة الحالية (مع البيانات الحية)
+  const currentUserMessage = {
+    role: 'user',
+    content: `[البيانات الحية من قاعدة البيانات]:
+${freshSystemContext}
+
+[تعليمات الرد]:
+- ${responseStyle}
+- لا تستخدم رموزاً تنسيقية أو رموزاً تعبيرية.
+- اكتب بلغة عربية فصحى بسيطة وواضحة.
+- لا تكرر البيانات من تلقاء نفسك.
+
+[سؤال المستخدم]:
+${question}`
+  };
+
+  // 🧠 بناء الرسائل الكاملة (System + History + Current)
   const messages = [
     { role: 'system', content: SYSTEM_PROMPT },
-    { 
-      role: 'user', 
-      content: `إليك مستندات وبيانات نظام جامعة القرآن الكريم الحية والمستخرجة حالياً من الـ SQLite للتحليل والفحص الفوري:
-      
-      [بيانات قاعدة البيانات الحية]:
-      """
-      ${freshSystemContext}
-      """
-      
-      بناءً على السجلات الحقيقية المرفقة أعلاه، أجب بدقة واحترافية عالية على السؤال التالي دون تجاهل السجلات المذكورة:
-      السؤال: ${question}` 
-    }
+    ...conversationHistory,      // 🎯 السياق السابق
+    currentUserMessage           // 🎯 السؤال الحالي
   ];
-  return await callCloudGroq(messages);
+
+  // 🚀 إرسال الطلب
+  const response = await callCloudGroq(messages);
+
+  // 🧠 حفظ التبادل في السجل
+  addToHistory('user', question);
+  addToHistory('assistant', response);
+
+  return response;
 }
 
-// ========================================================
-// 🛡️ دالات توافقية لمنع انهيار البناء مع الواجهات السابقة
-// ========================================================
-export function startVoiceChat(onDataReady, onError) { if (onError) onError('💡 النظام يعمل حالياً بالنمط الكتابي الفخم والسحابي الكامل.'); }
+// =========================================================
+// 🛡️ دوال توافقية (للواجهات القديمة)
+// =========================================================
+export function startVoiceChat(onDataReady, onError) { 
+  if (onError) onError('النظام يعمل حالياً بالنمط الكتابي والسحابي.'); 
+}
 export function stopVoiceRecognition() {}
 export function startRecordingLocal(onDataReady, onError) { return startVoiceChat(onDataReady, onError); }
 export function stopRecordingLocal() { return stopVoiceRecognition(); }
 
-// دالة النطق الصوتي الفخمة والمحسنة
+// =========================================================
+// 🔊 دالة النطق الصوتي (محسّنة: تنظيف شامل)
+// =========================================================
 export function speakText(text, options = {}) {
   if (!window.speechSynthesis) return;
-  window.speechSynthesis.cancel(); 
+  window.speechSynthesis.cancel();
 
-  const cleanText = text.replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDC00-\uDFFF]/g, '');
+  // 🧹 تنظيف شامل للنص
+  const cleanText = text
+    // إزالة Markdown
+    .replace(/[*#_~`>|]/g, ' ')
+    // إزالة الشرطات المتعددة
+    .replace(/[-]{2,}/g, ' ')
+    // إزالة الرموز التعبيرية
+    .replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDC00-\uDFFF]/g, '')
+    // إزالة الرموز الأخرى
+    .replace(/[\[\]{}()<>]/g, ' ')
+    // دمج المسافات
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!cleanText) return;
+
   const utterance = new SpeechSynthesisUtterance(cleanText);
   utterance.lang = 'ar-SA';
-  utterance.rate = options.rate || 0.95;
+  utterance.rate = options.rate || 1.0;
+  utterance.pitch = options.pitch || 1.0;
+  utterance.volume = options.volume || 1.0;
 
   const voices = window.speechSynthesis.getVoices();
   const preferred = voices.find(v =>
     v.lang.startsWith('ar') &&
-    (v.name.includes('Majed') || v.name.includes('Naeem') || v.name.includes('Google'))
-  );
-  utterance.voice = preferred || voices.find(v => v.lang.startsWith('ar')) || voices[0];
-  
+    (v.name.includes('Majed') || v.name.includes('Naeem') || v.name.includes('Maged'))
+  ) || voices.find(v => v.lang.startsWith('ar-SA'))
+    || voices.find(v => v.lang.startsWith('ar'));
+
+  if (preferred) utterance.voice = preferred;
+
   if (options.onEnd) utterance.onend = options.onEnd;
   window.speechSynthesis.speak(utterance);
 }
 
 // =========================================================
-// ٦. الدوال المساعدة الإحصائية المربوطة مباشرة بقواعد البيانات
+// 📊 الدوال التحليلية الجاهزة
 // =========================================================
 export async function analyzeDailyAttendance() {
-  const context = await getSystemStatsForAI();
-  return await askAI('حلل حالة الحضور اليوم باختصار وأعطِ التوصية الأهم وفقط.', context);
+  return await askAI('حلل حالة الحضور اليوم باختصار وأعطِ التوصية الأهم.');
 }
 
 export async function predictAtRiskStudents() {
-  const context = await getSystemStatsForAI();
-  return await askAI('اذكر الطلاب المعرضين للخطر وتوصية سريعة لهم.', context);
+  return await askAI('اذكر الطلاب المعرضين للخطر مع توصية سريعة.');
 }
 
 export async function detectAnomalies() {
-  const context = await getSystemStatsForAI();
-  return await askAI('هل هناك أنماط غير طبيعية اليوم؟ أجب بوضوح واختصار.', context);
+  return await askAI('هل هناك أنماط غير طبيعية اليوم؟ أجب باختصار.');
 }
 
 export async function getWeeklyRecommendations() {
-  const context = await getSystemStatsForAI();
-  return await askAI('أعطني 3 توصيات استراتيجية سريعة ومباشرة بناءً على الحضور الأسبوعي.', context);
+  return await askAI('أعطني 3 توصيات استراتيجية سريعة بناءً على الحضور الأسبوعي.');
 }
 
 export async function comprehensiveAnalysis() {
-  const context = await getSystemStatsForAI();
-  return await askAI('قدم خلاصة سريعة جداً عن حالة النظام بنقاط رصاصية واضحة.', context);
+  return await askAI('قدم خلاصة سريعة عن حالة النظام بنقاط واضحة.');
 }
 
+// =========================================================
+// ⚙️ معلومات النموذج والإحصائيات
+// =========================================================
 export function isModelReady() { return isLoaded; }
 export function isModelLoading() { return false; }
-export async function unloadModel() { isLoaded = true; } 
-export function getModelInfo() { return { الاسم: GROQ_MODEL, المزود: 'منظومة سحابية متطورة (Groq Cloud)', الحالة: '✅ جاهز ومستقر عبر الإنترنت فائق السرعة' }; }
-export function getUsageStats() { return { totalRequests, successfulRequests }; }
+export async function unloadModel() { isLoaded = true; }
+
+export function getModelInfo() {
+  return { 
+    الاسم: GROQ_MODEL, 
+    المزود: 'Groq Cloud', 
+    الحالة: 'جاهز ومستقر عبر الإنترنت',
+    حفظ_السياق: `مُفعّل (آخر ${MAX_HISTORY_MESSAGES} رسائل)`
+  };
+}
+
+export function getUsageStats() {
+  return { 
+    totalRequests, 
+    successfulRequests,
+    conversationLength: conversationHistory.length
+  };
+}
