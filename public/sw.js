@@ -3,8 +3,6 @@ const CACHE_NAME = 'attendance-v1';
 const ASSETS = [
   '/',
   '/index.html',
-  '/logo.png',
-  '/icon.ico',
   '/manifest.json'
 ];
 
