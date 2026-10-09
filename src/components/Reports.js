@@ -148,18 +148,16 @@ function Reports() {
     })).sort((a, b) => a.rate - b.rate);
   };
 
-  // ========== تقرير طالب (معدّل: فلتر تاريخ اختياري) ==========
+  // ========== تقرير طالب (فلتر تاريخ اختياري) ==========
   const generateStudentReport = async () => {
     if (!selectedStudent) return [];
     let data;
     if (selectedDate) {
-      // إذا حُدد تاريخ، اعرض سجلات ذلك اليوم فقط لهذا الطالب
       data = await getQuery(
         `SELECT date, time_in, time_out, status FROM attendance 
          WHERE student_id = ? AND date = ? 
          ORDER BY date DESC`, [selectedStudent, selectedDate]
       );
-      // إن لم توجد نتائج لليوم المحدد، نعرض آخر 40 سجلاً (تجربة أفضل)
       if (!data || data.length === 0) {
         data = await getQuery(
           `SELECT date, time_in, time_out, status FROM attendance 
@@ -177,19 +175,17 @@ function Reports() {
     return (data || []).map(a => ({ date: a.date, time_in: a.time_in || '—', time_out: a.time_out || '—', status: a.status }));
   };
 
-  // ========== تقرير تخصص (معدّل: فلتر تاريخ اختياري) ==========
+  // ========== تقرير تخصص (فلتر تاريخ اختياري) ==========
   const generateMajorReport = async () => {
     if (!selectedMajor) return [];
     let data;
     if (selectedDate) {
-      // إذا حُدد تاريخ، اعرض سجلات ذلك اليوم فقط لهذا التخصص
       data = await getQuery(
         `SELECT a.student_id, a.status, s.university_id, s.full_name
          FROM attendance a 
          INNER JOIN students s ON a.student_id = s.id
          WHERE s.major_id = ? AND a.date = ?`, [selectedMajor, selectedDate]
       );
-      // إن لم توجد نتائج لليوم المحدد، نعرض كل السجلات (تجربة أفضل)
       if (!data || data.length === 0) {
         data = await getQuery(
           `SELECT a.student_id, a.status, s.university_id, s.full_name
@@ -221,17 +217,14 @@ function Reports() {
 
   // ========== تقرير تقييم الانضباط (فلتر تاريخ اختياري) ==========
   const generateDisciplineReport = async () => {
-    // 1. جلب جميع الطلاب النشطين
     const activeStudents = await getQuery("SELECT id, university_id, full_name FROM students WHERE status = 'active'");
     if (!activeStudents || activeStudents.length === 0) return [];
 
-    // 2. جلب سجلات الحضور (مع فلتر التاريخ إن وُجد)
     let attendanceLogs;
     if (selectedDate) {
       attendanceLogs = await getQuery(
         "SELECT student_id, status FROM attendance WHERE date = ?", [selectedDate]
       );
-      // إن لم توجد نتائج، نعرض كل السجلات
       if (!attendanceLogs || attendanceLogs.length === 0) {
         attendanceLogs = await getQuery("SELECT student_id, status FROM attendance");
       }
@@ -239,7 +232,6 @@ function Reports() {
       attendanceLogs = await getQuery("SELECT student_id, status FROM attendance");
     }
 
-    // 3. تجميع السجلات وحساب الأيام لكل طالب
     const attendanceMap = {};
     if (attendanceLogs && attendanceLogs.length > 0) {
       attendanceLogs.forEach(log => {
@@ -254,7 +246,6 @@ function Reports() {
       });
     }
 
-    // 4. احتساب الدرجات الأكاديمية التلقائية من 100
     const disciplineReport = activeStudents.map(student => {
       const stats = attendanceMap[student.id] || { total: 0, present: 0, late: 0, absent: 0 };
       const totalDays = stats.total;
@@ -296,7 +287,6 @@ function Reports() {
         "SELECT a.student_id, a.status, s.full_name, s.university_id, s.parent_phone FROM attendance a INNER JOIN students s ON a.student_id = s.id WHERE s.status = 'active' AND a.date = ?",
         [selectedDate]
       );
-      // إن لم توجد نتائج، نعرض كل السجلات
       if (!attendance || attendance.length === 0) {
         attendance = await getQuery(
           "SELECT a.student_id, a.status, s.full_name, s.university_id, s.parent_phone FROM attendance a INNER JOIN students s ON a.student_id = s.id WHERE s.status = 'active'"
@@ -541,24 +531,6 @@ function Reports() {
                   onChange={e => setSelectedDate(e.target.value)}
                   style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '11px 15px', borderRadius: '12px', color: '#fff', fontWeight: 600 }}
                 />
-                {selectedDate && (
-                  <button
-                    onClick={() => setSelectedDate('')}
-                    title="إلغاء فلتر التاريخ لعرض كل السجلات"
-                    style={{
-                      background: 'rgba(239,68,68,0.1)',
-                      border: '1px solid rgba(239,68,68,0.3)',
-                      color: '#ef4444',
-                      padding: '8px 12px',
-                      borderRadius: '10px',
-                      cursor: 'pointer',
-                      fontWeight: 800,
-                      fontSize: '0.8rem'
-                    }}
-                  >
-                    ✕ مسح التاريخ
-                  </button>
-                )}
               </motion.div>
             )}
             
@@ -578,24 +550,6 @@ function Reports() {
                   onChange={e => setSelectedDate(e.target.value)}
                   style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '11px 15px', borderRadius: '12px', color: '#fff', fontWeight: 600 }}
                 />
-                {selectedDate && (
-                  <button
-                    onClick={() => setSelectedDate('')}
-                    title="إلغاء فلتر التاريخ لعرض آخر 40 سجلاً"
-                    style={{
-                      background: 'rgba(239,68,68,0.1)',
-                      border: '1px solid rgba(239,68,68,0.3)',
-                      color: '#ef4444',
-                      padding: '8px 12px',
-                      borderRadius: '10px',
-                      cursor: 'pointer',
-                      fontWeight: 800,
-                      fontSize: '0.8rem'
-                    }}
-                  >
-                    ✕ مسح
-                  </button>
-                )}
 
                 {/* 🔍 حقل البحث */}
                 <div ref={dropdownRef} style={{ position: 'relative', minWidth: '280px', flex: 1, maxWidth: '350px' }}>
