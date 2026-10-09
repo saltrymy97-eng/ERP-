@@ -11,29 +11,18 @@
   <meta name="author" content="سالم التريمي" />
   
   <meta property="og:title" content="بوابة السيطرة المركزية | جامعة القرآن الكريم والعلوم الإسلامية" />
-  <meta property="og:description" content="المنظومة الرقمية السيادية لإدارة الرصد البيومتري، قاعدة بيانات SQLite محلية, تكامل مع محركات WhatsApp Cloud API، واستخراج الصكوك والتقارير الأكاديمية الذكية." />
+  <meta property="og:description" content="المنظومة الرقمية السيادية لإدارة الرصد البيومتري، قاعدة بيانات SQLite محلية، تكامل مع محركات WhatsApp Cloud API، واستخراج الصكوك والتقارير الأكاديمية الذكية." />
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="ar_SA" />
   <meta property="og:site_name" content="جامعة القرآن الكريم والعلوم الإسلامية" />
   
-  <!-- 🛠️ تعديل مسارات الأيقونات واللوجو لوضع التغليف المباشر -->
-  <link rel="icon" type="image/png" sizes="32x32" href="logo.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="logo.png" />
-  <link rel="apple-touch-icon" sizes="180x180" href="logo.png" />
-  
-  <!-- 🛠️ تعديل مسار المانيفست -->
   <link rel="manifest" href="manifest.json" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="الرصد السيادي" />
   
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&family=Tajawal:wght@300;400;500;700;800;900&display=swap" rel="stylesheet" />
-  
   <title>بوابة السيطرة والتحكم البيومتري الموحد | جامعة القرآن الكريم والعلوم الإسلامية</title>
   
-  <!-- 🛠️ تعديل مسار ملف الـ CSS الرئيسي -->
   <link rel="stylesheet" href="app.css" />
   
   <style>
@@ -45,7 +34,6 @@
       -moz-osx-font-smoothing: grayscale;
     }
 
-    /* 👑 لوحة الألوان السيادية الموحدة المأخوذة من روح الشعار */
     :root {
       --bg-dark: #021410;            
       --emerald-dark: #04261f;       
@@ -56,14 +44,13 @@
     }
 
     body { 
-      font-family: 'Tajawal', sans-serif; 
+      font-family: 'Segoe UI', Tahoma, Arial, sans-serif; 
       background-color: var(--bg-dark); 
       color: #ffffff;
       overflow-x: hidden;
       min-height: 100vh;
     }
 
-    /* 🔮 شاشة التحميل والإقلاع الفاخرة والمنبثقة من طابع الجامعة الأكاديمي */
     #imperial-splash-screen {
       position: fixed;
       top: 0;
@@ -108,7 +95,6 @@
       filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
     }
 
-    /* 💎 طوق النور الدوار حول الشعار */
     .quantum-ring {
       position: absolute;
       width: 158px;
@@ -127,7 +113,6 @@
     }
 
     .loader-titles h1 {
-      font-family: 'Amiri', serif;
       font-size: 2.3rem;
       font-weight: 700;
       color: var(--gold-light);
@@ -144,7 +129,6 @@
       text-shadow: 0 2px 5px rgba(0,0,0,0.4);
     }
 
-    /* شريط تقدم التحميل الليزري */
     .progress-bar-track {
       width: 250px;
       height: 3px;
@@ -192,9 +176,7 @@
     <div class="loader-container">
       <div class="loader-emblem">
         <div class="quantum-ring"></div>
-        <!-- 🛠️ تعديل مسار صورة الشعار داخل الـ Splash Screen -->
-        <img src="logo.png" alt="شعار الجامعة" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
-        <span style="display:none; font-size:2.5rem;">🏛️</span>
+        <span style="font-size:2.5rem;">🏛️</span>
       </div>
       
       <div class="loader-titles">
@@ -209,10 +191,10 @@
   </div>
 
   <noscript>
-    <div style="position:fixed; top:0; left:0; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center; font-family:'Tajawal',sans-serif; background:radial-gradient(circle at center, var(--emerald-dark) 20%, var(--bg-dark) 100%); z-index:9999999; padding:20px;">
+    <div style="position:fixed; top:0; left:0; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center; font-family:'Segoe UI',Tahoma,Arial,sans-serif; background:radial-gradient(circle at center, var(--emerald-dark) 20%, var(--bg-dark) 100%); z-index:9999999; padding:20px;">
       <div style="text-align:center; background:rgba(4, 38, 31, 0.4); border:1px solid rgba(214, 175, 55, 0.3); padding:40px; border-radius:20px; max-width:500px; box-shadow:0 20px 50px rgba(0,0,0,0.7);">
         <div style="font-size:4.5rem; margin-bottom:15px;">⚠️</div>
-        <h2 style="color:#fdf2be; font-family:'Amiri',serif; font-size:2.2rem; margin-bottom:12px; font-weight:700;">بروتوكول أمان المنظومة</h2>
+        <h2 style="color:#fdf2be; font-size:2.2rem; margin-bottom:12px; font-weight:700;">بروتوكول أمان المنظومة</h2>
         <p style="color:rgba(255,255,255,0.8); font-size:1rem; line-height:1.6;">يتطلب هذا النظام السيادي تفعيل <strong>بروتوكولات JavaScript</strong> للقيام بعمليات التحقق الرقمي والمطابقة البيومترية الحية. يرجى تفعيلها من إعدادات المتصفح وإعادة إنعاش البوابة.</p>
       </div>
     </div>
