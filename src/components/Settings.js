@@ -1,6 +1,6 @@
 // src/components/Settings.js – المركز السيادي واللوحة القيادية العليا للنظام
+// الإصدار: 3.2.0 - إصلاحات أمنية + استيراد Excel الذكي للمدرسين والطلاب
 // مطور النظام: المهندس سالم فهمي التريمي
-// الإصدار: 3.1.0 - مع دعم استيراد Excel الذكي (ID + الاسم)
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getQuery, runQuery, initDatabase, exportDatabase, importDatabase } from '../services/db';
@@ -23,14 +23,14 @@ function Settings() {
   const [enrollTarget, setEnrollTarget] = useState('student');
   const [peopleList, setPeopleList] = useState([]);
   const [selectedPersonId, setSelectedPersonId] = useState('');
-  const [activeDeviceIp, setActiveDeviceIp] = useState('');
+  const [activeDeviceId, setActiveDeviceId] = useState('');
   const [enrollingFinger, setEnrollingFinger] = useState(null);
   const [fingerTemplates, setFingerTemplates] = useState([null, null, null, null, null]);
   const [enrollStatusText, setEnrollStatusText] = useState('');
 
   // ========== استيراد Excel ==========
   const [excelFile, setExcelFile] = useState(null);
-  const [excelPreview, setExcelPreview] = useState(null);   // { headers, rows, totalRows }
+  const [excelPreview, setExcelPreview] = useState(null);
   const [excelColumns, setExcelColumns] = useState({ id: '', name: '', date: '', time: '' });
   const [excelTarget, setExcelTarget] = useState('student');
   const [lateThreshold, setLateThreshold] = useState('08:15');
@@ -38,7 +38,7 @@ function Settings() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
 
-  // ========== الذكاء الاصطناعي ==========
+  // ========== إعدادات الذكاء الاصطناعي ==========
   const [aiConfig, setAiConfig] = useState({ api_key: '', enabled: false, model: 'openai/gpt-oss-20b' });
 
   // ========== التقويم الأكاديمي ==========
@@ -72,7 +72,11 @@ function Settings() {
         if (savedAI) {
           try {
             const parsedAI = JSON.parse(savedAI);
-            setAiConfig({ api_key: parsedAI.api_key || '', enabled: parsedAI.enabled ?? false, model: 'openai/gpt-oss-20b' });
+            setAiConfig({
+              api_key: '',
+              enabled: parsedAI.enabled ?? false,
+              model: 'openai/gpt-oss-20b'
+            });
           } catch (e) { console.error("Error parsing AI config:", e); }
         }
       } catch (err) { console.error("Initialization Error:", err); }
@@ -93,7 +97,7 @@ function Settings() {
   const loadDevices = async () => {
     const data = await getQuery("SELECT * FROM devices ORDER BY name");
     setDevices(data || []);
-    if (data && data.length > 0) setActiveDeviceIp(data[0].ip_address);
+    if (data && data.length > 0) setActiveDeviceId(data[0].id);
   };
 
   const addDevice = async () => {
@@ -130,13 +134,13 @@ function Settings() {
   };
 
   // =========================================================
-  // 🖐️ نظام تسجيل البصمات
+  // 🖐️ نظام تسجيل البصمات (🟢 إصلاحات أمنية)
   // =========================================================
   const loadPeopleForEnroll = async () => {
     if (!dbReady) return;
     const data = enrollTarget === 'student'
-      ? await getQuery("SELECT id, name FROM students ORDER BY name")
-      : await getQuery("SELECT id, name FROM teachers ORDER BY name");
+      ? await getQuery("SELECT id, full_name FROM students WHERE status = 'active' ORDER BY full_name")
+      : await getQuery("SELECT id, full_name FROM teachers WHERE status = 'active' ORDER BY full_name");
     setPeopleList(data || []);
     setSelectedPersonId('');
     setFingerTemplates([null, null, null, null, null]);
@@ -148,7 +152,11 @@ function Settings() {
     const foreignKey = enrollTarget === 'student' ? 'student_id' : 'teacher_id';
     const existing = await getQuery(`SELECT finger_index, template FROM ${table} WHERE ${foreignKey} = ?`, [personId]);
     const templatesMap = [null, null, null, null, null];
-    if (existing) existing.forEach(f => { if (f.finger_index >= 0 && f.finger_index < 5) templatesMap[f.finger_index] = f.template || "saved_template"; });
+    if (existing) existing.forEach(f => {
+      if (f.finger_index >= 0 && f.finger_index < 5 && f.template && !f.template.includes('placeholder')) {
+        templatesMap[f.finger_index] = f.template;
+      }
+    });
     setFingerTemplates(templatesMap);
   };
 
@@ -159,54 +167,61 @@ function Settings() {
   };
 
   const enrollFingerprintDevice = async (fingerIndex) => {
-    if (!activeDeviceIp) { showMessage('❌ يرجى إضافة جهاز بصمة أولاً', 'error'); return; }
+    const activeDevice = devices.find(d => d.id === parseInt(activeDeviceId));
+    if (!activeDevice) { showMessage('❌ يرجى اختيار جهاز بصمة أولاً', 'error'); return; }
     if (!selectedPersonId) { showMessage('❌ يرجى اختيار الشخص أولاً', 'error'); return; }
+
     setEnrollingFinger(fingerIndex);
     setEnrollStatusText(`⏳ يرجى وضع الإصبع رقم ${fingerIndex + 1} على القارئ...`);
+
     try {
       if (window.electronAPI && typeof window.electronAPI.enrollFinger === 'function') {
-        const result = await window.electronAPI.enrollFinger({ ip: activeDeviceIp, port: 4370, userId: parseInt(selectedPersonId), fingerId: fingerIndex });
+        const result = await window.electronAPI.enrollFinger({
+          ip: activeDevice.ip_address,
+          port: activeDevice.port,
+          userId: parseInt(selectedPersonId),
+          fingerId: fingerIndex
+        });
+
         if (result && result.success) {
+          if (!result.template || result.template.includes('placeholder')) {
+            setEnrollStatusText(`⚠️ تم التقاط البصمة على الجهاز لكن القالب لم يُستلم. حاول مرة أخرى.`);
+            showMessage('⚠️ لم يتم استلام قالب البصمة من الجهاز', 'error');
+            return;
+          }
+
           const table = enrollTarget === 'student' ? 'student_fingerprints' : 'teacher_fingerprints';
           const foreignKey = enrollTarget === 'student' ? 'student_id' : 'teacher_id';
+
           await runQuery(`DELETE FROM ${table} WHERE ${foreignKey} = ? AND finger_index = ?`, [selectedPersonId, fingerIndex]);
-          await runQuery(`INSERT INTO ${table} (${foreignKey}, finger_index, template) VALUES (?, ?, ?)`, [selectedPersonId, fingerIndex, result.template || 'template_placeholder']);
+          await runQuery(`INSERT INTO ${table} (${foreignKey}, finger_index, template) VALUES (?, ?, ?)`,
+            [selectedPersonId, fingerIndex, result.template]);
+
           const newTemplates = [...fingerTemplates];
-          newTemplates[fingerIndex] = result.template || 'template_placeholder';
+          newTemplates[fingerIndex] = result.template;
           setFingerTemplates(newTemplates);
+
           setEnrollStatusText(`✅ تم تسجيل الإصبع رقم ${fingerIndex + 1} بنجاح!`);
-        } else throw new Error(result.error || "Enrollment failed");
-      } else throw new Error("Electron غير مهيأ.");
+          showMessage(`✨ تم تسجيل البصمة رقم ${fingerIndex + 1}`);
+        } else {
+          throw new Error(result.error || "فشل التسجيل");
+        }
+      } else throw new Error("Electron غير مهيأ لدعم الميزة.");
     } catch (err) {
       setEnrollStatusText(`❌ فشل التسجيل: ${err.message}`);
+      showMessage(`❌ فشل: ${err.message}`, 'error');
     } finally { setEnrollingFinger(null); }
   };
 
   // =========================================================
-  // 📊 استيراد Excel الذكي (ID + الاسم)
+  // 📊 استيراد Excel
   // =========================================================
-
-  /**
-   * كشف الأعمدة تلقائياً بناءً على أسماء الرأس
-   */
   const detectColumns = (headers) => {
     const patterns = {
-      id: [
-        /الرقم الجامعي/i, /الرقم الوظيفي/i, /^رقم$/i, /^id$/i, /^pin$/i,
-        /user\s*id/i, /employee\s*id/i, /^uid$/i, /^no\.?$/i, /رقم البصمة/i, /enroll/i,
-        /^ac-?no/i, /^acno/i
-      ],
-      name: [
-        /^الاسم$/i, /^اسم$/i, /^name$/i, /full\s*name/i, /اسم الطالب/i,
-        /اسم الموظف/i, /اسم المعلم/i, /اسم المدرس/i, /اسم المحاضر/i
-      ],
-      date: [
-        /^التاريخ$/i, /^تاريخ$/i, /^date$/i, /^day$/i, /^att\s*date/i
-      ],
-      time: [
-        /^الوقت$/i, /^وقت$/i, /^time$/i, /clock\s*in/i, /check\s*in/i,
-        /وقت الحضور/i, /وقت الدخول/i, /^att\s*time/i
-      ]
+      id: [/الرقم الجامعي/i, /الرقم الوظيفي/i, /^رقم$/i, /^id$/i, /^pin$/i, /user\s*id/i, /employee\s*id/i, /^uid$/i, /^no\.?$/i, /رقم البصمة/i, /enroll/i],
+      name: [/^الاسم$/i, /^اسم$/i, /^name$/i, /full\s*name/i, /اسم الطالب/i, /اسم الموظف/i, /اسم المعلم/i, /اسم المدرس/i],
+      date: [/^التاريخ$/i, /^تاريخ$/i, /^date$/i, /^day$/i],
+      time: [/^الوقت$/i, /^وقت$/i, /^time$/i, /clock\s*in/i, /check\s*in/i, /وقت الحضور/i, /وقت الدخول/i]
     };
     const findCol = (cat) => {
       for (const h of headers) {
@@ -215,36 +230,19 @@ function Settings() {
       }
       return '';
     };
-    return {
-      id: findCol('id'),
-      name: findCol('name'),
-      date: findCol('date'),
-      time: findCol('time')
-    };
+    return { id: findCol('id'), name: findCol('name'), date: findCol('date'), time: findCol('time') };
   };
 
-  /**
-   * تحويل التاريخ من Excel إلى صيغة YYYY-MM-DD
-   */
   const parseExcelDate = (value) => {
     if (!value) return null;
     const str = String(value).trim();
-
-    // إذا كانت بصيغة ISO مباشرة
     if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
-
-    // إذا كانت بصيغة DD/MM/YYYY أو MM/DD/YYYY
     const slashMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
     if (slashMatch) {
       let [, p1, p2, year] = slashMatch;
       if (year.length === 2) year = '20' + year;
-      // نعتمد DD/MM/YYYY (الشائع في الدول العربية)
-      const day = p1.padStart(2, '0');
-      const month = p2.padStart(2, '0');
-      return `${year}-${month}-${day}`;
+      return `${year}-${p2.padStart(2, '0')}-${p1.padStart(2, '0')}`;
     }
-
-    // محاولة أخرى عبر Date
     const d = new Date(str);
     if (!isNaN(d.getTime())) {
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -252,9 +250,6 @@ function Settings() {
     return null;
   };
 
-  /**
-   * تحويل الوقت إلى HH:MM
-   */
   const parseExcelTime = (value) => {
     if (!value) return null;
     const str = String(value).trim();
@@ -263,9 +258,6 @@ function Settings() {
     return null;
   };
 
-  /**
-   * معالج اختيار ملف Excel
-   */
   const handleExcelFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -297,20 +289,19 @@ function Settings() {
 
       setExcelPreview({ headers, rows: preview, totalRows: dataRows.length });
 
-      // التحقق من الأعمدة المطلوبة
       const missing = [];
       if (!detected.id && !detected.name) missing.push('الرقم أو الاسم');
       if (!detected.date) missing.push('التاريخ');
       if (!detected.time) missing.push('الوقت');
 
       if (missing.length > 0) {
-        showMessage(`⚠️ لم يتم التعرف على: ${missing.join('، ')} — يرجى التأكد من أسماء الأعمدة`, 'error');
+        showMessage(`⚠️ لم يتم التعرف على: ${missing.join('، ')}`, 'error');
       } else {
         const msg = [];
         if (detected.id) msg.push(`ID=${detected.id}`);
         if (detected.name) msg.push(`الاسم=${detected.name}`);
         msg.push(`التاريخ=${detected.date}`, `الوقت=${detected.time}`);
-        showMessage(`✅ تم التحميل: ${dataRows.length} سجل — الأعمدة: ${msg.join(' | ')}`);
+        showMessage(`✅ تم التحميل: ${dataRows.length} سجل`);
       }
     } catch (err) {
       console.error(err);
@@ -318,9 +309,6 @@ function Settings() {
     }
   };
 
-  /**
-   * تحميل قالب Excel جاهز
-   */
   const downloadExcelTemplate = () => {
     const template = [
       { 'الرقم': '645575', 'الاسم': 'أحمد محمد', 'التاريخ': '2026-10-09', 'الوقت': '08:15' },
@@ -334,22 +322,10 @@ function Settings() {
     showMessage('📥 تم تحميل القالب');
   };
 
-  /**
-   * 🎯 تنفيذ الاستيراد الذكي
-   */
   const handleExcelImport = async () => {
-    if (!excelFile || !excelPreview) {
-      showMessage('❌ يرجى اختيار ملف أولاً', 'error');
-      return;
-    }
-    if (!excelColumns.id && !excelColumns.name) {
-      showMessage('❌ يجب تحديد عمود واحد على الأقل (ID أو الاسم)', 'error');
-      return;
-    }
-    if (!excelColumns.date || !excelColumns.time) {
-      showMessage('❌ لم يتم التعرف على أعمدة التاريخ والوقت', 'error');
-      return;
-    }
+    if (!excelFile || !excelPreview) { showMessage('❌ يرجى اختيار ملف أولاً', 'error'); return; }
+    if (!excelColumns.id && !excelColumns.name) { showMessage('❌ يجب تحديد ID أو الاسم على الأقل', 'error'); return; }
+    if (!excelColumns.date || !excelColumns.time) { showMessage('❌ لم يتم التعرف على التاريخ والوقت', 'error'); return; }
 
     setImporting(true);
     setImportResult(null);
@@ -369,7 +345,7 @@ function Settings() {
 
       const recordsMap = {};
       const errors = [];
-      let rowNumber = 1; // الصف الأول في Excel هو الرأس
+      let rowNumber = 1;
 
       for (const row of rows) {
         rowNumber++;
@@ -379,44 +355,39 @@ function Settings() {
         const dateStr = parseExcelDate(row[excelColumns.date]);
         const timeStr = parseExcelTime(row[excelColumns.time]);
 
-        // تجاهل الصفوف الفارغة تماماً
         if (!rawId && !rawName && !dateStr && !timeStr) continue;
 
-        // التحقق من التاريخ والوقت
         if (!dateStr || !timeStr) {
           errors.push({
             row: rowNumber,
             id: rawId || '—',
             name: rawName || '—',
-            reason: !dateStr && !timeStr ? 'تاريخ ووقت غير صالحين'
-                  : (!dateStr ? 'تاريخ غير صالح' : 'وقت غير صالح')
+            reason: !dateStr && !timeStr ? 'تاريخ ووقت غير صالحين' : (!dateStr ? 'تاريخ غير صالح' : 'وقت غير صالح')
           });
           continue;
         }
 
-        // 🎯 البحث: ID أولاً، ثم الاسم
         let person = null;
         let matchMethod = '';
 
         if (rawId) {
-          const byId = await getQuery(
-            `SELECT id, ${nameColumn} FROM ${sourceTable} WHERE ${idColumn} = ? LIMIT 1`,
-            [rawId]
-          );
-          if (byId && byId.length > 0) {
-            person = byId[0];
-            matchMethod = 'ID';
-          }
+          const byId = await getQuery(`SELECT id, ${nameColumn} FROM ${sourceTable} WHERE ${idColumn} = ? LIMIT 1`, [rawId]);
+          if (byId && byId.length > 0) { person = byId[0]; matchMethod = 'ID'; }
         }
 
         if (!person && rawName) {
-          const byName = await getQuery(
-            `SELECT id, ${nameColumn} FROM ${sourceTable} WHERE ${nameColumn} = ? LIMIT 1`,
-            [rawName]
-          );
-          if (byName && byName.length > 0) {
+          const byName = await getQuery(`SELECT id, ${nameColumn} FROM ${sourceTable} WHERE ${nameColumn} = ?`, [rawName]);
+          if (byName && byName.length === 1) {
             person = byName[0];
             matchMethod = 'الاسم';
+          } else if (byName && byName.length > 1) {
+            errors.push({
+              row: rowNumber,
+              id: rawId || '—',
+              name: rawName,
+              reason: `الاسم مكرر (${byName.length} حالات) — يُرجى استخدام الرقم`
+            });
+            continue;
           }
         }
 
@@ -430,7 +401,6 @@ function Settings() {
           continue;
         }
 
-        // تجميع السجلات: نحتفظ بأول تسجيل لكل يوم لكل شخص
         const key = `${person.id}_${dateStr}`;
         if (!recordsMap[key] || timeStr < recordsMap[key].time) {
           recordsMap[key] = {
@@ -445,7 +415,6 @@ function Settings() {
       }
 
       const records = Object.values(recordsMap);
-
       if (records.length === 0) {
         setImportResult({
           total: 0, inserted: 0, updated: 0,
@@ -454,7 +423,7 @@ function Settings() {
           totalErrors: errors.length,
           errors: errors.slice(0, 20)
         });
-        showMessage('⚠️ لا توجد سجلات صالحة للاستيراد', 'error');
+        showMessage('⚠️ لا توجد سجلات صالحة', 'error');
         setImporting(false);
         return;
       }
@@ -463,51 +432,31 @@ function Settings() {
       let presentCount = 0, lateCount = 0, absentCount = 0;
       let matchedById = 0, matchedByName = 0;
 
-      // 🎯 كتابة السجلات في قاعدة البيانات
       for (const rec of records) {
-        if (rec.matchedBy === 'ID') matchedById++;
-        else matchedByName++;
+        if (rec.matchedBy === 'ID') matchedById++; else matchedByName++;
 
         const status = rec.time <= lateThreshold ? 'present' : 'late';
-        const exists = await getQuery(
-          `SELECT id FROM ${table} WHERE ${foreignKey} = ? AND date = ?`,
-          [rec.personId, rec.date]
-        );
+        const exists = await getQuery(`SELECT id FROM ${table} WHERE ${foreignKey} = ? AND date = ?`, [rec.personId, rec.date]);
 
         if (exists && exists.length > 0) {
-          await runQuery(
-            `UPDATE ${table} SET time_in = ?, status = ?, method = 'excel' WHERE id = ?`,
-            [rec.time, status, exists[0].id]
-          );
+          await runQuery(`UPDATE ${table} SET time_in = ?, status = ?, method = 'excel' WHERE id = ?`, [rec.time, status, exists[0].id]);
           updated++;
         } else {
-          await runQuery(
-            `INSERT INTO ${table} (${foreignKey}, date, time_in, status, method) VALUES (?, ?, ?, ?, 'excel')`,
-            [rec.personId, rec.date, rec.time, status]
-          );
+          await runQuery(`INSERT INTO ${table} (${foreignKey}, date, time_in, status, method) VALUES (?, ?, ?, ?, 'excel')`, [rec.personId, rec.date, rec.time, status]);
           inserted++;
         }
-
-        if (status === 'present') presentCount++;
-        else lateCount++;
+        if (status === 'present') presentCount++; else lateCount++;
       }
 
-      // 🟢 تسجيل الغائبين تلقائياً (اختياري)
       if (markAbsents) {
         const activePeople = await getQuery(`SELECT id FROM ${sourceTable} WHERE status = 'active'`);
         const uniqueDates = [...new Set(records.map(r => r.date))];
 
         for (const date of uniqueDates) {
           for (const p of activePeople) {
-            const exists = await getQuery(
-              `SELECT id FROM ${table} WHERE ${foreignKey} = ? AND date = ?`,
-              [p.id, date]
-            );
+            const exists = await getQuery(`SELECT id FROM ${table} WHERE ${foreignKey} = ? AND date = ?`, [p.id, date]);
             if (!exists || exists.length === 0) {
-              await runQuery(
-                `INSERT INTO ${table} (${foreignKey}, date, status, method) VALUES (?, ?, 'absent', 'excel-auto')`,
-                [p.id, date]
-              );
+              await runQuery(`INSERT INTO ${table} (${foreignKey}, date, status, method) VALUES (?, ?, 'absent', 'excel-auto')`, [p.id, date]);
               absentCount++;
             }
           }
@@ -515,59 +464,62 @@ function Settings() {
       }
 
       setImportResult({
-        total: records.length,
-        inserted, updated,
+        total: records.length, inserted, updated,
         presentCount, lateCount, absentCount,
         matchedById, matchedByName,
         totalErrors: errors.length,
         errors: errors.slice(0, 20)
       });
-
-      showMessage(`✅ تم الاستيراد: ${inserted} جديد، ${updated} محدّث، ${errors.length} خطأ`);
+      showMessage(`✅ تم: ${inserted} جديد، ${updated} محدّث، ${errors.length} خطأ`);
     } catch (err) {
       console.error(err);
       showMessage(`❌ فشل الاستيراد: ${err.message}`, 'error');
-    } finally {
-      setImporting(false);
-    }
+    } finally { setImporting(false); }
   };
 
-  /**
-   * إعادة تعيين وحدة الاستيراد
-   */
   const resetExcelImport = () => {
     setExcelFile(null);
     setExcelPreview(null);
     setExcelColumns({ id: '', name: '', date: '', time: '' });
     setImportResult(null);
-    showMessage('🔄 تم إعادة تعيين وحدة الاستيراد');
+    showMessage('🔄 تم إعادة التعيين');
   };
 
   // =========================================================
   // 🧠 الذكاء الاصطناعي
   // =========================================================
   const saveAiConfig = async () => {
-    if (!aiConfig.api_key || !aiConfig.api_key.trim()) {
-      showMessage('❌ يرجى كتابة مفتاح API أولاً', 'error');
+    if (!aiConfig.enabled) {
+      const updatedConfig = { api_key: '', enabled: false, model: 'openai/gpt-oss-20b' };
+      localStorage.setItem('ai_config', JSON.stringify(updatedConfig));
+      setAiConfig(updatedConfig);
+      showMessage('⚠️ تم إيقاف المستشار الذكي');
       return;
     }
-    const updatedConfig = {
-      api_key: aiConfig.api_key.trim(),
-      enabled: aiConfig.enabled,
-      model: 'openai/gpt-oss-20b'
-    };
-    localStorage.setItem('ai_config', JSON.stringify(updatedConfig));
-    localStorage.setItem('GROQ_API_KEY', updatedConfig.api_key);
 
-    if (window.electronAPI && typeof window.electronAPI.setSecret === 'function') {
-      try { await window.electronAPI.setSecret('GROQ_API_KEY', updatedConfig.api_key); }
-      catch (err) { console.warn(err); }
+    if (!aiConfig.api_key || !aiConfig.api_key.trim()) {
+      showMessage('❌ يرجى كتابة مفتاح API أولاً', 'error'); return;
     }
 
+    const updatedConfig = { api_key: '', enabled: true, model: 'openai/gpt-oss-20b' };
+
+    if (window.electronAPI && typeof window.electronAPI.setSecret === 'function') {
+      try {
+        await window.electronAPI.setSecret('GROQ_API_KEY', aiConfig.api_key.trim());
+      } catch (err) {
+        showMessage('❌ فشل حفظ المفتاح بشكل آمن', 'error');
+        return;
+      }
+    } else {
+      localStorage.setItem('GROQ_API_KEY', aiConfig.api_key.trim());
+    }
+
+    localStorage.setItem('ai_config', JSON.stringify(updatedConfig));
     setAiConfig(updatedConfig);
+
     showMessage('⏳ جاري التحقق...', 'info');
     const isReady = await loadMobileModel();
-    showMessage(isReady ? '🧠 تم حفظ الإعدادات بنجاح!' : '⚠️ تم الحفظ لكن فشل الاتصال.', isReady ? 'success' : 'error');
+    showMessage(isReady ? '🧠 تم حفظ الإعدادات بنجاح!' : '⚠️ فشل الاتصال.', isReady ? 'success' : 'error');
   };
 
   // =========================================================
@@ -579,11 +531,8 @@ function Settings() {
   };
 
   const addEvent = async () => {
-    if (!eventForm.event || !eventForm.date_from || !eventForm.date_to) {
-      showMessage('❌ يرجى إكمال البيانات', 'error'); return;
-    }
-    await runQuery("INSERT INTO calendar (event, date_from, date_to, type) VALUES (?, ?, ?, ?)",
-      [eventForm.event, eventForm.date_from, eventForm.date_to, eventForm.type]);
+    if (!eventForm.event || !eventForm.date_from || !eventForm.date_to) { showMessage('❌ يرجى إكمال البيانات', 'error'); return; }
+    await runQuery("INSERT INTO calendar (event, date_from, date_to, type) VALUES (?, ?, ?, ?)", [eventForm.event, eventForm.date_from, eventForm.date_to, eventForm.type]);
     setEventForm({ event: '', date_from: '', date_to: '', type: 'event' });
     await loadCalendar();
     showMessage('📅 تمت الإضافة');
@@ -604,13 +553,9 @@ function Settings() {
   };
 
   const addSchedule = async () => {
-    if (!scheduleForm.day || !scheduleForm.subject || !scheduleForm.time_from || !scheduleForm.time_to) {
-      showMessage('❌ يرجى إكمال الحقول', 'error'); return;
-    }
-    await runQuery(
-      "INSERT INTO schedules (day, subject, teacher, time_from, time_to, room, break_time, late_tolerance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      [scheduleForm.day, scheduleForm.subject, scheduleForm.teacher, scheduleForm.time_from, scheduleForm.time_to, scheduleForm.room, scheduleForm.break_time, scheduleForm.late_tolerance]
-    );
+    if (!scheduleForm.day || !scheduleForm.subject || !scheduleForm.time_from || !scheduleForm.time_to) { showMessage('❌ يرجى إكمال الحقول', 'error'); return; }
+    await runQuery("INSERT INTO schedules (day, subject, teacher, time_from, time_to, room, break_time, late_tolerance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      [scheduleForm.day, scheduleForm.subject, scheduleForm.teacher, scheduleForm.time_from, scheduleForm.time_to, scheduleForm.room, scheduleForm.break_time, scheduleForm.late_tolerance]);
     setScheduleForm({ day: '', subject: '', teacher: '', time_from: '', time_to: '', room: '', break_time: 0, late_tolerance: 10 });
     await loadSchedules();
     showMessage('📚 تمت الإضافة');
@@ -631,12 +576,8 @@ function Settings() {
   };
 
   const handleChangePassword = async () => {
-    if (!passwordForm.oldPassword || !passwordForm.newPassword) {
-      showMessage('❌ يرجى إدخال كلمة المرور', 'error'); return;
-    }
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      showMessage('❌ غير متطابقتين', 'error'); return;
-    }
+    if (!passwordForm.oldPassword || !passwordForm.newPassword) { showMessage('❌ يرجى إدخال كلمة المرور', 'error'); return; }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) { showMessage('❌ غير متطابقتين', 'error'); return; }
     const result = await changePassword(currentUser.username, passwordForm.oldPassword, passwordForm.newPassword);
     showMessage(result.message, result.success ? 'success' : 'error');
     if (result.success) setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
@@ -664,13 +605,13 @@ function Settings() {
         await importDatabase(file);
         showMessage('✅ تمت الاستعادة! جاري التحديث...');
         setTimeout(() => window.location.reload(), 1200);
-      } catch (err) { showMessage(`❌ فشل الاستعادة: ${err.message}`, 'error'); }
+      } catch (err) { showMessage(`❌ فشل: ${err.message}`, 'error'); }
       e.target.value = '';
     }
   };
 
   // =========================================================
-  // 🎨 واجهة الذكاء الاصطناعي
+  // 🎨 الواجهات
   // =========================================================
   const renderAI = () => (
     <div className="settings-section">
@@ -680,6 +621,7 @@ function Settings() {
         <div>
           <label style={{ color: 'var(--gold-light)', fontWeight: 700 }}>🔑 مفتاح API</label>
           <input type="password" value={aiConfig.api_key || ''} onChange={e => setAiConfig({ ...aiConfig, api_key: e.target.value })} placeholder="gsk_xxx" style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid var(--glass-border)', padding: '14px', borderRadius: '10px', color: '#fff', outline: 'none', fontFamily: 'monospace', width: '100%', marginTop: '6px', direction: 'ltr', textAlign: 'left' }} />
+          <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', display: 'block', marginTop: '6px' }}>🔒 يُخزّن المفتاح بشكل مشفّر في النظام الآمن (Safe Storage)</span>
         </div>
         <label style={{ color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 600 }}>
           <input type="checkbox" checked={aiConfig.enabled || false} onChange={e => setAiConfig({ ...aiConfig, enabled: e.target.checked })} style={{ width: '18px', height: '18px', accentColor: 'var(--gold-main)' }} />
@@ -689,20 +631,16 @@ function Settings() {
           🚀 النموذج النشط: <span style={{ fontFamily: 'monospace' }}>openai/gpt-oss-20b</span>
         </div>
         <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} onClick={saveAiConfig} style={{ background: 'linear-gradient(135deg, var(--gold-main), #b89324)', color: '#062b1e', border: 'none', padding: '14px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-start', minWidth: '200px' }}>
-          💾 حفظ النموذج
+          💾 حفظ الإعدادات
         </motion.button>
       </div>
     </div>
   );
 
-  // =========================================================
-  // 🎨 واجهة البصمة والتحضير
-  // =========================================================
   const renderDevices = () => (
     <div className="settings-section">
       <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)', margin: '0 0 5px 0' }}>🖐️ بوابات البصمة</h3>
 
-      {/* نموذج إضافة جهاز */}
       <div className="form-row-lux" style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr auto', gap: '15px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--glass-border)', padding: '20px', borderRadius: '14px', marginBottom: '25px' }}>
         <input type="text" placeholder="اسم البوابة" value={deviceForm.name || ''} onChange={e => setDeviceForm({ ...deviceForm, name: e.target.value })} className="glass-input" />
         <input type="text" placeholder="IP" value={deviceForm.ip_address || ''} onChange={e => setDeviceForm({ ...deviceForm, ip_address: e.target.value })} className="glass-input" style={{ textAlign: 'left' }} />
@@ -712,12 +650,11 @@ function Settings() {
         </motion.button>
       </div>
 
-      {/* جدول الأجهزة */}
       <div className="data-table" style={{ border: '1px solid var(--glass-border)', borderRadius: '14px', overflow: 'hidden', marginBottom: '25px' }}>
         <table>
           <thead>
             <tr style={{ background: 'linear-gradient(135deg, #041d14, #083d2b)' }}>
-              <th>البوابة</th><th>IP</th><th>منفذ</th><th>حالة الحائط</th><th>آخر فحص</th><th>إجراءات</th>
+              <th>البوابة</th><th>IP</th><th>منفذ</th><th>الحالة</th><th>آخر فحص</th><th>إجراءات</th>
             </tr>
           </thead>
           <tbody>
@@ -741,17 +678,15 @@ function Settings() {
         </table>
       </div>
 
-      {/* ═══════════════════════════════════════════════════ */}
-      {/* 🟢 قسم استيراد Excel                                 */}
-      {/* ═══════════════════════════════════════════════════ */}
+      {/* 📊 استيراد Excel */}
       <div style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.05), rgba(0,0,0,0.3))', border: '2px solid var(--green-bright)', borderRadius: '16px', padding: '25px', marginBottom: '25px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
           <div>
             <h4 style={{ fontFamily: 'Amiri, serif', fontSize: '1.4rem', color: 'var(--green-bright)', margin: '0 0 8px 0' }}>📊 استيراد سجلات الحضور من Excel</h4>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0, lineHeight: 1.7 }}>
-              ارفع ملف Excel من جهاز ZKTeco. سيقوم النظام بـ:
+              ارفع ملف Excel من جهاز ZKTeco. النظام سيقوم بـ:
               <br/>✅ مطابقة ذكية: <strong style={{ color: '#38bdf8' }}>بالرقم أولاً، ثم بالاسم</strong>.
-              <br/>✅ تسجيل الحضور/التأخير تلقائياً حسب الحد المحدد.
+              <br/>✅ تسجيل الحضور/التأخير تلقائياً.
               <br/>✅ (اختياري) تسجيل الغائبين تلقائياً.
             </p>
           </div>
@@ -763,7 +698,6 @@ function Settings() {
           )}
         </div>
 
-        {/* أزرار رفع الملف وتحميل القالب */}
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '20px' }}>
           <label style={{ cursor: 'pointer', padding: '12px 24px', borderRadius: '10px', background: 'linear-gradient(135deg, var(--green-bright), #10b981)', color: '#041d14', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}>
             📁 اختر ملف Excel
@@ -774,13 +708,12 @@ function Settings() {
             📥 تحميل قالب
           </motion.button>
           {excelFile && (
-            <span style={{ padding: '12px 16px', background: 'rgba(16,185,129,0.1)', border: '1px solid var(--green-bright)', borderRadius: '10px', color: 'var(--green-bright)', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center' }}>
+            <span style={{ padding: '12px 16px', background: 'rgba(16,185,129,0.1)', border: '1px solid var(--green-bright)', borderRadius: '10px', color: 'var(--green-bright)', fontSize: '0.85rem', fontWeight: 700 }}>
               ✅ {excelFile.name}
             </span>
           )}
         </div>
 
-        {/* إعدادات الاستيراد */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px' }}>
           <div>
             <label style={{ color: 'var(--gold-light)', fontSize: '0.85rem', display: 'block', marginBottom: '6px', fontWeight: 700 }}>🎯 نوع الاستيراد</label>
@@ -803,14 +736,12 @@ function Settings() {
           </div>
         </div>
 
-        {/* تحذير عند تفعيل تسجيل الغائبين */}
         {markAbsents && (
           <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', padding: '12px 16px', borderRadius: '10px', color: '#fca5a5', fontSize: '0.82rem', marginBottom: '20px', fontWeight: 600 }}>
             ⚠️ <strong>تنبيه:</strong> سيتم تسجيل كل الطلاب/المدرسين النشطين غير الموجودين في الملف كغائبين في تواريخ الملف. تأكد من اكتمال البيانات.
           </div>
         )}
 
-        {/* معاينة الملف */}
         {excelPreview && (
           <div style={{ marginBottom: '20px' }}>
             <h5 style={{ color: 'var(--green-bright)', margin: '0 0 12px 0', fontSize: '1rem' }}>
@@ -845,7 +776,6 @@ function Settings() {
           </div>
         )}
 
-        {/* زر بدء الاستيراد */}
         {excelPreview && (
           <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} onClick={handleExcelImport} disabled={importing}
             style={{ background: importing ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, var(--gold-main), #b89324)', color: '#062b1e', border: 'none', padding: '14px 32px', borderRadius: '12px', fontWeight: 900, fontSize: '1rem', cursor: importing ? 'wait' : 'pointer', boxShadow: '0 8px 20px rgba(214,175,55,0.3)', width: '100%' }}>
@@ -853,13 +783,11 @@ function Settings() {
           </motion.button>
         )}
 
-        {/* نتائج الاستيراد */}
         {importResult && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
             style={{ marginTop: '20px', background: 'rgba(16,185,129,0.08)', border: '1px solid var(--green-bright)', borderRadius: '12px', padding: '18px' }}>
             <h5 style={{ color: 'var(--green-bright)', margin: '0 0 12px 0', fontSize: '1rem' }}>✅ نتائج الاستيراد</h5>
 
-            {/* إحصائيات رئيسية */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', fontSize: '0.85rem', marginBottom: '15px' }}>
               <div><span style={{ color: 'var(--text-secondary)' }}>📊 إجمالي:</span> <strong style={{ color: '#fff' }}>{importResult.total}</strong></div>
               <div><span style={{ color: 'var(--text-secondary)' }}>➕ جديد:</span> <strong style={{ color: 'var(--green-bright)' }}>{importResult.inserted}</strong></div>
@@ -869,16 +797,14 @@ function Settings() {
               {markAbsents && <div><span style={{ color: 'var(--text-secondary)' }}>❌ غائبون:</span> <strong style={{ color: '#ef4444' }}>{importResult.absentCount}</strong></div>}
             </div>
 
-            {/* طرق المطابقة */}
             <div style={{ paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.08)', marginBottom: '12px', fontSize: '0.82rem' }}>
               <div style={{ color: 'var(--gold-light)', marginBottom: '6px', fontWeight: 700 }}>🎯 طرق المطابقة:</div>
               <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-                <span>🆔 <strong style={{ color: '#38bdf8' }}>بواسطة الرقم:</strong> {importResult.matchedById || 0}</span>
-                <span>👤 <strong style={{ color: '#a78bfa' }}>بواسطة الاسم:</strong> {importResult.matchedByName || 0}</span>
+                <span>🆔 <strong style={{ color: '#38bdf8' }}>بالرقم:</strong> {importResult.matchedById || 0}</span>
+                <span>👤 <strong style={{ color: '#a78bfa' }}>بالاسم:</strong> {importResult.matchedByName || 0}</span>
               </div>
             </div>
 
-            {/* الأخطاء */}
             {importResult.totalErrors > 0 && (
               <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '10px', padding: '14px', marginTop: '12px' }}>
                 <div style={{ color: '#fca5a5', fontWeight: 800, marginBottom: '10px', fontSize: '0.9rem' }}>
@@ -890,8 +816,7 @@ function Settings() {
                     <div key={i} style={{
                       padding: '8px 10px', marginBottom: '6px', borderRadius: '6px',
                       background: 'rgba(0,0,0,0.25)', borderRight: '3px solid #ef4444',
-                      display: 'grid', gridTemplateColumns: 'auto auto auto 1fr', gap: '10px',
-                      alignItems: 'center', flexWrap: 'wrap'
+                      display: 'grid', gridTemplateColumns: 'auto auto auto 1fr', gap: '10px', alignItems: 'center'
                     }}>
                       <span style={{ color: '#fca5a5', fontWeight: 700 }}>📍 صف {err.row}</span>
                       <span style={{ color: '#e2e8f0', fontSize: '0.75rem' }}>ID: <strong>{err.id}</strong></span>
@@ -906,9 +831,6 @@ function Settings() {
         )}
       </div>
 
-      {/* ═══════════════════════════════════════════════════ */}
-      {/* قسم بصمات الـ 5 الاحتياطية (يظهر فقط عند وجود أجهزة) */}
-      {/* ═══════════════════════════════════════════════════ */}
       {devices.length > 0 && (
         <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--glass-border)', borderRadius: '16px', padding: '25px' }}>
           <h4 style={{ fontFamily: 'Amiri, serif', fontSize: '1.4rem', color: 'var(--gold-light)', margin: '0 0 10px 0' }}>🖐️ وحدة تسجيل الـ 5 بصمات الاحتياطية</h4>
@@ -926,13 +848,13 @@ function Settings() {
               <label style={{ color: 'var(--gold-light)', fontSize: '0.85rem', display: 'block', marginBottom: '6px' }}>الاسم</label>
               <select value={selectedPersonId} onChange={handlePersonChange} style={{ background: '#041d14', border: '1px solid var(--glass-border)', padding: '12px', borderRadius: '10px', color: '#fff', width: '100%' }}>
                 <option value="">-- اختر --</option>
-                {peopleList.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {peopleList.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
               </select>
             </div>
             <div>
               <label style={{ color: 'var(--gold-light)', fontSize: '0.85rem', display: 'block', marginBottom: '6px' }}>الجهاز</label>
-              <select value={activeDeviceIp} onChange={e => setActiveDeviceIp(e.target.value)} style={{ background: '#041d14', border: '1px solid var(--glass-border)', padding: '12px', borderRadius: '10px', color: '#fff', width: '100%' }}>
-                {devices.map(d => <option key={d.id} value={d.ip_address}>{d.name} ({d.ip_address})</option>)}
+              <select value={activeDeviceId} onChange={e => setActiveDeviceId(e.target.value)} style={{ background: '#041d14', border: '1px solid var(--glass-border)', padding: '12px', borderRadius: '10px', color: '#fff', width: '100%' }}>
+                {devices.map(d => <option key={d.id} value={d.id}>{d.name} ({d.ip_address}:{d.port})</option>)}
               </select>
             </div>
           </div>
@@ -968,9 +890,6 @@ function Settings() {
     </div>
   );
 
-  // =========================================================
-  // 🎨 واجهة التقويم
-  // =========================================================
   const renderCalendar = () => (
     <div className="settings-section">
       <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)', margin: '0 0 5px 0' }}>📅 التقويم الأكاديمي</h3>
@@ -985,17 +904,11 @@ function Settings() {
       </div>
       <div className="data-table" style={{ border: '1px solid var(--glass-border)', borderRadius: '14px', overflow: 'hidden' }}>
         <table>
-          <thead>
-            <tr style={{ background: 'linear-gradient(135deg, #041d14, #083d2b)' }}>
-              <th>الفعالية</th><th>من</th><th>إلى</th><th>النوع</th><th>حذف</th>
-            </tr>
-          </thead>
+          <thead><tr style={{ background: 'linear-gradient(135deg, #041d14, #083d2b)' }}><th>الفعالية</th><th>من</th><th>إلى</th><th>النوع</th><th>حذف</th></tr></thead>
           <tbody>
             {calendarEvents.map(e => (
-              <tr key={e.id}>
-                <td>🎯 {e.event}</td><td>{e.date_from}</td><td>{e.date_to}</td><td>{e.type}</td>
-                <td><button onClick={() => deleteEvent(e.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>🗑️</button></td>
-              </tr>
+              <tr key={e.id}><td>🎯 {e.event}</td><td>{e.date_from}</td><td>{e.date_to}</td><td>{e.type}</td>
+              <td><button onClick={() => deleteEvent(e.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>🗑️</button></td></tr>
             ))}
             {calendarEvents.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', padding: '35px' }}>📭 لا توجد فعاليات</td></tr>}
           </tbody>
@@ -1004,9 +917,6 @@ function Settings() {
     </div>
   );
 
-  // =========================================================
-  // 🎨 واجهة الجداول الدراسية
-  // =========================================================
   const renderSchedules = () => (
     <div className="settings-section">
       <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)', margin: '0 0 5px 0' }}>📚 الجدول الدراسي</h3>
@@ -1025,18 +935,12 @@ function Settings() {
       </div>
       <div className="data-table" style={{ border: '1px solid var(--glass-border)', borderRadius: '14px', overflow: 'hidden' }}>
         <table>
-          <thead>
-            <tr style={{ background: 'linear-gradient(135deg, #041d14, #083d2b)' }}>
-              <th>اليوم</th><th>المادة</th><th>المدرس</th><th>من</th><th>إلى</th><th>القاعة</th><th>إجراء</th>
-            </tr>
-          </thead>
+          <thead><tr style={{ background: 'linear-gradient(135deg, #041d14, #083d2b)' }}><th>اليوم</th><th>المادة</th><th>المدرس</th><th>من</th><th>إلى</th><th>القاعة</th><th>إجراء</th></tr></thead>
           <tbody>
             {schedules.map(s => (
-              <tr key={s.id}>
-                <td>{s.day}</td><td style={{ color: '#fff', fontWeight: 600 }}>{s.subject}</td><td>{s.teacher}</td>
-                <td>{s.time_from}</td><td>{s.time_to}</td><td>{s.room}</td>
-                <td><button onClick={() => deleteSchedule(s.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>🗑️</button></td>
-              </tr>
+              <tr key={s.id}><td>{s.day}</td><td style={{ color: '#fff', fontWeight: 600 }}>{s.subject}</td><td>{s.teacher}</td>
+              <td>{s.time_from}</td><td>{s.time_to}</td><td>{s.room}</td>
+              <td><button onClick={() => deleteSchedule(s.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>🗑️</button></td></tr>
             ))}
             {schedules.length === 0 && <tr><td colSpan={7} style={{ textAlign: 'center', padding: '35px' }}>📭 لا توجد محاضرات</td></tr>}
           </tbody>
@@ -1045,26 +949,17 @@ function Settings() {
     </div>
   );
 
-  // =========================================================
-  // 🎨 واجهة الصلاحيات
-  // =========================================================
   const renderUsers = () => (
     <div className="settings-section">
       <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)' }}>👥 صلاحيات الكادر</h3>
 
       <div className="data-table" style={{ border: '1px solid var(--glass-border)', borderRadius: '14px', overflow: 'hidden', marginBottom: '35px', marginTop: '20px' }}>
         <table>
-          <thead>
-            <tr style={{ background: 'linear-gradient(135deg, #041d14, #083d2b)' }}>
-              <th>المستخدم</th><th>الدور</th><th>تاريخ الإنشاء</th><th>سحب الصلاحية</th>
-            </tr>
-          </thead>
+          <thead><tr style={{ background: 'linear-gradient(135deg, #041d14, #083d2b)' }}><th>المستخدم</th><th>الدور</th><th>تاريخ الإنشاء</th><th>سحب الصلاحية</th></tr></thead>
           <tbody>
             {Array.isArray(users) && users.map(u => (
               <tr key={u.id}>
-                <td>👤 {u.username}</td>
-                <td>{u.role}</td>
-                <td>{u.created_at || 'غير محدد'}</td>
+                <td>👤 {u.username}</td><td>{u.role}</td><td>{u.created_at || 'غير محدد'}</td>
                 <td>
                   {u.username !== 'admin' && isAdmin() && u.username !== currentUser.username ? (
                     <button onClick={() => handleDeleteUser(u.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>🛑</button>
@@ -1072,9 +967,7 @@ function Settings() {
                 </td>
               </tr>
             ))}
-            {(!users || users.length === 0) && (
-              <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px' }}>📭 لا يوجد مستخدمون</td></tr>
-            )}
+            {(!users || users.length === 0) && <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px' }}>📭 لا يوجد مستخدمون</td></tr>}
           </tbody>
         </table>
       </div>
@@ -1089,16 +982,11 @@ function Settings() {
     </div>
   );
 
-  // =========================================================
-  // 🎨 واجهة النسخ الاحتياطي
-  // =========================================================
   const renderBackup = () => (
     <div className="settings-section" style={{ textAlign: 'center', padding: '20px 0' }}>
       <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)' }}>💾 النسخ الاحتياطي</h3>
       <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '35px' }}>
-        <motion.button whileHover={{ y: -4 }} whileTap={{ scale: 0.97 }} onClick={handleBackup} style={{ background: 'linear-gradient(135deg, var(--gold-main), #b89324)', color: '#062b1e', border: 'none', padding: '18px 35px', borderRadius: '14px', fontWeight: 900, cursor: 'pointer' }}>
-          📥 تصدير .db
-        </motion.button>
+        <motion.button whileHover={{ y: -4 }} whileTap={{ scale: 0.97 }} onClick={handleBackup} style={{ background: 'linear-gradient(135deg, var(--gold-main), #b89324)', color: '#062b1e', border: 'none', padding: '18px 35px', borderRadius: '14px', fontWeight: 900, cursor: 'pointer' }}>📥 تصدير .db</motion.button>
         <motion.label whileHover={{ y: -4 }} whileTap={{ scale: 0.97 }} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', color: '#fff', padding: '18px 35px', borderRadius: '14px', fontWeight: 900, cursor: 'pointer' }}>
           📤 استيراد
           <input type="file" accept=".db" onChange={handleRestore} style={{ display: 'none' }} />
@@ -1107,9 +995,6 @@ function Settings() {
     </div>
   );
 
-  // =========================================================
-  // 🎨 الواجهة الرئيسية
-  // =========================================================
   return (
     <div className="settings-module">
       <AnimatePresence>
