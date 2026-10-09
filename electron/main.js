@@ -1,36 +1,36 @@
-// electron/main.js – تطبيق Electron مع SQLite حقيقية محلية احترافية لدعم جهاز ZD-K البصمة الحقيقية
-// الإصدار المطور كلياً والمكمل للجداول الـ 16 لمنظومة الحضور الأكاديمي والطباعة الفاخرة
+// electron/main.js – تطبيق Electron مع SQLite حقيقية محلية احترافية
+// الإصدار 3.3.0 - مع دعم Transaction ذرّي للاستيراد
 // مطور النظام: المهندس سالم فهمي التريمي
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const Database = require('better-sqlite3');
-const net = require('net'); // للاتصال الشبكي المباشر بجهاز ZD-K عبر منفذ 4370
+const net = require('net');
 const fs = require('fs');
 
-// استدعاء ملف البصمة من الجذر مباشرة داخل التغليف
+// استدعاء ملف البصمة
 try {
   require(path.join(__dirname, 'fingerprint'));
 } catch (err) {
-  console.error('⚠️ تحذير: ملف fingerprint.js غير موجود في المسار المحدد:', err.message);
+  console.error('⚠️ تحذير: ملف fingerprint.js غير موجود:', err.message);
 }
 
 // ========== إعداد قاعدة البيانات ==========
 const userDataPath = app.getPath('userData');
 const dbPath = path.join(userDataPath, 'attendance_system.db');
-console.log('📁 مسار قاعدة البيانات المعتمد:', dbPath);
+console.log('📁 مسار قاعدة البيانات:', dbPath);
 
 let db;
 try {
   db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
-  console.log('✅ تم فتح قاعدة البيانات بنجاح في المسار الآمن');
+  console.log('✅ تم فتح قاعدة البيانات بنجاح');
 } catch (e) {
-  console.error('❌ فشل فتح قاعدة البيانات الملحقة:', e);
+  console.error('❌ فشل فتح قاعدة البيانات:', e);
   app.quit();
 }
 
-// ========== إنشاء جميع الجداول (16 جدول متكامل بعد إضافة جداول البصمات الخمس) ==========
+// ========== إنشاء جميع الجداول ==========
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -88,12 +88,11 @@ db.exec(`
     FOREIGN KEY (major_id) REFERENCES majors(id) ON DELETE SET NULL
   );
 
-  -- [جدول البصمات الخمس الاحتياطية للطلاب - الأستاذ سعيد]
   CREATE TABLE IF NOT EXISTS student_fingerprints (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     student_id INTEGER NOT NULL,
-    finger_index INTEGER NOT NULL, -- من 0 إلى 4 لتمثيل الأصابع الخمسة
-    template TEXT NOT NULL, -- البصمة الثنائية المشفرة
+    finger_index INTEGER NOT NULL,
+    template TEXT NOT NULL,
     created_at TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
     UNIQUE(student_id, finger_index)
@@ -116,7 +115,6 @@ db.exec(`
     FOREIGN KEY (college_id) REFERENCES colleges(id) ON DELETE SET NULL
   );
 
-  -- [جدول البصمات الخمس الاحتياطية للمدرسين - الأستاذ سعيد]
   CREATE TABLE IF NOT EXISTS teacher_fingerprints (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     teacher_id INTEGER NOT NULL,
@@ -217,79 +215,157 @@ db.exec(`
   );
 `);
 
-// إدراج مستخدم افتراضي إذا لم يوجد
+// إدراج مستخدم افتراضي
 const adminExists = db.prepare("SELECT id FROM users WHERE username = 'admin'").get();
 if (!adminExists) {
   db.prepare("INSERT INTO users (username, password, role) VALUES (?, ?, ?)").run('admin', 'admin123', 'admin');
-  console.log('👑 تم إنشاء حساب المدير الافتراضي بنجاح');
+  console.log('👑 تم إنشاء حساب المدير الافتراضي');
 }
 
-console.log('%c✅ جميع الجداول السيادية جاهزة ومؤمنة (16 جدولاً متكاملة مع جداول الـ 5 بصمات الاحتياطية)', 'color: green');
+console.log('✅ جميع الجداول جاهزة');
 
-// ========== IPC: استعلام SELECT المحمي والمطور لفك البارامترات ==========
+// ========== IPC: SELECT ==========
 ipcMain.handle('getQuery', (event, sql, params = []) => {
   try {
     const stmt = db.prepare(sql);
     const safeParams = Array.isArray(params) && params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
-    
     const rows = stmt.all(safeParams);
     return rows || [];
   } catch (e) {
-    console.error('❌ خطأ في استعلام الـ SQLite:', e.message);
+    console.error('❌ خطأ SELECT:', e.message);
     return [];
   }
 });
 
-// ========== IPC: تنفيذ INSERT/UPDATE/DELETE ==========
+// ========== IPC: INSERT/UPDATE/DELETE ==========
 ipcMain.handle('runQuery', (event, sql, params = []) => {
   try {
     const stmt = db.prepare(sql);
     const result = stmt.run(params);
-    return { 
-      success: true, 
-      lastID: result.lastInsertRowid, 
-      changes: result.changes 
-    };
+    return { success: true, lastID: result.lastInsertRowid, changes: result.changes };
   } catch (e) {
-    console.error('❌ خطأ في تنفيذ الاستعلام التعديلي:', e.message);
+    console.error('❌ خطأ RUN:', e.message);
     return null;
   }
 });
 
-// ========== IPC: تصدير قاعدة البيانات الحقيقي والمباشر عبر نظام التشغيل ==========
+// =========================================================================
+// 🚀 IPC: استيراد جماعي ذرّي (Transaction)
+// =========================================================================
+ipcMain.handle('runBulkImport', (event, target, records) => {
+  try {
+    if (!target || !Array.isArray(records) || records.length === 0) {
+      return { success: false, error: 'لا توجد سجلات للاستيراد' };
+    }
+
+    const isStudent = target === 'student';
+    const table = isStudent ? 'attendance' : 'teacher_attendance';
+    const foreignKey = isStudent ? 'student_id' : 'teacher_id';
+
+    const checkStmt = db.prepare(`SELECT id FROM ${table} WHERE ${foreignKey} = ? AND date = ?`);
+    const updateStmt = db.prepare(`UPDATE ${table} SET time_in = ?, status = ?, method = 'excel' WHERE id = ?`);
+    const insertStmt = db.prepare(`INSERT INTO ${table} (${foreignKey}, date, time_in, status, method) VALUES (?, ?, ?, ?, 'excel')`);
+
+    const executeImport = db.transaction((recs) => {
+      let inserted = 0;
+      let updated = 0;
+
+      for (const rec of recs) {
+        const exists = checkStmt.get(rec.personId, rec.date);
+        if (exists) {
+          updateStmt.run(rec.time, rec.status, exists.id);
+          updated++;
+        } else {
+          insertStmt.run(rec.personId, rec.date, rec.time, rec.status);
+          inserted++;
+        }
+      }
+
+      return { inserted, updated };
+    });
+
+    const result = executeImport(records);
+    return { success: true, inserted: result.inserted, updated: result.updated };
+  } catch (e) {
+    console.error('❌ خطأ في الاستيراد الجماعي:', e.message);
+    return { success: false, error: e.message };
+  }
+});
+
+// =========================================================================
+// 🚀 IPC: تسجيل غائبين جماعي (Transaction)
+// =========================================================================
+ipcMain.handle('runBulkAbsence', (event, target, dates) => {
+  try {
+    if (!target || !Array.isArray(dates) || dates.length === 0) {
+      return { success: false, error: 'لا توجد تواريخ' };
+    }
+
+    const isStudent = target === 'student';
+    const table = isStudent ? 'attendance' : 'teacher_attendance';
+    const foreignKey = isStudent ? 'student_id' : 'teacher_id';
+    const sourceTable = isStudent ? 'students' : 'teachers';
+
+    const activePeople = db.prepare(`SELECT id FROM ${sourceTable} WHERE status = 'active'`).all();
+
+    const checkStmt = db.prepare(`SELECT id FROM ${table} WHERE ${foreignKey} = ? AND date = ?`);
+    const insertStmt = db.prepare(`INSERT INTO ${table} (${foreignKey}, date, status, method) VALUES (?, ?, 'absent', 'excel-auto')`);
+
+    const executeAbsence = db.transaction(() => {
+      let absentCount = 0;
+
+      for (const date of dates) {
+        for (const p of activePeople) {
+          const exists = checkStmt.get(p.id, date);
+          if (!exists) {
+            insertStmt.run(p.id, date);
+            absentCount++;
+          }
+        }
+      }
+
+      return { absentCount };
+    });
+
+    const result = executeAbsence();
+    return { success: true, absentCount: result.absentCount };
+  } catch (e) {
+    console.error('❌ خطأ في تسجيل الغائبين:', e.message);
+    return { success: false, error: e.message };
+  }
+});
+
+// ========== IPC: تصدير قاعدة البيانات ==========
 ipcMain.handle('exportDB', async () => {
   try {
     const today = new Date().toISOString().split('T')[0];
-    
-    // فتح نافذة الحفظ الخاصة بنظام Windows
+
     const { filePath, canceled } = await dialog.showSaveDialog({
-      title: 'حفظ نسخة احتياطية من قاعدة البيانات',
+      title: 'حفظ نسخة احتياطية',
       defaultPath: `quran_attendance_backup_${today}.db`,
       filters: [{ name: 'SQLite Database', extensions: ['db'] }]
     });
 
     if (canceled || !filePath) return { success: false, canceled: true };
 
-    // أخذ النسخة الاحتياطية الثنائية مباشرة بدون تشفير Base64
     const data = db.serialize();
     fs.writeFileSync(filePath, data);
 
-    console.log('✅ تم تصدير قاعدة البيانات بنجاح إلى:', filePath);
+    console.log('✅ تم التصدير:', filePath);
     return { success: true, filePath };
   } catch (e) {
-    console.error('❌ خطأ في تصدير النسخة الاحتياطية للـ DB:', e);
+    console.error('❌ خطأ التصدير:', e);
     return { success: false, error: e.message };
   }
 });
 
-// ========== IPC: استيراد قاعدة البيانات المحدث وفتح القفل الآمن (Safe Import) ==========
+// ========== IPC: استيراد قاعدة البيانات ==========
 ipcMain.handle('importDB', async (event, sourceFilePath) => {
   try {
-    // فتح نافذة اختيار الملف إذا لم يتم التمرير المباشر
     let filePathToImport = sourceFilePath;
     if (!filePathToImport || typeof filePathToImport !== 'string') {
       const { filePaths, canceled } = await dialog.showOpenDialog({
-        title: 'اختر ملف النسخة الاحتياطية للاستعادة',
+        title: 'اختر ملف النسخة الاحتياطية',
         filters: [{ name: 'SQLite Database', extensions: ['db'] }],
         properties: ['openFile']
       });
@@ -297,44 +373,34 @@ ipcMain.handle('importDB', async (event, sourceFilePath) => {
       filePathToImport = filePaths[0];
     }
 
-    // قراءة الملف للتحقق أولاً
     const buffer = fs.readFileSync(filePathToImport);
 
-    // التحقق المباشر من التوقيع السليم (16 بايت)
     const header = buffer.toString('utf8', 0, 16);
     if (!header.startsWith('SQLite format 3')) {
-      throw new Error('الملف المختار ليس ملف قاعدة بيانات SQLite معتمد أو أنه ملف تالف.');
+      throw new Error('الملف المختار ليس قاعدة بيانات SQLite صحيحة.');
     }
 
     if (db) {
-      try {
-        db.pragma('journal_mode = DELETE');
-      } catch (errWal) {
-        console.warn('⚠️ تحذير بسيط عند تحويل نمط WAL:', errWal.message);
-      }
+      try { db.pragma('journal_mode = DELETE'); } catch (errWal) { console.warn('⚠️', errWal.message); }
       db.close();
     }
 
-    // مسح ملفات السجل المؤقتة (WAL / SHM)
     const walPath = `${dbPath}-wal`;
     const shmPath = `${dbPath}-shm`;
     if (fs.existsSync(walPath)) { try { fs.unlinkSync(walPath); } catch (e) {} }
     if (fs.existsSync(shmPath)) { try { fs.unlinkSync(shmPath); } catch (e) {} }
 
-    // استبدال قاعدة البيانات بالملف الثنائي الجديد
     fs.writeFileSync(dbPath, buffer);
 
-    // إعادة فتح قاعدة البيانات وتفعيل الخيارات
     db = new Database(dbPath);
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
 
-    console.log('✨ تم استعادة قاعدة البيانات بنجاح وبدون أي أقفال');
+    console.log('✨ تمت الاستعادة بنجاح');
     return { success: true };
   } catch (e) {
-    console.error('❌ خطأ في استيراد قاعدة البيانات:', e);
-    
-    // إعادة الاتصال الطارئ
+    console.error('❌ خطأ الاستيراد:', e);
+
     try {
       if (!db || !db.open) {
         db = new Database(dbPath);
@@ -342,47 +408,33 @@ ipcMain.handle('importDB', async (event, sourceFilePath) => {
         db.pragma('foreign_keys = ON');
       }
     } catch (reconnectErr) {
-      console.error('❌ فشل إعادة الاتصال الطارئ بقاعدة البيانات:', reconnectErr);
+      console.error('❌ فشل إعادة الاتصال:', reconnectErr);
     }
-    
+
     return { success: false, error: e.message };
   }
 });
 
-// =========================================================================
-// 🖐️ قنوات الاتصال والتحكم بجهاز البصمة الحقيقي ZD-K (بروتوكول TCP/IP للشبكة)
-// =========================================================================
-
+// ========== IPC: فحص جهاز البصمة ==========
 ipcMain.handle('testDevicePing', async (event, ip, port = 4370) => {
   return new Promise((resolve) => {
     const client = new net.Socket();
     client.setTimeout(2500);
 
-    client.on('connect', () => {
-      client.destroy();
-      resolve(true);
-    });
-
-    client.on('timeout', () => {
-      client.destroy();
-      resolve(false);
-    });
-
-    client.on('error', () => {
-      client.destroy();
-      resolve(false);
-    });
+    client.on('connect', () => { client.destroy(); resolve(true); });
+    client.on('timeout', () => { client.destroy(); resolve(false); });
+    client.on('error', () => { client.destroy(); resolve(false); });
 
     client.connect(port, ip);
   });
 });
 
 // =========================================================================
-// 🔄 مستمع الوقت الفعلي (Background Attendance Listener)
+// 🔄 مستمع الحضور الفوري (Background Listener)
 // =========================================================================
 function startRealtimeAttendanceListener() {
   const checkInterval = 5000;
-  
+
   setInterval(async () => {
     try {
       if (!db || !db.open) return;
@@ -400,15 +452,15 @@ function startRealtimeAttendanceListener() {
 
       client.on('data', async (data) => {
         client.destroy();
-        
-        const rawId = extractUserIdFromZKPacket(data); 
+
+        const rawId = extractUserIdFromZKPacket(data);
         if (!rawId) return;
 
         const isTeacher = rawId > 50000;
         const targetTable = isTeacher ? 'teachers' : 'students';
         const attendanceTable = isTeacher ? 'teacher_attendance' : 'attendance';
         const foreignKey = isTeacher ? 'teacher_id' : 'student_id';
-        
+
         const userId = isTeacher ? rawId - 50000 : rawId;
         const currentDate = new Date().toISOString().split('T')[0];
         const currentTime = new Date().toLocaleTimeString('ar-SA', { hour12: false });
@@ -426,8 +478,8 @@ function startRealtimeAttendanceListener() {
               db.prepare(`INSERT INTO ${attendanceTable} (${foreignKey}, date, time_in, status) VALUES (?, ?, ?, 'present')`)
                 .run(userId, currentDate, currentTime);
             }
-            
-            console.log(`✅ تم تسجيل حضور (${isTeacher ? 'محاضر' : 'طالب'}) رقم ${userId} تلقائياً.`);
+
+            console.log(`✅ تم تسجيل حضور (${isTeacher ? 'محاضر' : 'طالب'}) رقم ${userId}`);
             if (mainWindow) mainWindow.webContents.send('attendance-updated', { type: isTeacher ? 'teacher' : 'student', id: userId });
           }
         }
@@ -437,9 +489,7 @@ function startRealtimeAttendanceListener() {
       client.on('timeout', () => client.destroy());
 
       client.connect(activeDevice.port, activeDevice.ip_address);
-    } catch (e) {
-      // حماية المستمع الخلفي
-    }
+    } catch (e) { /* حماية المستمع */ }
   }, checkInterval);
 }
 
@@ -454,7 +504,7 @@ app.whenReady().then(() => {
   startRealtimeAttendanceListener();
 });
 
-// ========== النافذة الرئيسية (إعدادات التغليف النقي) ==========
+// ========== النافذة الرئيسية ==========
 let mainWindow;
 
 function createWindow() {
@@ -512,7 +562,7 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     if (db) {
       db.close();
-      console.log('🔒 تم إغلاق قاعدة البيانات بأمان');
+      console.log('🔒 تم إغلاق قاعدة البيانات');
     }
     app.quit();
   }
@@ -521,6 +571,6 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   if (db) {
     db.close();
-    console.log('🔒 تم إغلاق قاعدة البيانات قبل الإغلاق الكلي للبرنامج');
+    console.log('🔒 تم إغلاق قاعدة البيانات قبل الإغلاق');
   }
 });
