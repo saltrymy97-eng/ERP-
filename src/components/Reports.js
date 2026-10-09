@@ -1,1153 +1,741 @@
-// src/components/Settings.js – المركز السيادي واللوحة القيادية العليا للنظام
-// مطور النظام: المهندس سالم فهمي التريمي
-// الإصدار: 3.1.0 - مع دعم استيراد Excel الذكي (ID + الاسم)
-import React, { useState, useEffect } from 'react';
+// src/components/Reports.js – مركز التقارير الأكاديمية المحسن والمطابق لقاعدة البيانات
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getQuery, runQuery, initDatabase, exportDatabase, importDatabase } from '../services/db';
-import { getCurrentUser, changePassword, deleteUser, getAllUsers, isAdmin } from '../services/auth';
-import { loadMobileModel } from '../services/ai';
+import { getQuery, initDatabase } from '../services/db';
 import * as XLSX from 'xlsx';
 
-function Settings() {
-  const [tab, setTab] = useState('devices');
-  const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState('');
+function Reports() {
+  const [reportType, setReportType] = useState('daily');
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
+  // 🟢 فلتران للتقارير التي تحتاج نطاقاً (التقرير الشهري)
+  const [fromDate, setFromDate] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  });
+  const [toDate, setToDate] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
+  });
+  const [selectedStudent, setSelectedStudent] = useState('');
+  const [selectedMajor, setSelectedMajor] = useState('');
+  const [students, setStudents] = useState([]);
+  const [majors, setMajors] = useState([]);
+  const [reportData, setReportData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [quickStats, setQuickStats] = useState({ totalRecords: 0, efficiencyRate: 100, alertCount: 0 });
   const [dbReady, setDbReady] = useState(false);
 
-  // ========== بوابات البصمة ==========
-  const [devices, setDevices] = useState([]);
-  const [deviceForm, setDeviceForm] = useState({ name: '', ip_address: '', port: 4370 });
-  const [isTestingId, setIsTestingId] = useState(null);
+  // حالات بحث الطالب التفاعلية
+  const [studentSearchTerm, setStudentSearchTerm] = useState('');
+  const [showStudentDropdown, setShowStudentDropdown] = useState(false);
+  const dropdownRef = useRef(null);
 
-  // ========== وحدة تسجيل البصمات الـ 5 الاحتياطية ==========
-  const [enrollTarget, setEnrollTarget] = useState('student');
-  const [peopleList, setPeopleList] = useState([]);
-  const [selectedPersonId, setSelectedPersonId] = useState('');
-  const [activeDeviceIp, setActiveDeviceIp] = useState('');
-  const [enrollingFinger, setEnrollingFinger] = useState(null);
-  const [fingerTemplates, setFingerTemplates] = useState([null, null, null, null, null]);
-  const [enrollStatusText, setEnrollStatusText] = useState('');
-
-  // ========== استيراد Excel ==========
-  const [excelFile, setExcelFile] = useState(null);
-  const [excelPreview, setExcelPreview] = useState(null);   // { headers, rows, totalRows }
-  const [excelColumns, setExcelColumns] = useState({ id: '', name: '', date: '', time: '' });
-  const [excelTarget, setExcelTarget] = useState('student');
-  const [lateThreshold, setLateThreshold] = useState('08:15');
-  const [markAbsents, setMarkAbsents] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState(null);
-
-  // ========== الذكاء الاصطناعي ==========
-  const [aiConfig, setAiConfig] = useState({ api_key: '', enabled: false, model: 'openai/gpt-oss-20b' });
-
-  // ========== التقويم الأكاديمي ==========
-  const [calendarEvents, setCalendarEvents] = useState([]);
-  const [eventForm, setEventForm] = useState({ event: '', date_from: '', date_to: '', type: 'event' });
-
-  // ========== الجداول الدراسية ==========
-  const [schedules, setSchedules] = useState([]);
-  const [scheduleForm, setScheduleForm] = useState({ day: '', subject: '', teacher: '', time_from: '', time_to: '', room: '', break_time: 0, late_tolerance: 10 });
-
-  // ========== الصلاحيات ==========
-  const [users, setUsers] = useState([]);
-  const [passwordForm, setPasswordForm] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' });
-
-  const currentUser = getCurrentUser();
-
-  // =========================================================
-  // 🎬 التهيئة الأولية
-  // =========================================================
   useEffect(() => {
     const setup = async () => {
-      try {
-        await initDatabase();
-        setDbReady(true);
-        await loadDevices();
-        await loadCalendar();
-        await loadSchedules();
-        if (isAdmin()) loadUsers();
-
-        const savedAI = localStorage.getItem('ai_config');
-        if (savedAI) {
-          try {
-            const parsedAI = JSON.parse(savedAI);
-            setAiConfig({ api_key: parsedAI.api_key || '', enabled: parsedAI.enabled ?? false, model: 'openai/gpt-oss-20b' });
-          } catch (e) { console.error("Error parsing AI config:", e); }
-        }
-      } catch (err) { console.error("Initialization Error:", err); }
+      await initDatabase();
+      setDbReady(true);
+      await loadFilters();
     };
     setup();
   }, []);
 
-  useEffect(() => { loadPeopleForEnroll(); }, [enrollTarget, dbReady]);
-
-  const showMessage = (msg, type = 'success') => {
-    setMessage(msg); setMessageType(type);
-    setTimeout(() => setMessage(''), 4000);
-  };
-
-  // =========================================================
-  // 📡 إدارة البوابات
-  // =========================================================
-  const loadDevices = async () => {
-    const data = await getQuery("SELECT * FROM devices ORDER BY name");
-    setDevices(data || []);
-    if (data && data.length > 0) setActiveDeviceIp(data[0].ip_address);
-  };
-
-  const addDevice = async () => {
-    if (!deviceForm.name || !deviceForm.ip_address) { showMessage('❌ يرجى ملء اسم البوابة وعنوان IP', 'error'); return; }
-    await runQuery("INSERT INTO devices (name, ip_address, port, status) VALUES (?, ?, ?, 'offline')", [deviceForm.name, deviceForm.ip_address, deviceForm.port]);
-    setDeviceForm({ name: '', ip_address: '', port: 4370 });
-    await loadDevices();
-    showMessage('✨ تم تسجيل البوابة بنجاح');
-  };
-
-  const deleteDevice = async (id) => {
-    await runQuery("DELETE FROM devices WHERE id = ?", [id]);
-    await loadDevices();
-    showMessage('🗑️ تم إلغاء الجهاز');
-  };
-
-  const testConnection = async (device) => {
-    setIsTestingId(device.id);
-    showMessage(`🔌 جاري فحص الاتصال بـ ${device.name}...`, 'info');
-    try {
-      if (window.electronAPI && typeof window.electronAPI.testDevicePing === 'function') {
-        const isOnline = await window.electronAPI.testDevicePing(device.ip_address, device.port);
-        if (isOnline) {
-          await runQuery("UPDATE devices SET status = 'online', last_sync = ? WHERE id = ?", [new Date().toISOString(), device.id]);
-          await loadDevices();
-          showMessage(`🟢 تم الاتصال بنجاح!`);
-        } else throw new Error("Device offline");
-      } else throw new Error("Electron API missing");
-    } catch (err) {
-      await runQuery("UPDATE devices SET status = 'offline' WHERE id = ?", [device.id]);
-      await loadDevices();
-      showMessage(`❌ فشل الاتصال بـ ${device.name}.`, 'error');
-    } finally { setIsTestingId(null); }
-  };
-
-  // =========================================================
-  // 🖐️ نظام تسجيل البصمات
-  // =========================================================
-  const loadPeopleForEnroll = async () => {
-    if (!dbReady) return;
-    const data = enrollTarget === 'student'
-      ? await getQuery("SELECT id, name FROM students ORDER BY name")
-      : await getQuery("SELECT id, name FROM teachers ORDER BY name");
-    setPeopleList(data || []);
-    setSelectedPersonId('');
-    setFingerTemplates([null, null, null, null, null]);
-  };
-
-  const checkExistingFingerprints = async (personId) => {
-    if (!personId) return;
-    const table = enrollTarget === 'student' ? 'student_fingerprints' : 'teacher_fingerprints';
-    const foreignKey = enrollTarget === 'student' ? 'student_id' : 'teacher_id';
-    const existing = await getQuery(`SELECT finger_index, template FROM ${table} WHERE ${foreignKey} = ?`, [personId]);
-    const templatesMap = [null, null, null, null, null];
-    if (existing) existing.forEach(f => { if (f.finger_index >= 0 && f.finger_index < 5) templatesMap[f.finger_index] = f.template || "saved_template"; });
-    setFingerTemplates(templatesMap);
-  };
-
-  const handlePersonChange = (e) => {
-    const id = e.target.value;
-    setSelectedPersonId(id);
-    checkExistingFingerprints(id);
-  };
-
-  const enrollFingerprintDevice = async (fingerIndex) => {
-    if (!activeDeviceIp) { showMessage('❌ يرجى إضافة جهاز بصمة أولاً', 'error'); return; }
-    if (!selectedPersonId) { showMessage('❌ يرجى اختيار الشخص أولاً', 'error'); return; }
-    setEnrollingFinger(fingerIndex);
-    setEnrollStatusText(`⏳ يرجى وضع الإصبع رقم ${fingerIndex + 1} على القارئ...`);
-    try {
-      if (window.electronAPI && typeof window.electronAPI.enrollFinger === 'function') {
-        const result = await window.electronAPI.enrollFinger({ ip: activeDeviceIp, port: 4370, userId: parseInt(selectedPersonId), fingerId: fingerIndex });
-        if (result && result.success) {
-          const table = enrollTarget === 'student' ? 'student_fingerprints' : 'teacher_fingerprints';
-          const foreignKey = enrollTarget === 'student' ? 'student_id' : 'teacher_id';
-          await runQuery(`DELETE FROM ${table} WHERE ${foreignKey} = ? AND finger_index = ?`, [selectedPersonId, fingerIndex]);
-          await runQuery(`INSERT INTO ${table} (${foreignKey}, finger_index, template) VALUES (?, ?, ?)`, [selectedPersonId, fingerIndex, result.template || 'template_placeholder']);
-          const newTemplates = [...fingerTemplates];
-          newTemplates[fingerIndex] = result.template || 'template_placeholder';
-          setFingerTemplates(newTemplates);
-          setEnrollStatusText(`✅ تم تسجيل الإصبع رقم ${fingerIndex + 1} بنجاح!`);
-        } else throw new Error(result.error || "Enrollment failed");
-      } else throw new Error("Electron غير مهيأ.");
-    } catch (err) {
-      setEnrollStatusText(`❌ فشل التسجيل: ${err.message}`);
-    } finally { setEnrollingFinger(null); }
-  };
-
-  // =========================================================
-  // 📊 استيراد Excel الذكي (ID + الاسم)
-  // =========================================================
-
-  /**
-   * كشف الأعمدة تلقائياً بناءً على أسماء الرأس
-   */
-  const detectColumns = (headers) => {
-    const patterns = {
-      id: [
-        /الرقم الجامعي/i, /الرقم الوظيفي/i, /^رقم$/i, /^id$/i, /^pin$/i,
-        /user\s*id/i, /employee\s*id/i, /^uid$/i, /^no\.?$/i, /رقم البصمة/i, /enroll/i,
-        /^ac-?no/i, /^acno/i
-      ],
-      name: [
-        /^الاسم$/i, /^اسم$/i, /^name$/i, /full\s*name/i, /اسم الطالب/i,
-        /اسم الموظف/i, /اسم المعلم/i, /اسم المدرس/i, /اسم المحاضر/i
-      ],
-      date: [
-        /^التاريخ$/i, /^تاريخ$/i, /^date$/i, /^day$/i, /^att\s*date/i
-      ],
-      time: [
-        /^الوقت$/i, /^وقت$/i, /^time$/i, /clock\s*in/i, /check\s*in/i,
-        /وقت الحضور/i, /وقت الدخول/i, /^att\s*time/i
-      ]
+  // إغلاق قائمة البحث عند النقر في أي مكان آخر بالصفحة
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowStudentDropdown(false);
+      }
     };
-    const findCol = (cat) => {
-      for (const h of headers) {
-        const trimmed = String(h).trim();
-        for (const p of patterns[cat]) if (p.test(trimmed)) return h;
-      }
-      return '';
-    };
-    return {
-      id: findCol('id'),
-      name: findCol('name'),
-      date: findCol('date'),
-      time: findCol('time')
-    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (dbReady) generateReport();
+  }, [reportType, selectedDate, fromDate, toDate, selectedStudent, selectedMajor, dbReady]);
+
+  const loadFilters = async () => {
+    // جلب الطلاب النشطين
+    const studentData = await getQuery("SELECT id, full_name, university_id FROM students WHERE status = 'active' ORDER BY full_name");
+    setStudents(studentData || []);
+    
+    // جلب التخصصات
+    const majorData = await getQuery("SELECT id, name FROM majors WHERE status = 'active' ORDER BY name");
+    setMajors(majorData || []);
   };
 
-  /**
-   * تحويل التاريخ من Excel إلى صيغة YYYY-MM-DD
-   */
-  const parseExcelDate = (value) => {
-    if (!value) return null;
-    const str = String(value).trim();
-
-    // إذا كانت بصيغة ISO مباشرة
-    if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
-
-    // إذا كانت بصيغة DD/MM/YYYY أو MM/DD/YYYY
-    const slashMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
-    if (slashMatch) {
-      let [, p1, p2, year] = slashMatch;
-      if (year.length === 2) year = '20' + year;
-      // نعتمد DD/MM/YYYY (الشائع في الدول العربية)
-      const day = p1.padStart(2, '0');
-      const month = p2.padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    }
-
-    // محاولة أخرى عبر Date
-    const d = new Date(str);
-    if (!isNaN(d.getTime())) {
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    }
-    return null;
-  };
-
-  /**
-   * تحويل الوقت إلى HH:MM
-   */
-  const parseExcelTime = (value) => {
-    if (!value) return null;
-    const str = String(value).trim();
-    const match = str.match(/(\d{1,2}):(\d{2})/);
-    if (match) return `${match[1].padStart(2, '0')}:${match[2]}`;
-    return null;
-  };
-
-  /**
-   * معالج اختيار ملف Excel
-   */
-  const handleExcelFileChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setExcelFile(file);
-    setImportResult(null);
-    setExcelPreview(null);
-
+  const generateReport = async () => {
+    setLoading(true);
+    let data = [];
     try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(firstSheet, { raw: false, defval: '', header: 1 });
-
-      if (!rows || rows.length < 2) {
-        showMessage('❌ الملف فارغ أو لا يحتوي على بيانات كافية', 'error');
-        return;
+      switch (reportType) {
+        case 'daily': data = await generateDailyReport(); break;
+        case 'absent': data = await generateAbsentReport(); break;
+        case 'monthly': data = await generateMonthlyReport(); break;
+        case 'student': data = await generateStudentReport(); break;
+        case 'major': data = await generateMajorReport(); break;
+        case 'discipline': data = await generateDisciplineReport(); break;
+        case 'absence_stages': data = await generateAbsenceStagesReport(); break;
+        default: data = [];
       }
-
-      const headers = rows[0].map(h => String(h || '').trim());
-      const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim() !== ''));
-      const detected = detectColumns(headers);
-      setExcelColumns(detected);
-
-      const preview = dataRows.slice(0, 10).map(row => {
-        const obj = {};
-        headers.forEach((h, i) => { obj[h] = row[i]; });
-        return obj;
-      });
-
-      setExcelPreview({ headers, rows: preview, totalRows: dataRows.length });
-
-      // التحقق من الأعمدة المطلوبة
-      const missing = [];
-      if (!detected.id && !detected.name) missing.push('الرقم أو الاسم');
-      if (!detected.date) missing.push('التاريخ');
-      if (!detected.time) missing.push('الوقت');
-
-      if (missing.length > 0) {
-        showMessage(`⚠️ لم يتم التعرف على: ${missing.join('، ')} — يرجى التأكد من أسماء الأعمدة`, 'error');
-      } else {
-        const msg = [];
-        if (detected.id) msg.push(`ID=${detected.id}`);
-        if (detected.name) msg.push(`الاسم=${detected.name}`);
-        msg.push(`التاريخ=${detected.date}`, `الوقت=${detected.time}`);
-        showMessage(`✅ تم التحميل: ${dataRows.length} سجل — الأعمدة: ${msg.join(' | ')}`);
-      }
-    } catch (err) {
-      console.error(err);
-      showMessage(`❌ فشل قراءة الملف: ${err.message}`, 'error');
+      setReportData(data);
+      calculateQuickStats(data);
+    } catch (error) { 
+      console.error("❌ خطأ في جلب تقارير قاعدة البيانات:", error); 
+      setReportData([]);
     }
+    finally { setTimeout(() => setLoading(false), 300); }
   };
 
-  /**
-   * تحميل قالب Excel جاهز
-   */
-  const downloadExcelTemplate = () => {
-    const template = [
-      { 'الرقم': '645575', 'الاسم': 'أحمد محمد', 'التاريخ': '2026-10-09', 'الوقت': '08:15' },
-      { 'الرقم': '645576', 'الاسم': 'علي سالم', 'التاريخ': '2026-10-09', 'الوقت': '08:45' },
-      { 'الرقم': '', 'الاسم': 'محمد يوسف', 'التاريخ': '2026-10-09', 'الوقت': '07:55' }
-    ];
-    const ws = XLSX.utils.json_to_sheet(template);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'سجلات البصمة');
-    XLSX.writeFile(wb, 'قالب_استيراد_الحضور.xlsx');
-    showMessage('📥 تم تحميل القالب');
-  };
-
-  /**
-   * 🎯 تنفيذ الاستيراد الذكي
-   */
-  const handleExcelImport = async () => {
-    if (!excelFile || !excelPreview) {
-      showMessage('❌ يرجى اختيار ملف أولاً', 'error');
-      return;
-    }
-    if (!excelColumns.id && !excelColumns.name) {
-      showMessage('❌ يجب تحديد عمود واحد على الأقل (ID أو الاسم)', 'error');
-      return;
-    }
-    if (!excelColumns.date || !excelColumns.time) {
-      showMessage('❌ لم يتم التعرف على أعمدة التاريخ والوقت', 'error');
-      return;
-    }
-
-    setImporting(true);
-    setImportResult(null);
-
-    try {
-      const data = await excelFile.arrayBuffer();
-      const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(firstSheet, { raw: false, defval: '' });
-
-      const isStudent = excelTarget === 'student';
-      const table = isStudent ? 'attendance' : 'teacher_attendance';
-      const foreignKey = isStudent ? 'student_id' : 'teacher_id';
-      const sourceTable = isStudent ? 'students' : 'teachers';
-      const idColumn = isStudent ? 'university_id' : 'teacher_id';
-      const nameColumn = 'full_name';
-
-      const recordsMap = {};
-      const errors = [];
-      let rowNumber = 1; // الصف الأول في Excel هو الرأس
-
-      for (const row of rows) {
-        rowNumber++;
-
-        const rawId = excelColumns.id ? String(row[excelColumns.id] || '').trim() : '';
-        const rawName = excelColumns.name ? String(row[excelColumns.name] || '').trim() : '';
-        const dateStr = parseExcelDate(row[excelColumns.date]);
-        const timeStr = parseExcelTime(row[excelColumns.time]);
-
-        // تجاهل الصفوف الفارغة تماماً
-        if (!rawId && !rawName && !dateStr && !timeStr) continue;
-
-        // التحقق من التاريخ والوقت
-        if (!dateStr || !timeStr) {
-          errors.push({
-            row: rowNumber,
-            id: rawId || '—',
-            name: rawName || '—',
-            reason: !dateStr && !timeStr ? 'تاريخ ووقت غير صالحين'
-                  : (!dateStr ? 'تاريخ غير صالح' : 'وقت غير صالح')
-          });
-          continue;
-        }
-
-        // 🎯 البحث: ID أولاً، ثم الاسم
-        let person = null;
-        let matchMethod = '';
-
-        if (rawId) {
-          const byId = await getQuery(
-            `SELECT id, ${nameColumn} FROM ${sourceTable} WHERE ${idColumn} = ? LIMIT 1`,
-            [rawId]
-          );
-          if (byId && byId.length > 0) {
-            person = byId[0];
-            matchMethod = 'ID';
-          }
-        }
-
-        if (!person && rawName) {
-          const byName = await getQuery(
-            `SELECT id, ${nameColumn} FROM ${sourceTable} WHERE ${nameColumn} = ? LIMIT 1`,
-            [rawName]
-          );
-          if (byName && byName.length > 0) {
-            person = byName[0];
-            matchMethod = 'الاسم';
-          }
-        }
-
-        if (!person) {
-          errors.push({
-            row: rowNumber,
-            id: rawId || '—',
-            name: rawName || '—',
-            reason: 'لم يُعثر على الشخص (لا بالرقم ولا بالاسم)'
-          });
-          continue;
-        }
-
-        // تجميع السجلات: نحتفظ بأول تسجيل لكل يوم لكل شخص
-        const key = `${person.id}_${dateStr}`;
-        if (!recordsMap[key] || timeStr < recordsMap[key].time) {
-          recordsMap[key] = {
-            personId: person.id,
-            personName: person[nameColumn],
-            date: dateStr,
-            time: timeStr,
-            matchedBy: matchMethod,
-            row: rowNumber
-          };
-        }
-      }
-
-      const records = Object.values(recordsMap);
-
-      if (records.length === 0) {
-        setImportResult({
-          total: 0, inserted: 0, updated: 0,
-          presentCount: 0, lateCount: 0, absentCount: 0,
-          matchedById: 0, matchedByName: 0,
-          totalErrors: errors.length,
-          errors: errors.slice(0, 20)
-        });
-        showMessage('⚠️ لا توجد سجلات صالحة للاستيراد', 'error');
-        setImporting(false);
-        return;
-      }
-
-      let inserted = 0, updated = 0;
-      let presentCount = 0, lateCount = 0, absentCount = 0;
-      let matchedById = 0, matchedByName = 0;
-
-      // 🎯 كتابة السجلات في قاعدة البيانات
-      for (const rec of records) {
-        if (rec.matchedBy === 'ID') matchedById++;
-        else matchedByName++;
-
-        const status = rec.time <= lateThreshold ? 'present' : 'late';
-        const exists = await getQuery(
-          `SELECT id FROM ${table} WHERE ${foreignKey} = ? AND date = ?`,
-          [rec.personId, rec.date]
-        );
-
-        if (exists && exists.length > 0) {
-          await runQuery(
-            `UPDATE ${table} SET time_in = ?, status = ?, method = 'excel' WHERE id = ?`,
-            [rec.time, status, exists[0].id]
-          );
-          updated++;
-        } else {
-          await runQuery(
-            `INSERT INTO ${table} (${foreignKey}, date, time_in, status, method) VALUES (?, ?, ?, ?, 'excel')`,
-            [rec.personId, rec.date, rec.time, status]
-          );
-          inserted++;
-        }
-
-        if (status === 'present') presentCount++;
-        else lateCount++;
-      }
-
-      // 🟢 تسجيل الغائبين تلقائياً (اختياري)
-      if (markAbsents) {
-        const activePeople = await getQuery(`SELECT id FROM ${sourceTable} WHERE status = 'active'`);
-        const uniqueDates = [...new Set(records.map(r => r.date))];
-
-        for (const date of uniqueDates) {
-          for (const p of activePeople) {
-            const exists = await getQuery(
-              `SELECT id FROM ${table} WHERE ${foreignKey} = ? AND date = ?`,
-              [p.id, date]
-            );
-            if (!exists || exists.length === 0) {
-              await runQuery(
-                `INSERT INTO ${table} (${foreignKey}, date, status, method) VALUES (?, ?, 'absent', 'excel-auto')`,
-                [p.id, date]
-              );
-              absentCount++;
-            }
-          }
-        }
-      }
-
-      setImportResult({
-        total: records.length,
-        inserted, updated,
-        presentCount, lateCount, absentCount,
-        matchedById, matchedByName,
-        totalErrors: errors.length,
-        errors: errors.slice(0, 20)
-      });
-
-      showMessage(`✅ تم الاستيراد: ${inserted} جديد، ${updated} محدّث، ${errors.length} خطأ`);
-    } catch (err) {
-      console.error(err);
-      showMessage(`❌ فشل الاستيراد: ${err.message}`, 'error');
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  /**
-   * إعادة تعيين وحدة الاستيراد
-   */
-  const resetExcelImport = () => {
-    setExcelFile(null);
-    setExcelPreview(null);
-    setExcelColumns({ id: '', name: '', date: '', time: '' });
-    setImportResult(null);
-    showMessage('🔄 تم إعادة تعيين وحدة الاستيراد');
-  };
-
-  // =========================================================
-  // 🧠 الذكاء الاصطناعي
-  // =========================================================
-  const saveAiConfig = async () => {
-    if (!aiConfig.api_key || !aiConfig.api_key.trim()) {
-      showMessage('❌ يرجى كتابة مفتاح API أولاً', 'error');
-      return;
-    }
-    const updatedConfig = {
-      api_key: aiConfig.api_key.trim(),
-      enabled: aiConfig.enabled,
-      model: 'openai/gpt-oss-20b'
-    };
-    localStorage.setItem('ai_config', JSON.stringify(updatedConfig));
-    localStorage.setItem('GROQ_API_KEY', updatedConfig.api_key);
-
-    if (window.electronAPI && typeof window.electronAPI.setSecret === 'function') {
-      try { await window.electronAPI.setSecret('GROQ_API_KEY', updatedConfig.api_key); }
-      catch (err) { console.warn(err); }
-    }
-
-    setAiConfig(updatedConfig);
-    showMessage('⏳ جاري التحقق...', 'info');
-    const isReady = await loadMobileModel();
-    showMessage(isReady ? '🧠 تم حفظ الإعدادات بنجاح!' : '⚠️ تم الحفظ لكن فشل الاتصال.', isReady ? 'success' : 'error');
-  };
-
-  // =========================================================
-  // 📅 التقويم
-  // =========================================================
-  const loadCalendar = async () => {
-    const data = await getQuery("SELECT * FROM calendar ORDER BY date_from");
-    setCalendarEvents(data || []);
-  };
-
-  const addEvent = async () => {
-    if (!eventForm.event || !eventForm.date_from || !eventForm.date_to) {
-      showMessage('❌ يرجى إكمال البيانات', 'error'); return;
-    }
-    await runQuery("INSERT INTO calendar (event, date_from, date_to, type) VALUES (?, ?, ?, ?)",
-      [eventForm.event, eventForm.date_from, eventForm.date_to, eventForm.type]);
-    setEventForm({ event: '', date_from: '', date_to: '', type: 'event' });
-    await loadCalendar();
-    showMessage('📅 تمت الإضافة');
-  };
-
-  const deleteEvent = async (id) => {
-    await runQuery("DELETE FROM calendar WHERE id = ?", [id]);
-    await loadCalendar();
-    showMessage('🗑️ تم الحذف');
-  };
-
-  // =========================================================
-  // 📚 الجداول
-  // =========================================================
-  const loadSchedules = async () => {
-    const data = await getQuery("SELECT * FROM schedules ORDER BY day, time_from");
-    setSchedules(data || []);
-  };
-
-  const addSchedule = async () => {
-    if (!scheduleForm.day || !scheduleForm.subject || !scheduleForm.time_from || !scheduleForm.time_to) {
-      showMessage('❌ يرجى إكمال الحقول', 'error'); return;
-    }
-    await runQuery(
-      "INSERT INTO schedules (day, subject, teacher, time_from, time_to, room, break_time, late_tolerance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      [scheduleForm.day, scheduleForm.subject, scheduleForm.teacher, scheduleForm.time_from, scheduleForm.time_to, scheduleForm.room, scheduleForm.break_time, scheduleForm.late_tolerance]
+  // ========== تقرير يومي ==========
+  const generateDailyReport = async () => {
+    const data = await getQuery(
+      `SELECT a.time_in, a.time_out, a.status, s.university_id, s.full_name, m.name as major_name
+       FROM attendance a 
+       INNER JOIN students s ON a.student_id = s.id
+       LEFT JOIN majors m ON s.major_id = m.id 
+       WHERE a.date = ? ORDER BY a.time_in DESC`, [selectedDate]
     );
-    setScheduleForm({ day: '', subject: '', teacher: '', time_from: '', time_to: '', room: '', break_time: 0, late_tolerance: 10 });
-    await loadSchedules();
-    showMessage('📚 تمت الإضافة');
+    return (data || []).map(a => ({
+      university_id: a.university_id, full_name: a.full_name,
+      major_name: a.major_name || 'غير محدد', time_in: a.time_in || '—', time_out: a.time_out || '—', status: a.status
+    }));
   };
 
-  const deleteSchedule = async (id) => {
-    await runQuery("DELETE FROM schedules WHERE id = ?", [id]);
-    await loadSchedules();
-    showMessage('🗑️ تم الحذف');
+  // ========== تقرير الغياب ==========
+  const generateAbsentReport = async () => {
+    const data = await getQuery(
+      `SELECT a.date, s.university_id, s.full_name, s.parent_phone, m.name as major_name
+       FROM attendance a 
+       INNER JOIN students s ON a.student_id = s.id
+       LEFT JOIN majors m ON s.major_id = m.id 
+       WHERE a.status = 'absent' AND a.date = ? ORDER BY s.full_name`, [selectedDate]
+    );
+    return (data || []).map(a => ({
+      university_id: a.university_id, full_name: a.full_name,
+      major_name: a.major_name || 'غير محدد', parent_phone: a.parent_phone || '—', date: a.date
+    }));
   };
 
-  // =========================================================
-  // 👥 الصلاحيات
-  // =========================================================
-  const loadUsers = () => {
-    try { setUsers(getAllUsers() || []); }
-    catch (err) { setUsers([]); }
+  // ========== تقرير شهري (من ← إلى) ==========
+  const generateMonthlyReport = async () => {
+    if (!fromDate || !toDate) return [];
+    // حماية: إذا كان fromDate بعد toDate، نبدّل بينهما تلقائياً
+    const [startDate, endDate] = fromDate <= toDate ? [fromDate, toDate] : [toDate, fromDate];
+
+    const data = await getQuery(
+      `SELECT a.student_id, a.status, s.university_id, s.full_name
+       FROM attendance a 
+       INNER JOIN students s ON a.student_id = s.id
+       WHERE a.date >= ? AND a.date <= ?`, [startDate, endDate]
+    );
+    
+    if (!data || data.length === 0) return [];
+    const studentMap = {};
+    data.forEach(a => {
+      const sid = a.student_id;
+      if (!studentMap[sid]) studentMap[sid] = {
+        university_id: a.university_id, full_name: a.full_name,
+        present: 0, absent: 0, late: 0, total: 0
+      };
+      studentMap[sid].total++;
+      if (a.status === 'present') studentMap[sid].present++;
+      if (a.status === 'absent') studentMap[sid].absent++;
+      if (a.status === 'late') studentMap[sid].late++;
+    });
+    return Object.values(studentMap).map(s => ({
+      ...s, rate: s.total > 0 ? Math.round(((s.present + s.late) / s.total) * 100) : 0
+    })).sort((a, b) => a.rate - b.rate);
   };
 
-  const handleChangePassword = async () => {
-    if (!passwordForm.oldPassword || !passwordForm.newPassword) {
-      showMessage('❌ يرجى إدخال كلمة المرور', 'error'); return;
+  // ========== تقرير طالب (فلتر تاريخ اختياري) ==========
+  const generateStudentReport = async () => {
+    if (!selectedStudent) return [];
+    let data;
+    if (selectedDate) {
+      data = await getQuery(
+        `SELECT date, time_in, time_out, status FROM attendance 
+         WHERE student_id = ? AND date = ? 
+         ORDER BY date DESC`, [selectedStudent, selectedDate]
+      );
+      if (!data || data.length === 0) {
+        data = await getQuery(
+          `SELECT date, time_in, time_out, status FROM attendance 
+           WHERE student_id = ? 
+           ORDER BY date DESC LIMIT 40`, [selectedStudent]
+        );
+      }
+    } else {
+      data = await getQuery(
+        `SELECT date, time_in, time_out, status FROM attendance 
+         WHERE student_id = ? 
+         ORDER BY date DESC LIMIT 40`, [selectedStudent]
+      );
     }
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      showMessage('❌ غير متطابقتين', 'error'); return;
+    return (data || []).map(a => ({ date: a.date, time_in: a.time_in || '—', time_out: a.time_out || '—', status: a.status }));
+  };
+
+  // ========== تقرير تخصص (فلتر تاريخ اختياري) ==========
+  const generateMajorReport = async () => {
+    if (!selectedMajor) return [];
+    let data;
+    if (selectedDate) {
+      data = await getQuery(
+        `SELECT a.student_id, a.status, s.university_id, s.full_name
+         FROM attendance a 
+         INNER JOIN students s ON a.student_id = s.id
+         WHERE s.major_id = ? AND a.date = ?`, [selectedMajor, selectedDate]
+      );
+      if (!data || data.length === 0) {
+        data = await getQuery(
+          `SELECT a.student_id, a.status, s.university_id, s.full_name
+           FROM attendance a 
+           INNER JOIN students s ON a.student_id = s.id
+           WHERE s.major_id = ?`, [selectedMajor]
+        );
+      }
+    } else {
+      data = await getQuery(
+        `SELECT a.student_id, a.status, s.university_id, s.full_name
+         FROM attendance a 
+         INNER JOIN students s ON a.student_id = s.id
+         WHERE s.major_id = ?`, [selectedMajor]
+      );
     }
-    const result = await changePassword(currentUser.username, passwordForm.oldPassword, passwordForm.newPassword);
-    showMessage(result.message, result.success ? 'success' : 'error');
-    if (result.success) setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
+    if (!data || data.length === 0) return [];
+    const studentMap = {};
+    data.forEach(a => {
+      const sid = a.student_id;
+      if (!studentMap[sid]) studentMap[sid] = {
+        university_id: a.university_id, full_name: a.full_name, absences: 0, total: 0
+      };
+      studentMap[sid].total++;
+      if (a.status === 'absent') studentMap[sid].absences++;
+    });
+    return Object.values(studentMap).sort((a, b) => b.absences - a.absences);
   };
 
-  const handleDeleteUser = async (userId) => {
-    const result = await deleteUser(userId);
-    showMessage(result.message, result.success ? 'success' : 'error');
-    if (result.success) loadUsers();
-  };
+  // ========== تقرير تقييم الانضباط (فلتر تاريخ اختياري) ==========
+  const generateDisciplineReport = async () => {
+    const activeStudents = await getQuery("SELECT id, university_id, full_name FROM students WHERE status = 'active'");
+    if (!activeStudents || activeStudents.length === 0) return [];
 
-  // =========================================================
-  // 💾 النسخ الاحتياطي
-  // =========================================================
-  const handleBackup = async () => {
-    try { await exportDatabase(); showMessage('📥 تم التصدير بنجاح'); }
-    catch (e) { showMessage(`❌ فشل التصدير: ${e.message}`, 'error'); }
-  };
-
-  const handleRestore = async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      try {
-        showMessage('⏳ جاري الاستعادة...', 'info');
-        await importDatabase(file);
-        showMessage('✅ تمت الاستعادة! جاري التحديث...');
-        setTimeout(() => window.location.reload(), 1200);
-      } catch (err) { showMessage(`❌ فشل الاستعادة: ${err.message}`, 'error'); }
-      e.target.value = '';
+    let attendanceLogs;
+    if (selectedDate) {
+      attendanceLogs = await getQuery(
+        "SELECT student_id, status FROM attendance WHERE date = ?", [selectedDate]
+      );
+      if (!attendanceLogs || attendanceLogs.length === 0) {
+        attendanceLogs = await getQuery("SELECT student_id, status FROM attendance");
+      }
+    } else {
+      attendanceLogs = await getQuery("SELECT student_id, status FROM attendance");
     }
+
+    const attendanceMap = {};
+    if (attendanceLogs && attendanceLogs.length > 0) {
+      attendanceLogs.forEach(log => {
+        const sid = log.student_id;
+        if (!attendanceMap[sid]) {
+          attendanceMap[sid] = { total: 0, present: 0, late: 0, absent: 0 };
+        }
+        attendanceMap[sid].total++;
+        if (log.status === 'present') attendanceMap[sid].present++;
+        if (log.status === 'late') attendanceMap[sid].late++;
+        if (log.status === 'absent') attendanceMap[sid].absent++;
+      });
+    }
+
+    const disciplineReport = activeStudents.map(student => {
+      const stats = attendanceMap[student.id] || { total: 0, present: 0, late: 0, absent: 0 };
+      const totalDays = stats.total;
+
+      let attendance_score = 50;
+      let punctuality_score = 15;
+      let absence_score = 15;
+      let discipline_score = 20;
+
+      if (totalDays > 0) {
+        attendance_score = Math.round(((stats.present + stats.late) / totalDays) * 50);
+        punctuality_score = Math.max(0, 15 - Math.round(stats.late * 1.5));
+        absence_score = Math.max(0, 15 - (stats.absent * 3));
+        const penalties = stats.absent + Math.floor(stats.late / 2);
+        discipline_score = Math.max(10, 20 - penalties);
+      }
+
+      const total_score = attendance_score + punctuality_score + absence_score + discipline_score;
+
+      return {
+        university_id: student.university_id,
+        full_name: student.full_name,
+        attendance_score,
+        punctuality_score,
+        absence_score,
+        discipline_score,
+        total_score
+      };
+    });
+
+    return disciplineReport.sort((a, b) => b.total_score - a.total_score);
   };
 
-  // =========================================================
-  // 🎨 واجهة الذكاء الاصطناعي
-  // =========================================================
-  const renderAI = () => (
-    <div className="settings-section">
-      <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)', margin: '0 0 5px 0' }}>🧠 المستشار الأكاديمي الذكي</h3>
-      <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginBottom: '20px' }}>مفتاح الارتكاز السحابي لـ Groq</p>
-      <div className="form-card-lux" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.01), rgba(0,0,0,0.2))', border: '1px solid var(--glass-border)', padding: '25px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        <div>
-          <label style={{ color: 'var(--gold-light)', fontWeight: 700 }}>🔑 مفتاح API</label>
-          <input type="password" value={aiConfig.api_key || ''} onChange={e => setAiConfig({ ...aiConfig, api_key: e.target.value })} placeholder="gsk_xxx" style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid var(--glass-border)', padding: '14px', borderRadius: '10px', color: '#fff', outline: 'none', fontFamily: 'monospace', width: '100%', marginTop: '6px', direction: 'ltr', textAlign: 'left' }} />
-        </div>
-        <label style={{ color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 600 }}>
-          <input type="checkbox" checked={aiConfig.enabled || false} onChange={e => setAiConfig({ ...aiConfig, enabled: e.target.checked })} style={{ width: '18px', height: '18px', accentColor: 'var(--gold-main)' }} />
-          تفعيل المستشار الذكي
-        </label>
-        <div style={{ background: 'rgba(6,43,30,0.4)', border: '1px solid var(--gold-main)', padding: '14px', borderRadius: '10px', color: 'var(--gold-light)', fontSize: '0.85rem', fontWeight: 700, direction: 'ltr', textAlign: 'left' }}>
-          🚀 النموذج النشط: <span style={{ fontFamily: 'monospace' }}>openai/gpt-oss-20b</span>
-        </div>
-        <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} onClick={saveAiConfig} style={{ background: 'linear-gradient(135deg, var(--gold-main), #b89324)', color: '#062b1e', border: 'none', padding: '14px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-start', minWidth: '200px' }}>
-          💾 حفظ النموذج
-        </motion.button>
-      </div>
-    </div>
+  // ========== تقرير مراحل الغياب والحرمان (فلتر تاريخ اختياري) ==========
+  const generateAbsenceStagesReport = async () => {
+    let attendance;
+    if (selectedDate) {
+      attendance = await getQuery(
+        "SELECT a.student_id, a.status, s.full_name, s.university_id, s.parent_phone FROM attendance a INNER JOIN students s ON a.student_id = s.id WHERE s.status = 'active' AND a.date = ?",
+        [selectedDate]
+      );
+      if (!attendance || attendance.length === 0) {
+        attendance = await getQuery(
+          "SELECT a.student_id, a.status, s.full_name, s.university_id, s.parent_phone FROM attendance a INNER JOIN students s ON a.student_id = s.id WHERE s.status = 'active'"
+        );
+      }
+    } else {
+      attendance = await getQuery(
+        "SELECT a.student_id, a.status, s.full_name, s.university_id, s.parent_phone FROM attendance a INNER JOIN students s ON a.student_id = s.id WHERE s.status = 'active'"
+      );
+    }
+
+    if (!attendance || attendance.length === 0) return [];
+    const studentMap = {};
+    attendance.forEach(a => {
+      const sid = a.student_id;
+      if (!studentMap[sid]) studentMap[sid] = {
+        full_name: a.full_name, university_id: a.university_id,
+        parent_phone: a.parent_phone || '—', total: 0, absent: 0
+      };
+      studentMap[sid].total++;
+      if (a.status === 'absent') studentMap[sid].absent++;
+    });
+    return Object.values(studentMap).map(s => {
+      const rate = s.total > 0 ? Math.round((s.absent / s.total) * 100) : 0;
+      let stage = 'آمن', stageColor = '#10b981';
+      if (rate >= 30) { stage = '🚨 حرمان نهائي'; stageColor = '#ef4444'; }
+      else if (rate >= 25) { stage = '🔴 إنذار ثالث'; stageColor = '#f43f5e'; }
+      else if (rate >= 20) { stage = '🟡 تنبيه ثانٍ'; stageColor = '#f59e0b'; }
+      else if (rate >= 10) { stage = '🟢 تنبيه أول'; stageColor = '#38bdf8'; }
+      return { ...s, rate, stage, stageColor };
+    }).filter(s => s.rate >= 5).sort((a, b) => b.rate - a.rate);
+  };
+
+  const calculateQuickStats = (data) => {
+    if (!data || data.length === 0) { setQuickStats({ totalRecords: 0, efficiencyRate: 100, alertCount: 0 }); return; }
+    const total = data.length;
+    let alerts = 0;
+    if (reportType === 'monthly') alerts = data.filter(r => r.rate < 75).length;
+    else if (reportType === 'absent' || reportType === 'absence_stages') alerts = total;
+    else if (reportType === 'daily') alerts = data.filter(r => r.status === 'late' || r.status === 'absent').length;
+    setQuickStats({
+      totalRecords: total,
+      efficiencyRate: reportType === 'monthly' ? (data.reduce((acc, curr) => acc + (curr.rate || 0), 0) / total).toFixed(1) : 94.2,
+      alertCount: alerts
+    });
+  };
+
+  const handlePrintHTML = () => {
+    if (!reportData || reportData.length === 0) return;
+    const printWindow = window.open('', '_blank');
+    
+    let keys = Object.keys(reportData[0]);
+    let tableHeadersHtml = keys.map(key => `<th>${translateHeader(key)}</th>`).join('');
+    
+    let tableRowsHtml = reportData.map(row => {
+      return `<tr>${keys.map(key => `<td>${translateValue(row[key])}</td>`).join('')}</tr>`;
+    }).join('');
+
+    printWindow.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>وثيقة أكاديمية رسمية</title>
+      <style>@import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@400;700;900&display=swap');
+        body{font-family:'Tajawal',sans-serif;padding:30px;color:#333;background:#fff}
+        .imperial-bar{height:6px;background:#052218;margin-bottom:20px}
+        .university-title{font-family:'Amiri',serif;font-size:22px;color:#b89324;font-weight:700;margin:0}
+        .sub-title{font-size:12px;color:#555;margin-top:4px}
+        .report-title{font-size:15px;color:#052218;font-weight:700;text-align:left}
+        .divider{border-top:2px solid #D4AF37;margin:15px 0}
+        table.report-table{width:100%;border-collapse:collapse;margin-top:20px;font-size:12px}
+        table.report-table th{background:#052218;color:#D4AF37;padding:10px;text-align:right;border:1px solid #052218}
+        table.report-table td{padding:9px;border:1px solid #e2e8f0;text-align:right}
+        table.report-table tr:nth-child(even){background:#f8fafc}
+        .footer-signatures{width:100%;margin-top:50px;font-size:12px}
+        .signature-box{text-align:center;width:50%}
+        @media print{body{padding:0}}
+      </style></head><body>
+      <div class="imperial-bar"></div>
+      <table style="width:100%;margin-bottom:20px"><tr><td style="text-align:right"><div class="university-title">جامعة القرآن الكريم والعلوم الإسلامية</div><div class="sub-title">فرع غيل باوزير - عمادة الشؤون الأكاديمية</div></td><td style="text-align:left"><div class="report-title">${getReportTitle()}</div></td></tr></table>
+      <div class="divider"></div>
+      <table class="report-table"><thead><tr>${tableHeadersHtml}</tr></thead><tbody>${tableRowsHtml}</tbody></table>
+      <table class="footer-signatures"><tr><td class="signature-box"><strong>توقيع مسجل الكلية:</strong><br><br>.................................</td><td class="signature-box"><strong>ختم شؤون الطلاب:</strong><br><br>.................................</td></tr></table>
+      <script>window.onload=function(){window.print();setTimeout(function(){window.close()},500)}</script></body></html>`);
+    printWindow.document.close();
+  };
+
+  const exportExcel = () => {
+    if (!reportData || reportData.length === 0) return;
+    const keys = Object.keys(reportData[0]);
+    const translatedData = reportData.map(row => {
+      const newRow = {};
+      keys.forEach(key => { newRow[translateHeader(key)] = translateValue(row[key]); });
+      return newRow;
+    });
+    const ws = XLSX.utils.json_to_sheet(translatedData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'السجلات الأكاديمية');
+    if(!ws['!views']) ws['!views'] = [{}];
+    ws['!views'][0].RTL = true;
+    XLSX.writeFile(wb, `تقرير_${reportType}_${new Date().toISOString().slice(0,10)}.xlsx`);
+  };
+
+  const getReportTitle = () => {
+    const titles = {
+      daily: `كشف الحضور اليومي ليوم: ${selectedDate}`,
+      absent: `بيان الطلاب الغائبين ليوم: ${selectedDate}`,
+      monthly: `التقرير الإحصائي من: ${fromDate} إلى: ${toDate}`,
+      student: `السجل التراكمي للطالب: ${students.find(s => s.id == selectedStudent)?.full_name || '—'}${selectedDate ? ` — بتاريخ: ${selectedDate}` : ' — آخر 40 سجلاً'}`,
+      major: `تقرير نسب غياب تخصص: ${majors.find(m => m.id == selectedMajor)?.name || '—'}${selectedDate ? ` — بتاريخ: ${selectedDate}` : ''}`,
+      discipline: `كشف درجات تقييم الانضباط العام${selectedDate ? ` — بتاريخ: ${selectedDate}` : ' — كل السجلات'}`,
+      absence_stages: `مراحل الغياب والإنذارات الإدارية${selectedDate ? ` — بتاريخ: ${selectedDate}` : ' — كل السجلات'}`
+    };
+    return titles[reportType] || 'تقرير أكاديمي';
+  };
+
+  const translateHeader = (key) => {
+    const t = {
+      full_name: 'اسم الطالب الرباعي', university_id: 'الرقم الجامعي', date: 'التاريخ',
+      time_in: 'وقت الحضور', time_out: 'وقت الانصراف', status: 'الحالة',
+      present: 'أيام الحضور', absent: 'أيام الغياب', late: 'مرات التأخير', rate: 'نسبة الالتزام',
+      major_name: 'التخصص الأكاديمي', parent_phone: 'هاتف ولي الأمر',
+      attendance_score: 'حضور الجلسات (50)', punctuality_score: 'المواظبة والتبكير (15)',
+      absence_score: 'رصيد عدم الغياب (15)', discipline_score: 'السلوك العام (20)', total_score: 'المجموع النهائي (100)',
+      absences: 'مجموع الغيابات', total: 'اللقاءات الإجمالية', stage: 'مستوى الخطورة الإدارية'
+    };
+    return t[key] || key;
+  };
+
+  const translateValue = (value) => {
+    if (value === 'present') return 'حاضر ✅';
+    if (value === 'absent') return 'غائب ❌';
+    if (value === 'late') return 'متأخر 🟡';
+    return value;
+  };
+
+  // فلترة قائمة الطلاب للبحث المباشر
+  const filteredStudents = students.filter(s => 
+    s.full_name.toLowerCase().includes(studentSearchTerm.toLowerCase()) ||
+    (s.university_id && s.university_id.toString().includes(studentSearchTerm))
   );
 
-  // =========================================================
-  // 🎨 واجهة البصمة والتحضير
-  // =========================================================
-  const renderDevices = () => (
-    <div className="settings-section">
-      <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)', margin: '0 0 5px 0' }}>🖐️ بوابات البصمة</h3>
+  const handleSelectStudent = (student) => {
+    setSelectedStudent(student.id);
+    setStudentSearchTerm(`${student.full_name} (${student.university_id})`);
+    setShowStudentDropdown(false);
+  };
 
-      {/* نموذج إضافة جهاز */}
-      <div className="form-row-lux" style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr auto', gap: '15px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--glass-border)', padding: '20px', borderRadius: '14px', marginBottom: '25px' }}>
-        <input type="text" placeholder="اسم البوابة" value={deviceForm.name || ''} onChange={e => setDeviceForm({ ...deviceForm, name: e.target.value })} className="glass-input" />
-        <input type="text" placeholder="IP" value={deviceForm.ip_address || ''} onChange={e => setDeviceForm({ ...deviceForm, ip_address: e.target.value })} className="glass-input" style={{ textAlign: 'left' }} />
-        <input type="number" placeholder="منفذ" value={deviceForm.port || ''} onChange={e => setDeviceForm({ ...deviceForm, port: parseInt(e.target.value) || 4370 })} className="glass-input" />
-        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={addDevice} style={{ background: 'linear-gradient(135deg, var(--gold-main), #b89324)', color: '#062b1e', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', padding: '0 20px' }}>
-          ➕ تعميد
-        </motion.button>
+  if (!dbReady) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', gap: '20px' }}>
+        <div style={{ width: '50px', height: '50px', border: '3px solid rgba(214,175,55,0.1)', borderTop: '3px solid var(--gold-main)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+        <p style={{ color: 'var(--gold-light)', fontWeight: 600 }}>⏳ جاري إعداد وتأمين جداول التقارير المحلية...</p>
       </div>
+    );
+  }
 
-      {/* جدول الأجهزة */}
-      <div className="data-table" style={{ border: '1px solid var(--glass-border)', borderRadius: '14px', overflow: 'hidden', marginBottom: '25px' }}>
-        <table>
-          <thead>
-            <tr style={{ background: 'linear-gradient(135deg, #041d14, #083d2b)' }}>
-              <th>البوابة</th><th>IP</th><th>منفذ</th><th>حالة الحائط</th><th>آخر فحص</th><th>إجراءات</th>
-            </tr>
-          </thead>
-          <tbody>
-            {devices.map(d => (
-              <tr key={d.id}>
-                <td>🔹 {d.name}</td>
-                <td>{d.ip_address}</td>
-                <td>{d.port}</td>
-                <td><span style={{ color: d.status === 'online' ? 'var(--green-bright)' : '#ef4444', fontWeight: 'bold' }}>{d.status === 'online' ? '🟢 متصل' : '🔴 غير متصل'}</span></td>
-                <td>{d.last_sync ? new Date(d.last_sync).toLocaleString('ar-SA') : '—'}</td>
-                <td style={{ display: 'flex', gap: '8px' }}>
-                  <motion.button whileTap={{ scale: 0.95 }} disabled={isTestingId !== null} onClick={() => testConnection(d)} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', color: 'var(--gold-main)', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer' }}>
-                    {isTestingId === d.id ? '⏳' : '🔌 افحص'}
-                  </motion.button>
-                  <button onClick={() => deleteDevice(d.id)} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444', padding: '6px 10px', borderRadius: '8px', cursor: 'pointer' }}>🗑️</button>
-                </td>
-              </tr>
-            ))}
-            {devices.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', padding: '35px' }}>📭 لا توجد أجهزة</td></tr>}
-          </tbody>
-        </table>
-      </div>
-
-      {/* ═══════════════════════════════════════════════════ */}
-      {/* 🟢 قسم استيراد Excel                                 */}
-      {/* ═══════════════════════════════════════════════════ */}
-      <div style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.05), rgba(0,0,0,0.3))', border: '2px solid var(--green-bright)', borderRadius: '16px', padding: '25px', marginBottom: '25px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
-          <div>
-            <h4 style={{ fontFamily: 'Amiri, serif', fontSize: '1.4rem', color: 'var(--green-bright)', margin: '0 0 8px 0' }}>📊 استيراد سجلات الحضور من Excel</h4>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0, lineHeight: 1.7 }}>
-              ارفع ملف Excel من جهاز ZKTeco. سيقوم النظام بـ:
-              <br/>✅ مطابقة ذكية: <strong style={{ color: '#38bdf8' }}>بالرقم أولاً، ثم بالاسم</strong>.
-              <br/>✅ تسجيل الحضور/التأخير تلقائياً حسب الحد المحدد.
-              <br/>✅ (اختياري) تسجيل الغائبين تلقائياً.
-            </p>
-          </div>
-          {(excelFile || importResult) && (
-            <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }} onClick={resetExcelImport}
-              style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', padding: '10px 18px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
-              🔄 إعادة تعيين
-            </motion.button>
-          )}
-        </div>
-
-        {/* أزرار رفع الملف وتحميل القالب */}
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '20px' }}>
-          <label style={{ cursor: 'pointer', padding: '12px 24px', borderRadius: '10px', background: 'linear-gradient(135deg, var(--green-bright), #10b981)', color: '#041d14', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}>
-            📁 اختر ملف Excel
-            <input type="file" accept=".xlsx,.xls,.csv" onChange={handleExcelFileChange} style={{ display: 'none' }} />
-          </label>
-          <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }} onClick={downloadExcelTemplate}
-            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--gold-main)', color: 'var(--gold-light)', padding: '12px 24px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem' }}>
-            📥 تحميل قالب
-          </motion.button>
-          {excelFile && (
-            <span style={{ padding: '12px 16px', background: 'rgba(16,185,129,0.1)', border: '1px solid var(--green-bright)', borderRadius: '10px', color: 'var(--green-bright)', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center' }}>
-              ✅ {excelFile.name}
-            </span>
-          )}
-        </div>
-
-        {/* إعدادات الاستيراد */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px' }}>
-          <div>
-            <label style={{ color: 'var(--gold-light)', fontSize: '0.85rem', display: 'block', marginBottom: '6px', fontWeight: 700 }}>🎯 نوع الاستيراد</label>
-            <select value={excelTarget} onChange={e => setExcelTarget(e.target.value)} style={{ background: '#041d14', border: '1px solid var(--glass-border)', padding: '12px', borderRadius: '10px', color: '#fff', width: '100%' }}>
-              <option value="student">🎓 سجلات الطلاب</option>
-              <option value="teacher">👨‍🏫 سجلات المدرسين</option>
-            </select>
-          </div>
-          <div>
-            <label style={{ color: 'var(--gold-light)', fontSize: '0.85rem', display: 'block', marginBottom: '6px', fontWeight: 700 }}>⏰ حد التأخير</label>
-            <input type="time" value={lateThreshold} onChange={e => setLateThreshold(e.target.value)} style={{ background: '#041d14', border: '1px solid var(--glass-border)', padding: '12px', borderRadius: '10px', color: '#fff', width: '100%' }} />
-            <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', display: 'block', marginTop: '4px' }}>من تجاوز هذا الوقت → متأخر</span>
-          </div>
-          <div>
-            <label style={{ color: 'var(--gold-light)', fontSize: '0.85rem', display: 'block', marginBottom: '6px', fontWeight: 700 }}>⚙️ خيارات إضافية</label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '10px', border: '1px solid var(--glass-border)', cursor: 'pointer', color: '#fff', fontSize: '0.85rem' }}>
-              <input type="checkbox" checked={markAbsents} onChange={e => setMarkAbsents(e.target.checked)} style={{ width: '18px', height: '18px', accentColor: '#ef4444' }} />
-              تسجيل الغائبين تلقائياً
-            </label>
-          </div>
-        </div>
-
-        {/* تحذير عند تفعيل تسجيل الغائبين */}
-        {markAbsents && (
-          <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', padding: '12px 16px', borderRadius: '10px', color: '#fca5a5', fontSize: '0.82rem', marginBottom: '20px', fontWeight: 600 }}>
-            ⚠️ <strong>تنبيه:</strong> سيتم تسجيل كل الطلاب/المدرسين النشطين غير الموجودين في الملف كغائبين في تواريخ الملف. تأكد من اكتمال البيانات.
-          </div>
-        )}
-
-        {/* معاينة الملف */}
-        {excelPreview && (
-          <div style={{ marginBottom: '20px' }}>
-            <h5 style={{ color: 'var(--green-bright)', margin: '0 0 12px 0', fontSize: '1rem' }}>
-              📋 معاينة (أول {excelPreview.rows.length} من {excelPreview.totalRows} سجل)
-            </h5>
-            <div style={{ overflowX: 'auto', border: '1px solid var(--glass-border)', borderRadius: '10px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', minWidth: '400px' }}>
-                <thead>
-                  <tr style={{ background: 'linear-gradient(135deg, #041d14, #083d2b)' }}>
-                    {excelPreview.headers.map((h, i) => (
-                      <th key={i} style={{ padding: '10px', color: 'var(--gold-light)', textAlign: 'right', borderBottom: '1px solid rgba(214,175,55,0.2)' }}>
-                        {h}
-                        {excelColumns.id === h && ' 🆔'}
-                        {excelColumns.name === h && ' 👤'}
-                        {excelColumns.date === h && ' 📅'}
-                        {excelColumns.time === h && ' ⏰'}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {excelPreview.rows.map((row, i) => (
-                    <tr key={i} style={{ background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
-                      {excelPreview.headers.map((h, j) => (
-                        <td key={j} style={{ padding: '8px 10px', color: '#e2e8f0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>{row[h]}</td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* زر بدء الاستيراد */}
-        {excelPreview && (
-          <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} onClick={handleExcelImport} disabled={importing}
-            style={{ background: importing ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, var(--gold-main), #b89324)', color: '#062b1e', border: 'none', padding: '14px 32px', borderRadius: '12px', fontWeight: 900, fontSize: '1rem', cursor: importing ? 'wait' : 'pointer', boxShadow: '0 8px 20px rgba(214,175,55,0.3)', width: '100%' }}>
-            {importing ? '⏳ جاري الاستيراد...' : '🚀 بدء الاستيراد'}
-          </motion.button>
-        )}
-
-        {/* نتائج الاستيراد */}
-        {importResult && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-            style={{ marginTop: '20px', background: 'rgba(16,185,129,0.08)', border: '1px solid var(--green-bright)', borderRadius: '12px', padding: '18px' }}>
-            <h5 style={{ color: 'var(--green-bright)', margin: '0 0 12px 0', fontSize: '1rem' }}>✅ نتائج الاستيراد</h5>
-
-            {/* إحصائيات رئيسية */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', fontSize: '0.85rem', marginBottom: '15px' }}>
-              <div><span style={{ color: 'var(--text-secondary)' }}>📊 إجمالي:</span> <strong style={{ color: '#fff' }}>{importResult.total}</strong></div>
-              <div><span style={{ color: 'var(--text-secondary)' }}>➕ جديد:</span> <strong style={{ color: 'var(--green-bright)' }}>{importResult.inserted}</strong></div>
-              <div><span style={{ color: 'var(--text-secondary)' }}>🔄 محدّث:</span> <strong style={{ color: '#38bdf8' }}>{importResult.updated}</strong></div>
-              <div><span style={{ color: 'var(--text-secondary)' }}>✅ حاضرون:</span> <strong style={{ color: 'var(--green-bright)' }}>{importResult.presentCount}</strong></div>
-              <div><span style={{ color: 'var(--text-secondary)' }}>🟡 متأخرون:</span> <strong style={{ color: 'var(--gold-main)' }}>{importResult.lateCount}</strong></div>
-              {markAbsents && <div><span style={{ color: 'var(--text-secondary)' }}>❌ غائبون:</span> <strong style={{ color: '#ef4444' }}>{importResult.absentCount}</strong></div>}
-            </div>
-
-            {/* طرق المطابقة */}
-            <div style={{ paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.08)', marginBottom: '12px', fontSize: '0.82rem' }}>
-              <div style={{ color: 'var(--gold-light)', marginBottom: '6px', fontWeight: 700 }}>🎯 طرق المطابقة:</div>
-              <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-                <span>🆔 <strong style={{ color: '#38bdf8' }}>بواسطة الرقم:</strong> {importResult.matchedById || 0}</span>
-                <span>👤 <strong style={{ color: '#a78bfa' }}>بواسطة الاسم:</strong> {importResult.matchedByName || 0}</span>
-              </div>
-            </div>
-
-            {/* الأخطاء */}
-            {importResult.totalErrors > 0 && (
-              <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '10px', padding: '14px', marginTop: '12px' }}>
-                <div style={{ color: '#fca5a5', fontWeight: 800, marginBottom: '10px', fontSize: '0.9rem' }}>
-                  ⚠️ {importResult.totalErrors} صف لم يُستورد
-                  {importResult.totalErrors > 20 && ' (يُعرض أول 20)'}
-                </div>
-                <div style={{ maxHeight: '240px', overflowY: 'auto', fontSize: '0.8rem' }}>
-                  {importResult.errors.map((err, i) => (
-                    <div key={i} style={{
-                      padding: '8px 10px', marginBottom: '6px', borderRadius: '6px',
-                      background: 'rgba(0,0,0,0.25)', borderRight: '3px solid #ef4444',
-                      display: 'grid', gridTemplateColumns: 'auto auto auto 1fr', gap: '10px',
-                      alignItems: 'center', flexWrap: 'wrap'
-                    }}>
-                      <span style={{ color: '#fca5a5', fontWeight: 700 }}>📍 صف {err.row}</span>
-                      <span style={{ color: '#e2e8f0', fontSize: '0.75rem' }}>ID: <strong>{err.id}</strong></span>
-                      <span style={{ color: '#e2e8f0', fontSize: '0.75rem' }}>الاسم: <strong>{err.name}</strong></span>
-                      <span style={{ color: '#f59e0b', fontSize: '0.75rem' }}>{err.reason}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </div>
-
-      {/* ═══════════════════════════════════════════════════ */}
-      {/* قسم بصمات الـ 5 الاحتياطية (يظهر فقط عند وجود أجهزة) */}
-      {/* ═══════════════════════════════════════════════════ */}
-      {devices.length > 0 && (
-        <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--glass-border)', borderRadius: '16px', padding: '25px' }}>
-          <h4 style={{ fontFamily: 'Amiri, serif', fontSize: '1.4rem', color: 'var(--gold-light)', margin: '0 0 10px 0' }}>🖐️ وحدة تسجيل الـ 5 بصمات الاحتياطية</h4>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px' }}>حدد الهدف، ثم اسحب 5 بصمات من الجهاز.</p>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 2fr', gap: '15px', marginBottom: '20px' }}>
-            <div>
-              <label style={{ color: 'var(--gold-light)', fontSize: '0.85rem', display: 'block', marginBottom: '6px' }}>الفئة</label>
-              <select value={enrollTarget} onChange={e => setEnrollTarget(e.target.value)} style={{ background: '#041d14', border: '1px solid var(--glass-border)', padding: '12px', borderRadius: '10px', color: '#fff', width: '100%' }}>
-                <option value="student">🎓 الطلاب</option>
-                <option value="teacher">👨‍🏫 المدرسون</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ color: 'var(--gold-light)', fontSize: '0.85rem', display: 'block', marginBottom: '6px' }}>الاسم</label>
-              <select value={selectedPersonId} onChange={handlePersonChange} style={{ background: '#041d14', border: '1px solid var(--glass-border)', padding: '12px', borderRadius: '10px', color: '#fff', width: '100%' }}>
-                <option value="">-- اختر --</option>
-                {peopleList.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={{ color: 'var(--gold-light)', fontSize: '0.85rem', display: 'block', marginBottom: '6px' }}>الجهاز</label>
-              <select value={activeDeviceIp} onChange={e => setActiveDeviceIp(e.target.value)} style={{ background: '#041d14', border: '1px solid var(--glass-border)', padding: '12px', borderRadius: '10px', color: '#fff', width: '100%' }}>
-                {devices.map(d => <option key={d.id} value={d.ip_address}>{d.name} ({d.ip_address})</option>)}
-              </select>
-            </div>
-          </div>
-
-          {selectedPersonId && (
-            <div style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '20px', borderRadius: '12px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '20px' }}>
-                {[0, 1, 2, 3, 4].map(idx => {
-                  const fingerNames = ["الإبهام الأيمن", "السبابة اليمنى", "الوسطى اليمنى", "الإبهام الأيسر", "السبابة اليسرى"];
-                  const isRegistered = fingerTemplates[idx] !== null;
-                  return (
-                    <div key={idx} style={{ background: isRegistered ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255,255,255,0.02)', border: isRegistered ? '1.5px solid var(--green-bright)' : '1px solid var(--glass-border)', borderRadius: '10px', padding: '15px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: isRegistered ? 'var(--green-bright)' : '#aaa' }}>
-                        {fingerNames[idx]} {isRegistered ? '✅' : '💤'}
-                      </span>
-                      <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} disabled={enrollingFinger !== null} onClick={() => enrollFingerprintDevice(idx)}
-                        style={{ background: isRegistered ? 'rgba(16, 185, 129, 0.2)' : 'linear-gradient(135deg, var(--gold-main), #b89324)', color: isRegistered ? '#fff' : '#062b1e', border: 'none', padding: '8px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 'bold', cursor: 'pointer' }}>
-                        {enrollingFinger === idx ? '⚡ جاري...' : isRegistered ? 'تحديث' : '➕ التقاط'}
-                      </motion.button>
-                    </div>
-                  );
-                })}
-              </div>
-              {enrollStatusText && (
-                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '10px 15px', borderRadius: '8px', color: 'var(--gold-light)', fontSize: '0.85rem', fontWeight: 700, textAlign: 'center' }}>
-                  📢 {enrollStatusText}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-
-  // =========================================================
-  // 🎨 واجهة التقويم
-  // =========================================================
-  const renderCalendar = () => (
-    <div className="settings-section">
-      <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)', margin: '0 0 5px 0' }}>📅 التقويم الأكاديمي</h3>
-      <div className="form-row-lux" style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 1.2fr 1fr auto', gap: '12px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--glass-border)', padding: '18px', borderRadius: '14px', marginBottom: '25px' }}>
-        <input type="text" placeholder="الفعالية" value={eventForm.event || ''} onChange={e => setEventForm({ ...eventForm, event: e.target.value })} className="glass-input" />
-        <input type="text" placeholder="من (2026-01-01)" value={eventForm.date_from || ''} onChange={e => setEventForm({ ...eventForm, date_from: e.target.value })} className="glass-input" />
-        <input type="text" placeholder="إلى" value={eventForm.date_to || ''} onChange={e => setEventForm({ ...eventForm, date_to: e.target.value })} className="glass-input" />
-        <select value={eventForm.type || 'event'} onChange={e => setEventForm({ ...eventForm, type: e.target.value })} style={{ background: '#041d14', border: '1px solid var(--glass-border)', padding: '12px', borderRadius: '10px', color: '#fff' }}>
-          <option value="event">📅 حدث</option><option value="holiday">🏖️ إجازة</option><option value="exam">📝 اختبار</option><option value="registration">📋 تسجيل</option><option value="results">📊 نتائج</option>
-        </select>
-        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={addEvent} style={{ background: 'linear-gradient(135deg, var(--gold-main), #b89324)', color: '#062b1e', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', padding: '0 20px' }}>➕</motion.button>
-      </div>
-      <div className="data-table" style={{ border: '1px solid var(--glass-border)', borderRadius: '14px', overflow: 'hidden' }}>
-        <table>
-          <thead>
-            <tr style={{ background: 'linear-gradient(135deg, #041d14, #083d2b)' }}>
-              <th>الفعالية</th><th>من</th><th>إلى</th><th>النوع</th><th>حذف</th>
-            </tr>
-          </thead>
-          <tbody>
-            {calendarEvents.map(e => (
-              <tr key={e.id}>
-                <td>🎯 {e.event}</td><td>{e.date_from}</td><td>{e.date_to}</td><td>{e.type}</td>
-                <td><button onClick={() => deleteEvent(e.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>🗑️</button></td>
-              </tr>
-            ))}
-            {calendarEvents.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', padding: '35px' }}>📭 لا توجد فعاليات</td></tr>}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-
-  // =========================================================
-  // 🎨 واجهة الجداول الدراسية
-  // =========================================================
-  const renderSchedules = () => (
-    <div className="settings-section">
-      <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)', margin: '0 0 5px 0' }}>📚 الجدول الدراسي</h3>
-      <div className="form-row-lux" style={{ display: 'grid', gridTemplateColumns: '1.2fr 2fr 1.5fr 1fr 1fr 1fr auto', gap: '10px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--glass-border)', padding: '18px', borderRadius: '14px', marginBottom: '25px' }}>
-        <select value={scheduleForm.day || ''} onChange={e => setScheduleForm({ ...scheduleForm, day: e.target.value })} className="glass-input" style={{ background: '#041d14', color: '#fff' }}>
-          <option value="">اليوم...</option>
-          <option value="السبت">السبت</option><option value="الأحد">الأحد</option><option value="الاثنين">الاثنين</option>
-          <option value="الثلاثاء">الثلاثاء</option><option value="الأربعاء">الأربعاء</option><option value="الخميس">الخميس</option>
-        </select>
-        <input type="text" placeholder="المادة" value={scheduleForm.subject || ''} onChange={e => setScheduleForm({ ...scheduleForm, subject: e.target.value })} className="glass-input" />
-        <input type="text" placeholder="المحاضر" value={scheduleForm.teacher || ''} onChange={e => setScheduleForm({ ...scheduleForm, teacher: e.target.value })} className="glass-input" />
-        <input type="time" value={scheduleForm.time_from || ''} onChange={e => setScheduleForm({ ...scheduleForm, time_from: e.target.value })} className="glass-input" />
-        <input type="time" value={scheduleForm.time_to || ''} onChange={e => setScheduleForm({ ...scheduleForm, time_to: e.target.value })} className="glass-input" />
-        <input type="text" placeholder="القاعة" value={scheduleForm.room || ''} onChange={e => setScheduleForm({ ...scheduleForm, room: e.target.value })} className="glass-input" />
-        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={addSchedule} style={{ background: 'linear-gradient(135deg, var(--gold-main), #b89324)', color: '#062b1e', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', padding: '0 18px' }}>➕</motion.button>
-      </div>
-      <div className="data-table" style={{ border: '1px solid var(--glass-border)', borderRadius: '14px', overflow: 'hidden' }}>
-        <table>
-          <thead>
-            <tr style={{ background: 'linear-gradient(135deg, #041d14, #083d2b)' }}>
-              <th>اليوم</th><th>المادة</th><th>المدرس</th><th>من</th><th>إلى</th><th>القاعة</th><th>إجراء</th>
-            </tr>
-          </thead>
-          <tbody>
-            {schedules.map(s => (
-              <tr key={s.id}>
-                <td>{s.day}</td><td style={{ color: '#fff', fontWeight: 600 }}>{s.subject}</td><td>{s.teacher}</td>
-                <td>{s.time_from}</td><td>{s.time_to}</td><td>{s.room}</td>
-                <td><button onClick={() => deleteSchedule(s.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>🗑️</button></td>
-              </tr>
-            ))}
-            {schedules.length === 0 && <tr><td colSpan={7} style={{ textAlign: 'center', padding: '35px' }}>📭 لا توجد محاضرات</td></tr>}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-
-  // =========================================================
-  // 🎨 واجهة الصلاحيات
-  // =========================================================
-  const renderUsers = () => (
-    <div className="settings-section">
-      <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)' }}>👥 صلاحيات الكادر</h3>
-
-      <div className="data-table" style={{ border: '1px solid var(--glass-border)', borderRadius: '14px', overflow: 'hidden', marginBottom: '35px', marginTop: '20px' }}>
-        <table>
-          <thead>
-            <tr style={{ background: 'linear-gradient(135deg, #041d14, #083d2b)' }}>
-              <th>المستخدم</th><th>الدور</th><th>تاريخ الإنشاء</th><th>سحب الصلاحية</th>
-            </tr>
-          </thead>
-          <tbody>
-            {Array.isArray(users) && users.map(u => (
-              <tr key={u.id}>
-                <td>👤 {u.username}</td>
-                <td>{u.role}</td>
-                <td>{u.created_at || 'غير محدد'}</td>
-                <td>
-                  {u.username !== 'admin' && isAdmin() && u.username !== currentUser.username ? (
-                    <button onClick={() => handleDeleteUser(u.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>🛑</button>
-                  ) : <span>🔒 محمي</span>}
-                </td>
-              </tr>
-            ))}
-            {(!users || users.length === 0) && (
-              <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px' }}>📭 لا يوجد مستخدمون</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <h4 style={{ fontFamily: 'Amiri, serif', color: 'var(--gold-light)' }}>🔒 تغيير كلمة المرور</h4>
-      <div className="form-card-lux" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.01), rgba(0,0,0,0.15))', border: '1px solid var(--glass-border)', padding: '20px', borderRadius: '14px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '15px' }}>
-        <input type="password" placeholder="القديمة" value={passwordForm.oldPassword || ''} onChange={e => setPasswordForm({ ...passwordForm, oldPassword: e.target.value })} className="glass-input" />
-        <input type="password" placeholder="الجديدة" value={passwordForm.newPassword || ''} onChange={e => setPasswordForm({ ...passwordForm, newPassword: e.target.value })} className="glass-input" />
-        <input type="password" placeholder="تأكيد" value={passwordForm.confirmPassword || ''} onChange={e => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })} className="glass-input" />
-        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleChangePassword} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--gold-main)', color: 'var(--gold-main)', padding: '12px 25px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}>🔐 تعديل</motion.button>
-      </div>
-    </div>
-  );
-
-  // =========================================================
-  // 🎨 واجهة النسخ الاحتياطي
-  // =========================================================
-  const renderBackup = () => (
-    <div className="settings-section" style={{ textAlign: 'center', padding: '20px 0' }}>
-      <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: 'var(--gold-light)' }}>💾 النسخ الاحتياطي</h3>
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '35px' }}>
-        <motion.button whileHover={{ y: -4 }} whileTap={{ scale: 0.97 }} onClick={handleBackup} style={{ background: 'linear-gradient(135deg, var(--gold-main), #b89324)', color: '#062b1e', border: 'none', padding: '18px 35px', borderRadius: '14px', fontWeight: 900, cursor: 'pointer' }}>
-          📥 تصدير .db
-        </motion.button>
-        <motion.label whileHover={{ y: -4 }} whileTap={{ scale: 0.97 }} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', color: '#fff', padding: '18px 35px', borderRadius: '14px', fontWeight: 900, cursor: 'pointer' }}>
-          📤 استيراد
-          <input type="file" accept=".db" onChange={handleRestore} style={{ display: 'none' }} />
-        </motion.label>
-      </div>
-    </div>
-  );
-
-  // =========================================================
-  // 🎨 الواجهة الرئيسية
-  // =========================================================
   return (
-    <div className="settings-module">
-      <AnimatePresence>
-        {message && (
-          <motion.div initial={{ opacity: 0, y: -25 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            style={{ background: 'linear-gradient(135deg, #041d14, #0a3d2c)', border: `1px solid ${messageType === 'error' ? '#ef4444' : messageType === 'info' ? 'var(--gold-main)' : 'var(--green-bright)'}`, padding: '14px 24px', borderRadius: '12px', marginBottom: '25px', color: '#fff', fontWeight: 600 }}>
-            {message}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <div className="tabs" style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.02)', padding: '8px', borderRadius: '16px', border: '1px solid var(--glass-border)', marginBottom: '30px', overflowX: 'auto' }}>
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="reports-module" style={{ padding: '5px 0' }}>
+      
+      {/* بطاقات الإحصائيات العلوية */}
+      <div className="report-metrics-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '25px' }}>
         {[
-          { id: 'devices', label: '🖐️ البصمة والتحضير' },
-          { id: 'schedules', label: '📚 الجدول' },
-          { id: 'ai', label: '🧠 المستشار الذكي' },
-          { id: 'calendar', label: '📅 التقويم' },
-          { id: 'users', label: '👥 الصلاحيات' },
-          { id: 'backup', label: '💾 النسخ' }
-        ].map(t => (
-          <motion.button key={t.id} className={`tab-btn ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}
-            whileHover={{ y: -1 }} whileTap={{ scale: 0.99 }}
-            style={{ flex: 1, padding: '12px 18px', borderRadius: '10px', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', whiteSpace: 'nowrap', background: tab === t.id ? 'linear-gradient(135deg, var(--gold-main), #b89324)' : 'transparent', color: tab === t.id ? '#062b1e' : 'var(--text-secondary)' }}>
-            {t.label}
-          </motion.button>
+          { label: 'إجمالي السجلات المفحوصة', count: quickStats.totalRecords, suffix: ' سجل', color: 'var(--gold-main)', icon: '📜' },
+          { label: 'مؤشر كفاءة الانضباط', count: quickStats.efficiencyRate, suffix: '%', color: 'var(--emerald-light)', icon: '📈' },
+          { label: 'الحالات الحرجة / الإنذارات', count: quickStats.alertCount, suffix: ' حالة', color: quickStats.alertCount > 0 ? '#ef4444' : 'var(--text-secondary)', icon: '⚠️' }
+        ].map((stat, i) => (
+          <motion.div key={i} whileHover={{ y: -4 }}
+            style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.02), rgba(0,0,0,0.25))', border: '1px solid var(--glass-border)', borderRadius: '16px', padding: '18px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', fontWeight: 600 }}>{stat.label}</span>
+              <h3 style={{ fontSize: '1.9rem', margin: '5px 0 0 0', color: stat.color, fontFamily: 'Tajawal', fontWeight: 900 }}>{stat.count}<span style={{ fontSize: '0.9rem' }}>{stat.suffix}</span></h3>
+            </div>
+            <span style={{ fontSize: '2rem', opacity: 0.8 }}>{stat.icon}</span>
+          </motion.div>
         ))}
       </div>
 
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
-        {tab === 'devices' && renderDevices()}
-        {tab === 'schedules' && renderSchedules()}
-        {tab === 'ai' && renderAI()}
-        {tab === 'calendar' && renderCalendar()}
-        {tab === 'users' && renderUsers()}
-        {tab === 'backup' && renderBackup()}
-      </motion.div>
-    </div>
+      {/* شريط أدوات الفلترة والطباعة */}
+      <div className="reports-toolbar" style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--glass-border)', padding: '15px 20px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', marginBottom: '30px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flex: 1 }}>
+          <select value={reportType} onChange={e => setReportType(e.target.value)}
+            style={{ background: '#041d14', border: '1px solid rgba(214,175,55,0.3)', padding: '12px 16px', borderRadius: '12px', color: '#fff', fontWeight: 700, outline: 'none', cursor: 'pointer' }}>
+            <option value="daily">📋 الحضور اليومي</option>
+            <option value="absent">❌ بيان الغياب</option>
+            <option value="monthly">📊 التقرير الشهري</option>
+            <option value="student">👤 ملف طالب</option>
+            <option value="major">📚 تقرير تخصص</option>
+            <option value="discipline">🏆 تقييم الانضباط</option>
+            <option value="absence_stages">🚨 مراحل الغياب</option>
+          </select>
+
+          <AnimatePresence mode="wait">
+            {/* 📅 فلتر التاريخ الواحد (الحضور اليومي + بيان الغياب) */}
+            {(reportType === 'daily' || reportType === 'absent') && (
+              <motion.input 
+                key="single-date-daily"
+                initial={{ opacity: 0, scale: 0.95 }} 
+                animate={{ opacity: 1, scale: 1 }} 
+                exit={{ opacity: 0 }}
+                type="date" 
+                value={selectedDate} 
+                onChange={e => setSelectedDate(e.target.value)}
+                style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '11px 15px', borderRadius: '12px', color: '#fff', fontWeight: 600 }} 
+              />
+            )}
+
+            {/* 📅 فلتران: من ← إلى (التقرير الشهري فقط) */}
+            {reportType === 'monthly' && (
+              <motion.div
+                key="range-dates-monthly"
+                initial={{ opacity: 0, scale: 0.95 }} 
+                animate={{ opacity: 1, scale: 1 }} 
+                exit={{ opacity: 0 }}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <label style={{ color: 'var(--gold-light)', fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap' }}>من:</label>
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={e => setFromDate(e.target.value)}
+                  style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '11px 15px', borderRadius: '12px', color: '#fff', fontWeight: 600 }}
+                />
+                <label style={{ color: 'var(--gold-light)', fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap' }}>إلى:</label>
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={e => setToDate(e.target.value)}
+                  style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '11px 15px', borderRadius: '12px', color: '#fff', fontWeight: 600 }}
+                />
+              </motion.div>
+            )}
+
+            {/* 📅 فلتر تاريخ اختياري (تقرير تخصص + تقييم الانضباط + مراحل الغياب) */}
+            {(reportType === 'major' || reportType === 'discipline' || reportType === 'absence_stages') && (
+              <motion.div
+                key="single-date-optional"
+                initial={{ opacity: 0, scale: 0.95 }} 
+                animate={{ opacity: 1, scale: 1 }} 
+                exit={{ opacity: 0 }}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={e => setSelectedDate(e.target.value)}
+                  style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '11px 15px', borderRadius: '12px', color: '#fff', fontWeight: 600 }}
+                />
+              </motion.div>
+            )}
+            
+            {/* 👤 بحث الطالب + 📅 فلتر تاريخ اختياري (ملف طالب) */}
+            {reportType === 'student' && (
+              <motion.div
+                key="student-search"
+                initial={{ opacity: 0, scale: 0.95 }} 
+                animate={{ opacity: 1, scale: 1 }} 
+                exit={{ opacity: 0 }}
+                style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', flex: 1 }}
+              >
+                {/* 📅 فلتر تاريخ اختياري */}
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={e => setSelectedDate(e.target.value)}
+                  style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '11px 15px', borderRadius: '12px', color: '#fff', fontWeight: 600 }}
+                />
+
+                {/* 🔍 حقل البحث */}
+                <div ref={dropdownRef} style={{ position: 'relative', minWidth: '280px', flex: 1, maxWidth: '350px' }}>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      placeholder="🔍 ابحث باسم الطالب أو الرقم الجامعي..."
+                      value={studentSearchTerm}
+                      onChange={(e) => {
+                        setStudentSearchTerm(e.target.value);
+                        setSelectedStudent('');
+                        setShowStudentDropdown(true);
+                      }}
+                      onFocus={() => setShowStudentDropdown(true)}
+                      style={{
+                        width: '100%',
+                        background: 'rgba(0,0,0,0.4)',
+                        border: '1px solid var(--gold-main)',
+                        padding: '11px 35px 11px 15px',
+                        borderRadius: '12px',
+                        color: '#fff',
+                        fontWeight: 600,
+                        outline: 'none',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                    {studentSearchTerm && (
+                      <button
+                        onClick={() => {
+                          setStudentSearchTerm('');
+                          setSelectedStudent('');
+                        }}
+                        style={{
+                          position: 'absolute',
+                          left: '10px',
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--text-secondary)',
+                          cursor: 'pointer',
+                          fontSize: '1rem'
+                        }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {showStudentDropdown && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        right: 0,
+                        left: 0,
+                        marginTop: '6px',
+                        background: '#041d14',
+                        border: '1px solid var(--gold-main)',
+                        borderRadius: '12px',
+                        maxHeight: '220px',
+                        overflowY: 'auto',
+                        zIndex: 100,
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
+                      }}
+                    >
+                      {filteredStudents.length > 0 ? (
+                        filteredStudents.map((s) => (
+                          <div
+                            key={s.id}
+                            onClick={() => handleSelectStudent(s)}
+                            style={{
+                              padding: '10px 14px',
+                              cursor: 'pointer',
+                              borderBottom: '1px solid rgba(255,255,255,0.05)',
+                              display: 'flex',
+                              justify: 'space-between',
+                              alignItems: 'center',
+                              transition: 'background 0.2s',
+                              color: '#fff'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(214,175,55,0.15)'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <span style={{ fontWeight: 600 }}>{s.full_name}</span>
+                            <span style={{ color: 'var(--gold-main)', fontSize: '0.8rem', opacity: 0.8 }}>
+                              {s.university_id}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <div style={{ padding: '12px', color: 'var(--text-secondary)', textAlign: 'center', fontSize: '0.85rem' }}>
+                          لا يوجد طالب بهذا الاسم أو الرقم
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
+            {/* 📚 قائمة اختيار التخصص */}
+            {reportType === 'major' && (
+              <motion.select 
+                key="major-select"
+                initial={{ opacity: 0, scale: 0.95 }} 
+                animate={{ opacity: 1, scale: 1 }} 
+                exit={{ opacity: 0 }}
+                value={selectedMajor} 
+                onChange={e => setSelectedMajor(e.target.value)}
+                style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', padding: '11px 15px', borderRadius: '12px', color: '#fff', maxWidth: '280px' }}>
+                <option value="">اختر تخصصاً...</option>
+                {majors.map(m => <option key={m.id} value={m.id} style={{background:'#041d14'}}>{m.name}</option>)}
+              </motion.select>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }} onClick={handlePrintHTML} disabled={!reportData?.length}
+            style={{ background: 'linear-gradient(135deg, #052318, #0b4630)', color: 'var(--gold-light)', border: '1px solid rgba(214,175,55,0.4)', padding: '12px 20px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', opacity: reportData?.length ? 1 : 0.4 }}>
+            📄 طباعة رسمية
+          </motion.button>
+          <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }} onClick={exportExcel} disabled={!reportData?.length}
+            style={{ background: 'linear-gradient(135deg, var(--emerald-light), #047857)', color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', opacity: reportData?.length ? 1 : 0.4 }}>
+            📊 تصدير Excel
+          </motion.button>
+        </div>
+      </div>
+
+      {/* عنوان التقرير المتغير وحساب عدد النتائج */}
+      <div style={{ marginBottom: '20px', borderRight: '4px solid var(--gold-main)', paddingRight: '15px' }}>
+        <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.7rem', color: 'var(--gold-light)', margin: 0 }}>{getReportTitle()}</h3>
+        <p style={{ color: 'var(--text-secondary)', margin: '5px 0 0 0' }}>تم العثور على <strong style={{ color: '#fff' }}>{reportData?.length || 0}</strong> سجل مطابق للبحث.</p>
+      </div>
+
+      {/* عرض البيانات ديناميكياً */}
+      {loading ? (
+        <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--gold-main)' }}>
+          <div style={{ width: '40px', height: '40px', border: '3px solid rgba(214,175,55,0.1)', borderTopColor: 'var(--gold-main)', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 15px' }} />
+          جاري فحص السجلات المحلية...
+        </div>
+      ) : reportData && reportData.length > 0 ? (
+        <div className="data-table" style={{ maxHeight: '500px', overflowY: 'auto', border: '1px solid var(--glass-border)', borderRadius: '16px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+            <thead>
+              <tr style={{ background: 'linear-gradient(135deg, #041d14, #083d2b)', position: 'sticky', top: 0, zIndex: 10 }}>
+                {Object.keys(reportData[0]).map(key => (
+                  <th key={key} style={{ padding: '16px 20px', color: 'var(--gold-light)', fontWeight: 700, fontSize: '0.92rem', borderBottom: '2px solid rgba(214,175,55,0.2)' }}>{translateHeader(key)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {reportData.map((row, i) => {
+                const hasDanger = row.rate < 75 || row.status === 'absent' || row.absences > 3 || row.stage?.includes('حرمان') || row.stage?.includes('إنذار');
+                return (
+                  <motion.tr key={i} whileHover={{ background: 'rgba(214,175,55,0.03)' }}
+                    style={{ background: hasDanger ? 'rgba(239,68,68,0.03)' : i % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                    {Object.keys(row).map((key, j) => {
+                      const val = row[key];
+                      let cellColor = '#e2e8f0';
+                      if (val?.toString().includes('حاضر') || key === 'present' || key === 'attendance_score') cellColor = 'var(--green-bright)';
+                      if (val?.toString().includes('غائب') || (hasDanger && key === 'rate') || key === 'absences') cellColor = '#ef4444';
+                      if (val?.toString().includes('متأخر') || key === 'university_id' || key === 'late') cellColor = 'var(--gold-main)';
+                      if (key === 'stage') cellColor = row.stageColor || '#e2e8f0';
+                      
+                      return (
+                        <td key={j} style={{ padding: '14px 20px', fontSize: '0.9rem', color: cellColor, fontWeight: (key === 'full_name' || key === 'rate' || key === 'stage') ? 700 : 500 }}>
+                          {key === 'rate' ? `${val}%` : translateValue(val)}
+                        </td>
+                      );
+                    })}
+                  </motion.tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px dashed var(--glass-border)', padding: '60px', borderRadius: '16px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+          <span style={{ fontSize: '3rem', display: 'block', marginBottom: '15px' }}>📭</span>
+          <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#fff' }}>لا توجد سجلات حضور أو درجات انضباط مطابقة لهذه الفلاتر</p>
+        </div>
+      )}
+    </motion.div>
   );
 }
 
-export default Settings;
+export default Reports;
