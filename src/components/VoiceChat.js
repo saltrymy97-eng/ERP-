@@ -1,8 +1,8 @@
-// src/components/VoiceChat.js – بوابة التفاعل الصوتي الذكي والتحليل الفوري المطور بنظام الالتقاط الحي
+// src/components/VoiceChat.js – بوابة التفاعل الصوتي الذكي (نسخة احترافية محسّنة مع دعم السياق)
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-// استدعاء الدوال المتوافقة مع المحرك الفوري المحدث
-import { askAI, speakText, startVoiceChat, stopVoiceRecognition } from '../services/ai';
+// 🟢 استيراد clearConversationHistory لزر "محادثة جديدة"
+import { askAI, speakText, startVoiceChat, stopVoiceRecognition, clearConversationHistory } from '../services/ai';
 
 function VoiceChat({ onClose }) {
   const [listening, setListening] = useState(false);
@@ -15,7 +15,7 @@ function VoiceChat({ onClose }) {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conversation, status]);
 
-  // تنظيف كامل عند إغلاق النافذة لضمان تحرير الميكروفون فوراً
+  // تنظيف كامل عند إغلاق النافذة
   useEffect(() => {
     return () => {
       stopVoiceRecognition();
@@ -27,30 +27,26 @@ function VoiceChat({ onClose }) {
 
   const handleStartListening = () => {
     if (window.speechSynthesis) {
-      window.speechSynthesis.cancel(); // إيقاف أي نطق قديم قبل البدء بالاستماع
+      window.speechSynthesis.cancel();
     }
     
     setListening(true);
     setCurrentStage('listening');
     setStatus('🎤 نظام المستشار الذكي يستمع إليك الآن... تحدث مباشرة');
 
-    // تشغيل محرك الالتقاط الفوري (النص يخرج مباشرة من صوتك محلياً)
     startVoiceChat(
       async (detectedText) => {
-        // إضافة النص الملتقط فوراً إلى شاشة المحادثة أمامك
         setConversation(prev => [...prev, { role: 'user', text: detectedText }]);
         setCurrentStage('thinking');
-        setStatus('🧠 جاري استنباط الرد الأكاديمي الاستراتيجي الفوري...');
+        setStatus('🧠 جاري استنباط الرد الأكاديمي...');
 
         try {
-          // إرسال النص الصافي المكتوب إلى المستشار الأكاديمي
           const answer = await askAI(detectedText);
           
           setConversation(prev => [...prev, { role: 'assistant', text: answer }]);
           setCurrentStage('speaking');
-          setStatus('🔊 جاري الرد الصوتي والمحاكاة النطقية الفورية...');
+          setStatus('🔊 جاري الرد الصوتي...');
           
-          // تشغيل قراءة الرد صوتياً بالكامل
           speakText(answer, {
             onEnd: () => {
               setCurrentStage('idle');
@@ -65,7 +61,6 @@ function VoiceChat({ onClose }) {
         }
       },
       (errorMessage) => {
-        // معالجة الأخطاء (مثل عدم وجود ميكروفون أو صمت)
         setStatus(errorMessage);
         setCurrentStage('idle');
         setListening(false);
@@ -78,6 +73,27 @@ function VoiceChat({ onClose }) {
     setCurrentStage('idle');
     setListening(false);
     setStatus('');
+  };
+
+  // 🟢 دالة جديدة: بدء محادثة جديدة (مسح السياق + الواجهة)
+  const handleNewConversation = () => {
+    // 1. إيقاف أي استماع أو نطق جاري
+    stopVoiceRecognition();
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    
+    // 2. مسح السياق من خدمة AI
+    clearConversationHistory();
+    
+    // 3. مسح الرسائل من الواجهة
+    setConversation([]);
+    setListening(false);
+    setCurrentStage('idle');
+    setStatus('✨ محادثة جديدة جاهزة. اضغط الميكروفون للبدء.');
+    
+    // إخفاء الرسالة بعد 3 ثوانٍ
+    setTimeout(() => setStatus(''), 3000);
   };
 
   return (
@@ -93,19 +109,65 @@ function VoiceChat({ onClose }) {
       >
         <div style={{ position: 'absolute', top: 0, right: 0, width: '150px', height: '4px', background: 'linear-gradient(90deg, transparent, #d6af37, transparent)' }} />
 
+        {/* ========== الرأس: العنوان + زر الإغلاق ========== */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(214,175,55,0.1)', paddingBottom: '15px' }}>
-          <div>
+          <div style={{ flex: 1 }}>
             <h3 style={{ fontFamily: 'Amiri, serif', fontSize: '1.6rem', color: '#f3e1a0', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span>🔮</span> مركز التفاعل الأكاديمي الصوتي الذكي
             </h3>
-            <p style={{ color: '#a0aec0', fontSize: '0.82rem', margin: '4px 0 0 0' }}>تقنية معالجة البيانات الفورية وجداول الحضور والغياب للجامعة (محدث ومؤمن 100% بدون بطء)</p>
+            <p style={{ color: '#a0aec0', fontSize: '0.82rem', margin: '4px 0 0 0' }}>
+              محادثة ذكية متصلة تحفظ السياق | تحليل فوري لبيانات الحضور والغياب
+            </p>
           </div>
-          <motion.button whileHover={{ scale: 1.1, rotate: 90 }} whileTap={{ scale: 0.9 }} onClick={onClose} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>✕</motion.button>
+          <motion.button 
+            whileHover={{ scale: 1.1, rotate: 90 }} 
+            whileTap={{ scale: 0.9 }} 
+            onClick={onClose} 
+            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}
+          >
+            ✕
+          </motion.button>
         </div>
 
-        {/* مؤشر تموجات الصوت التفاعلية */}
+        {/* 🟢 شريط أدوات علوي: زر محادثة جديدة + معلومات السياق */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+          <motion.button
+            onClick={handleNewConversation}
+            whileHover={{ scale: 1.03, background: 'rgba(239,68,68,0.15)' }}
+            whileTap={{ scale: 0.97 }}
+            style={{
+              background: 'rgba(239,68,68,0.08)',
+              border: '1px solid rgba(239,68,68,0.3)',
+              color: '#ef4444',
+              padding: '8px 16px',
+              borderRadius: '10px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              fontSize: '0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s ease'
+            }}
+            title="مسح المحادثة والبدء من جديد"
+          >
+            🗑️ محادثة جديدة
+          </motion.button>
+
+          <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>
+            {conversation.length > 0 
+              ? `📝 ${conversation.length} رسالة محفوظة في السياق`
+              : '✨ لا توجد محادثة حالية'}
+          </span>
+        </div>
+
+        {/* مؤشر تموجات الصوت */}
         <div style={{ height: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'rgba(0,0,0,0.2)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.02)', position: 'relative' }}>
-          {currentStage === 'idle' && <span style={{ color: '#a0aec0', fontSize: '0.9rem', fontStyle: 'italic' }}>بوابة الاستشعار الصوتي بانتظار تفعيل الميكروفون...</span>}
+          {currentStage === 'idle' && (
+            <span style={{ color: '#a0aec0', fontSize: '0.9rem', fontStyle: 'italic' }}>
+              بوابة الاستشعار الصوتي بانتظار تفعيل الميكروفون...
+            </span>
+          )}
           
           <AnimatePresence>
             {currentStage !== 'idle' && (
@@ -130,7 +192,7 @@ function VoiceChat({ onClose }) {
           </AnimatePresence>
         </div>
 
-        {/* صندوق عرض نصوص المحادثة المستلمة والمكتوبة */}
+        {/* صندوق عرض المحادثة */}
         <div className="voice-conversation-container" style={{ height: '220px', overflowY: 'auto', padding: '10px 5px', display: 'flex', flexDirection: 'column', gap: '15px', scrollbarWidth: 'thin' }}>
           <AnimatePresence>
             {conversation.map((msg, i) => (
@@ -163,25 +225,42 @@ function VoiceChat({ onClose }) {
           {conversation.length === 0 && (
             <div style={{ textAlign: 'center', padding: '40px 0', color: '#a0aec0', display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
               <span style={{ fontSize: '2.5rem', opacity: 0.3 }}>🎙️</span>
-              <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600 }}>بانتظار استقبال سؤالك الشفهي لتحليله والرد المباشر</p>
+              <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600 }}>
+                بانتظار استقبال سؤالك الشفهي لتحليله والرد المباشر
+              </p>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)' }}>
+                💡 جرّب: "مرحبا" أو "حلل حضور اليوم" أو "كم عدد الطلاب؟"
+              </p>
             </div>
           )}
           <div ref={chatEndRef} />
         </div>
 
-        {/* عرض شريط الحالة النظيف */}
+        {/* شريط الحالة */}
         <AnimatePresence>
           {status && (
             <motion.p 
-              initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              style={{ margin: 0, fontSize: '0.85rem', color: currentStage === 'listening' ? '#d6af37' : currentStage === 'thinking' ? '#34d399' : '#10b981', textAlign: 'center', fontWeight: 600, background: 'rgba(0,0,0,0.15)', padding: '8px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.02)' }}
+              initial={{ opacity: 0, y: 5 }} 
+              animate={{ opacity: 1, y: 0 }} 
+              exit={{ opacity: 0 }}
+              style={{ 
+                margin: 0, 
+                fontSize: '0.85rem', 
+                color: currentStage === 'listening' ? '#d6af37' : currentStage === 'thinking' ? '#34d399' : '#10b981', 
+                textAlign: 'center', 
+                fontWeight: 600, 
+                background: 'rgba(0,0,0,0.15)', 
+                padding: '8px', 
+                borderRadius: '8px', 
+                border: '1px solid rgba(255,255,255,0.02)' 
+              }}
             >
               {status}
             </motion.p>
           )}
         </AnimatePresence>
 
-        {/* أزرار التحكم الفاخرة والمحسنة */}
+        {/* أزرار التحكم */}
         <div className="voice-actions-lux" style={{ display: 'flex', gap: '12px', marginTop: '5px' }}>
           <motion.button
             whileHover={{ y: -3, boxShadow: listening ? '0 10px 25px rgba(239,68,68,0.2)' : '0 10px 25px rgba(214,175,55,0.2)' }}
@@ -191,7 +270,8 @@ function VoiceChat({ onClose }) {
               flex: 3, padding: '14px', borderRadius: '14px', border: 'none',
               background: listening ? 'linear-gradient(135deg, #ef4444, #b91c1c)' : 'linear-gradient(135deg, #d6af37, #b89324)',
               color: listening ? '#fff' : '#062b1e',
-              fontWeight: 900, fontSize: '1.05rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+              fontWeight: 900, fontSize: '1.05rem', cursor: 'pointer', 
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
               transition: 'all 0.2s ease'
             }}
           >
@@ -206,8 +286,10 @@ function VoiceChat({ onClose }) {
           </motion.button>
           
           <motion.button 
-            whileHover={{ background: 'rgba(255,255,255,0.06)' }} whileTap={{ scale: 0.97 }}
-            className="btn-close-lux" onClick={onClose} 
+            whileHover={{ background: 'rgba(255,255,255,0.06)' }} 
+            whileTap={{ scale: 0.97 }}
+            className="btn-close-lux" 
+            onClick={onClose} 
             style={{ flex: 1, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', color: '#a0aec0', borderRadius: '14px', fontWeight: 700, cursor: 'pointer' }}
           >
             إغلاق
